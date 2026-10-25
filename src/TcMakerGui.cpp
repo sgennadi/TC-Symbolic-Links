@@ -63,6 +63,8 @@ struct Ui {
     bool creating = false;
     bool privilegeError = false;
     bool hasRun = false;
+    bool unsafeDestination = false;
+    std::wstring unsafeReason;
     std::size_t nextItem = 0;
     int completed = 0;
     int failed = 0;
@@ -147,11 +149,87 @@ HWND AddControl(HWND parent, const wchar_t* cls, const wchar_t* title,
         GetModuleHandleW(nullptr), nullptr);
 }
 
+// Compare identities as well as spellings: .\, mixed case, short (8.3)
+// aliases and junctions can all refer to the same physical parent directory.
+bool SameDirectory(const std::wstring& first, const std::wstring& second) {
+    if (first.empty() || second.empty()) return false;
+    if (_wcsicmp(first.c_str(), second.c_str()) == 0) return true;
+    const DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    const auto open = [&](const std::wstring& path) {
+        return CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES, share, nullptr,
+                           OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    };
+    HANDLE a = open(first), b = open(second);
+    BY_HANDLE_FILE_INFORMATION ai{}, bi{};
+    const bool equal = a != INVALID_HANDLE_VALUE && b != INVALID_HANDLE_VALUE &&
+        GetFileInformationByHandle(a, &ai) != FALSE &&
+        GetFileInformationByHandle(b, &bi) != FALSE &&
+        ai.dwVolumeSerialNumber == bi.dwVolumeSerialNumber &&
+        ai.nFileIndexHigh == bi.nFileIndexHigh &&
+        ai.nFileIndexLow == bi.nFileIndexLow;
+    if (a != INVALID_HANDLE_VALUE) CloseHandle(a);
+    if (b != INVALID_HANDLE_VALUE) CloseHandle(b);
+    return equal;
+}
+bool DirectoryAtOrInside(std::wstring child, std::wstring parent) {
+    if (child.empty() || parent.empty()) return false;
+    if (_wcsicmp(child.c_str(), parent.c_str()) == 0) return true;
+    if (parent.back() != L'\\' && parent.back() != L'/') parent.push_back(L'\\');
+    if (child.size() <= parent.size()) return false;
+    return _wcsnicmp(child.c_str(), parent.c_str(), parent.size()) == 0;
+}
+std::wstring InvalidDestinationReason(const Ui& state, const std::wstring& dest) {
+    if (dest.empty() || !tcs::IsExistingDirectory(dest))
+        return state.Choose(
+            L"Choose an existing destination folder.",
+            L"Выберите существующую папку назначения.",
+            L"יש לבחור תיקיית יעד קיימת.");
+    for (const auto& selected : state.selected) {
+        const auto source = tcs::FullPath(selected);
+        const auto name = tcs::BaseName(selected);
+        if (source.empty() || name.empty() || name == L"." || name == L"..") continue;
+        const auto parent = tcs::FullPath(tcs::ParentPath(source));
+        const auto output = tcs::FullPath(tcs::Join(dest, name));
+        // Never manufacture a link on top of its original file or directory.
+        if (SameDirectory(parent, dest) ||
+            (!output.empty() && _wcsicmp(output.c_str(), source.c_str()) == 0)) {
+            return state.Choose(
+                L"Source and destination are the same folder. Choose another target panel.",
+                L"Источник и назначение — одна папка. Выберите другую папку справа.",
+                L"המקור והיעד הם אותה תיקייה. יש לבחור תיקיית יעד אחרת.");
+        }
+        if (tcs::IsExistingDirectory(source) && DirectoryAtOrInside(dest, source)) {
+            return state.Choose(
+                L"Destination is inside the selected source folder. This would make a recursive link.",
+                L"Назначение внутри исходной папки. Такая ссылка станет рекурсивной.",
+                L"תיקיית היעד נמצאת בתוך המקור. פעולה זו תיצור קישור רקורסיבי.");
+        }
+    }
+    return {};
+}
+void RefreshCreateSafety(Ui& s) {
+    if (!s.destination || !s.create) return;
+    const std::wstring destination = tcs::FullPath(GetText(s.destination));
+    s.unsafeReason = InvalidDestinationReason(s, destination);
+    s.unsafeDestination = !s.unsafeReason.empty();
+    if (!s.creating) EnableWindow(s.create, !s.unsafeDestination);
+    if (!s.creating && !s.hasRun && s.status) {
+        SetWindowTextW(s.status, s.unsafeDestination ? s.unsafeReason.c_str() :
+            s.Choose(L"Ready to create links.", L"Готово к созданию ссылок.",
+                     L"מוכן ליצירת קישורים."));
+    }
+    if (s.status) InvalidateRect(s.status, nullptr, TRUE);
+}
+
 void UpdatePlannedOutput(Ui& s) {
     // Right file panel previews destinations until a batch starts. Do not
     // replace actual success/error output when paths change after creation.
     if (!s.results || s.creating || s.hasRun) return;
     const std::wstring dir = tcs::FullPath(GetText(s.destination));
+    if (s.unsafeDestination) {
+        SetWindowTextW(s.results, (std::wstring(L"  !  ") + s.unsafeReason).c_str());
+        return;
+    }
     std::wstring lines;
     const auto count = (std::min)(s.selected.size(), std::size_t{80});
     for (std::size_t i = 0; i < count; ++i) {
@@ -165,10 +243,12 @@ void UpdatePlannedOutput(Ui& s) {
 
 void UpdatePreview(Ui& s) {
     if (!s.preview || !s.destination || s.selected.empty()) return;
+    RefreshCreateSafety(s);
     const auto name = tcs::BaseName(s.selected.front());
     const auto destination = tcs::FullPath(GetText(s.destination));
-    std::wstring value = s.Choose(L"New link: ", L"Новая ссылка: ", L"קישור חדש: ");
-    value += name.empty() || destination.empty() ? s.Choose(L"(choose source and destination)",
+    std::wstring value = s.unsafeDestination ? (std::wstring(L"!  ") + s.unsafeReason) :
+        std::wstring(s.Choose(L"New link: ", L"Новая ссылка: ", L"קישור חדש: "));
+    if (!s.unsafeDestination) value += name.empty() || destination.empty() ? s.Choose(L"(choose source and destination)",
             L"(укажите источник и назначение)", L"(בחר מקור ויעד)") :
         tcs::Join(destination, name);
     if (s.selected.size() > 1) value += L"  (+" + std::to_wstring(s.selected.size()-1) + L")";
@@ -475,7 +555,7 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
         L"Завершено с ошибками — подробности выше.", L"הושלם עם שגיאות - ראה פירוט.") :
         (cancelled ? state.Choose(L"Stopped.", L"Остановлено.", L"נעצר.") :
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
-    EnableWindow(state.create, TRUE);
+    RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
     SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links - Create Links",
         L"TC Symbolic Links - создание ссылок", L"TC Symbolic Links - יצירת קישורים"));
@@ -518,6 +598,12 @@ void ContinueCreate(HWND hwnd, Ui& state) {
 void BeginCreate(HWND hwnd, Ui& state) {
     if (state.creating) return;
     const auto destination = tcs::FullPath(GetText(state.destination));
+    RefreshCreateSafety(state);
+    if (state.unsafeDestination) {
+        MessageBeep(MB_ICONWARNING);
+        SetFocus(state.destination);
+        return;
+    }
     if (!tcs::IsExistingDirectory(destination)) {
         MessageBoxW(hwnd, state.Choose(L"Choose an existing destination folder.",
             L"Укажите существующую папку назначения.", L"בחר תיקיית יעד קיימת."),
