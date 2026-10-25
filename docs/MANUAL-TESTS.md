@@ -41,3 +41,19 @@ The standard TC installer **cannot** itself execute WDX setup code. If the initi
    compatible destination/volume pairs. Verify each WDX field in both panels.
 6. Do not report a stable release unless toolbar click and column rendering
    both pass in real Total Commander.
+
+## 0.2.4: valid DEFAULT.BAR without [Buttonbar] Buttonbar
+
+1. In an ISOLATED Total Commander test profile, preserve a copy of wincmd.ini
+   and DEFAULT.BAR; do not run on a production profile before backing up.
+2. Remove only the test profile's [Buttonbar] Buttonbar entry. Make sure TC
+   shows its default toolbar with existing custom buttons and subbars.
+3. Install the 0.2.4 WDX and accept one-time configuration.
+4. Verify the original DEFAULT.BAR is byte-for-byte unchanged, and a new
+   TC-Symbolic-Links-Default.bar exists beside the INI with every original
+   button plus exactly one Create Links button.
+5. Restart TC; verify the old buttons still work, the new button opens the
+   one-WDX GUI, and WDX columns appear in both panels.
+6. Reinstall; verify no duplicated buttons or column groups.
+7. For a profile with an explicitly configured .bar, verify its path does not
+   change and no shadow bar is activated.

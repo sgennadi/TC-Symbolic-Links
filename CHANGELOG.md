@@ -1,8 +1,21 @@
+## 0.2.4 (Preview) — October 25, 2026
+
+- Fix valid Total Commander profiles without an explicit `[Buttonbar] Buttonbar=`.
+- When TC uses `DEFAULT.BAR`, copy every existing button, icon and subbar to a
+  verified per-user toolbar and append Create Links there. Never mutate the
+  shared installation DEFAULT.BAR, even when running elevated.
+- Activate the verified per-user copy through `%COMMANDER_INI_PATH%`, preserving
+  Unicode home directory paths. Back up and roll back settings on failures.
+- Keep explicit personal toolbar profiles unchanged; retain prior quoting fixes.
+- Add dedicated Windows CTest regression for missing buttonbar setting,
+  read-only global default, backup, collision, idempotence and failure safety.
+- Increment one-time integration marker to version 204.
+
 # Changelog
 
 ## 0.2.3 (preview)
 
-- Upgrade completed 0.2.2 setup markers to version 203, allowing a broken existing button to be repaired in place without adding another one.
+- Treat 0.2.2 auto-configuration marker as outdated (upgrade marker to Version=203), so previously installed broken buttons are repaired on first-load reconfiguration, without adding another button.
 
 - Fix **critical root cause of no-op toolbar button**: Win32 INI readers strip the first and last double quotes when an entire `paramN` value begins and ends in quotes. Add harmless trailing `--tc-launch` (ignored by DLL GUI) to preserve DLL/target quoting, verify exact readback before committing and roll back on mismatch.
 

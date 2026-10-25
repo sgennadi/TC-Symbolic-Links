@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.3 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,6 +94,14 @@ if(WIN32)
   endif()
 
   if(BUILD_TESTING)
+    add_executable(windows_default_bar_tests tests/windows_default_bar_tests.cpp)
+    target_link_libraries(windows_default_bar_tests PRIVATE tc_integration)
+    add_test(NAME tc_implicit_default_toolbar_install
+      COMMAND windows_default_bar_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_implicit_default_toolbar_install PROPERTIES TIMEOUT 40)
+    if(MSVC)
+      target_compile_options(windows_default_bar_tests PRIVATE /W4 /utf-8)
+    endif()
     add_executable(windows_integration_tests tests/windows_integration_tests.cpp)
     target_link_libraries(windows_integration_tests PRIVATE tc_integration)
     add_test(NAME tc_one_dll_installer_and_rundll32

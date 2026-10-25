@@ -1,6 +1,9 @@
-// One-DLL Total Commander integration (0.2.2).
-// Critical rule: NEVER redirect the user's active button bar. Append to the
-// explicitly configured bar in place, with backups and rollback on failure.
+// One-DLL Total Commander integration (0.2.4).
+// Preserve a user's explicitly configured toolbar in place. If wincmd.ini
+// omits Buttonbar=, TC normally loads <COMMANDER_PATH>\DEFAULT.BAR: clone
+// the ENTIRE default bar into the user's INI folder before adding a button.
+// The original default bar is never edited, even if TC runs elevated.
+// On failure restore all INIs and delete only the new clone.
 #include "TcIntegration.h"
 #include "TcCustomView.h"
 #include <algorithm>
@@ -15,6 +18,8 @@
 namespace {
 constexpr wchar_t kTitle[] = L"TC Symbolic Links";
 constexpr wchar_t kButtonLabel[] = L"TC Symbolic Links - Create links";
+constexpr wchar_t kUserDefaultBarName[] = L"TC-Symbolic-Links-Default.bar";
+constexpr wchar_t kUserDefaultBarValue[] = L"%COMMANDER_INI_PATH%\\TC-Symbolic-Links-Default.bar";
 std::atomic_flag g_attempted = ATOMIC_FLAG_INIT;
 
 std::wstring Parent(std::wstring path) {
@@ -187,22 +192,32 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         return false;
     }
     const auto barValue = ReadIni(tcIni, L"Buttonbar", L"Buttonbar");
-    // TC can load another toolbar dynamically. Guessing DEFAULT.BAR here used
-    // to replace a user's button bar. Never silently guess the active bar.
-    if (barValue.empty()) {
-        status = L"No explicit active button bar in wincmd.ini; refusing to guess. "
-                 L"Set the active bar in TC Configuration > Change button bar.";
+    const bool implicitDefaultBar = barValue.empty();
+    // An absent Buttonbar= value is valid TC configuration. It means the
+    // startup bar is DEFAULT.BAR in the TC installation folder. Never change
+    // that shared original in Program Files: copy it into this user's INI dir.
+    // A temporary subbar opened with OPENBAR cannot be detected via WDX, so
+    // install into the user's STARTUP bar, not an arbitrary currently shown bar.
+    const std::wstring sourceBar = implicitDefaultBar ? Join(tcDir, L"DEFAULT.BAR") :
+        Resolve(barValue, iniDir, tcDir);
+    if (!IsFile(sourceBar)) {
+        status = implicitDefaultBar ?
+            L"Total Commander uses its default toolbar, but DEFAULT.BAR was not found. "
+            L"No settings changed." :
+            L"The configured TC .bar file could not be found. No settings changed.";
         return false;
     }
-    const auto barFile = Resolve(barValue, iniDir, tcDir);
-    if (!IsFile(barFile)) {
-        status = L"The active TC .bar file could not be found. No settings changed.";
+    const std::wstring barFile = implicitDefaultBar ? Join(iniDir, kUserDefaultBarName) : sourceBar;
+    // Never overwrite an unrelated user file or stale clone after a crash.
+    if (implicitDefaultBar && GetFileAttributesW(barFile.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        status = L"A file with the safe default-toolbar copy name already exists. "
+                 L"Refusing to replace it. No settings changed.";
         return false;
     }
     // Old versions forced TC to use a cloned toolbar, hiding its real buttons.
     // Require a recovery from wincmd.ini.tcslinks.bak first; never try to
     // promote this damaged clone to the new active bar.
-    if (_wcsicmp(barFile.c_str(), Join(iniDir, L"TCSymbolicLinks.bar").c_str()) == 0) {
+    if (_wcsicmp(sourceBar.c_str(), Join(iniDir, L"TCSymbolicLinks.bar").c_str()) == 0) {
         status = L"0.2.1 changed your active button bar. Restore the original "
                  L"wincmd.ini.tcslinks.bak and restart TC before configuring 0.2.2.";
         return false;
@@ -231,8 +246,8 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     if (!sysLen || sysLen >= 32768) { status = L"Cannot find system rundll32.exe."; return false; }
     const auto host = Join(systemDir, L"rundll32.exe");
     if (!IsFile(host)) { status = L"System rundll32.exe was not found."; return false; }
-    const auto rawCount = ReadIni(barFile, L"Buttonbar", L"Buttoncount");
-    if (rawCount.empty()) { status = L"Active .bar lacks a valid Buttoncount."; return false; }
+    const auto rawCount = ReadIni(sourceBar, L"Buttonbar", L"Buttoncount");
+    if (rawCount.empty()) { status = L"Startup .bar lacks a valid Buttoncount."; return false; }
     wchar_t* last = nullptr;
     long count = wcstol(rawCount.c_str(), &last, 10);
     if (!last || *last != 0 || count < 0 || count >= 10000) {
@@ -242,13 +257,13 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     int slot = 0;
     for (int i = 1; i <= count; ++i) {
         const auto n = std::to_wstring(i);
-        const auto cmd = ReadIni(barFile, L"Buttonbar", (L"cmd" + n).c_str());
-        const auto menu = ReadIni(barFile, L"Buttonbar", (L"menu" + n).c_str());
+        const auto cmd = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
+        const auto menu = ReadIni(sourceBar, L"Buttonbar", (L"menu" + n).c_str());
         if (menu == kButtonLabel) {
             // Treat only a command created by our versions as ours.
             if (_wcsicmp(cmd.c_str(), L"em_TCSymbolicLinks_Create") != 0 &&
                 (_wcsicmp(cmd.c_str(), host.c_str()) != 0 ||
-                 ReadIni(barFile, L"Buttonbar", (L"param" + n).c_str()).find(L"SymlinkInspector.wdx64") == std::wstring::npos)) {
+                 ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str()).find(L"SymlinkInspector.wdx64") == std::wstring::npos)) {
                 status = L"An unrelated button has the same label; refusing to replace it.";
                 return false;
             }
@@ -256,7 +271,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             break;
         }
     }
-    if (!CanOpenForWrite(barFile) || !CanOpenForWrite(tcIni) ||
+    if ((!implicitDefaultBar && !CanOpenForWrite(barFile)) || !CanOpenForWrite(tcIni) ||
         (columnsIni != tcIni && !CanOpenForWrite(columnsIni))) {
         status = L"Active TC configuration is read-only or in use. No changes made.";
         return false;
@@ -295,16 +310,57 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         originals.push_back(std::move(snap));
         return true;
     };
-    if (!remember(barFile) || !remember(tcIni) || !remember(columnsIni)) {
+    std::vector<unsigned char> defaultBytes;
+    if (implicitDefaultBar && !ReadBytes(sourceBar, defaultBytes)) {
+        status = L"Cannot read the original DEFAULT.BAR safely. No changes made.";
+        return false;
+    }
+    if ((!implicitDefaultBar && !remember(barFile)) || !remember(tcIni) || !remember(columnsIni)) {
         status = L"Cannot back up or inspect current configuration. Nothing changed.";
         return false;
     }
+    bool clonedDefault = false;
+    auto removeClone = [&] {
+        if (!clonedDefault) return true;
+        const DWORD attrs = GetFileAttributesW(barFile.c_str());
+        if (attrs == INVALID_FILE_ATTRIBUTES) return true;
+        if ((attrs & FILE_ATTRIBUTE_READONLY) &&
+            !SetFileAttributesW(barFile.c_str(), attrs & ~FILE_ATTRIBUTE_READONLY)) return false;
+        return DeleteFileW(barFile.c_str()) != FALSE;
+    };
     auto rollback = [&] {
         bool okay = true;
         for (auto it = originals.rbegin(); it != originals.rend(); ++it)
             if (!WriteBytes(it->path, it->original)) okay = false;
+        if (!removeClone()) okay = false;
         return okay;
     };
+    if (implicitDefaultBar) {
+        if (!CopyFileW(sourceBar.c_str(), barFile.c_str(), TRUE)) {
+            // CopyFileW may leave a partial new file on failure.
+            if (GetFileAttributesW(barFile.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                clonedDefault = true;
+                removeClone();
+            }
+            status = L"Cannot create a safe per-user copy of DEFAULT.BAR. "
+                     L"Original toolbar and settings were not changed.";
+            return false;
+        }
+        clonedDefault = true;
+        const DWORD attributes = GetFileAttributesW(barFile.c_str());
+        // A system/global DEFAULT.BAR may be read-only. Only the CLONE may
+        // have its read-only bit cleared, never the installation original.
+        const bool writableCopy = attributes != INVALID_FILE_ATTRIBUTES &&
+            (!(attributes & FILE_ATTRIBUTE_READONLY) ||
+             SetFileAttributesW(barFile.c_str(), attributes & ~FILE_ATTRIBUTE_READONLY));
+        std::vector<unsigned char> compared;
+        if (!writableCopy || !ReadBytes(barFile, compared) || compared != defaultBytes) {
+            const bool cleaned = rollback();
+            status = cleaned ? L"Could not verify the copied default toolbar. No settings changed." :
+                L"Default toolbar verification failed and cleanup was incomplete.";
+            return false;
+        }
+    }
     const int targetSlot = slot ? slot : static_cast<int>(count) + 1;
     const auto number = std::to_wstring(targetSlot);
     bool ok = WriteIni(barFile, L"Buttonbar", L"cmd" + number, host) &&
@@ -335,15 +391,24 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
              WriteIni(tcIni, L"left", L"SpecialView", v) &&
              WriteIni(tcIni, L"right", L"SpecialView", v);
     }
-    // The original [Buttonbar] Buttonbar entry and usercmd.ini are NEVER changed.
+    // Only the missing-Buttonbar= scenario needs a new per-user startup-bar
+    // reference. The original DEFAULT.BAR stays byte-for-byte untouched.
+    // For all explicit-bar profiles, keep their path unchanged.
+    if (ok && implicitDefaultBar) {
+        ok = WriteIni(tcIni, L"Buttonbar", L"Buttonbar", kUserDefaultBarValue) &&
+             ReadIni(tcIni, L"Buttonbar", L"Buttonbar") == kUserDefaultBarValue;
+    }
     if (!ok) {
         status = rollback() ? L"Configuration failed; original files were restored in place." :
             L"Configuration failed AND rollback was incomplete. Consult .tcslinks.bak files.";
         return false;
     }
-    status = L"Create Links was appended to your existing toolbar; no toolbar was switched. "
-             L"The WDX columns are enabled in both panels. .tcslinks.bak backups are available. "
-             L"Restart all Total Commander windows to load the button and columns.";
+    status = implicitDefaultBar ?
+        L"Your DEFAULT.BAR and all its existing buttons were preserved. "
+        L"An exact per-user copy with the new Create Links button was installed. "
+        L"WDX columns are enabled in both panes. Restart all Total Commander windows." :
+        L"Create Links was appended to your existing toolbar without switching it. "
+        L"WDX columns are enabled in both panes. Restart all Total Commander windows.";
     return true;
 }
 
@@ -366,7 +431,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     if (!IsFile(ini)) return;
     const auto marker = Join(Parent(ini), L"TCSymbolicLinksInstall.ini");
     if ((GetPrivateProfileIntW(L"Setup", L"Completed", 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", L"Version", 0, marker.c_str()) >= 203) ||
+         GetPrivateProfileIntW(L"Setup", L"Version", 0, marker.c_str()) >= 204) ||
         GetPrivateProfileIntW(L"Setup", L"Declined", 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
@@ -393,7 +458,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
         WriteIni(marker, L"Setup", L"Completed", L"1");
-        WriteIni(marker, L"Setup", L"Version", L"203");
+        WriteIni(marker, L"Setup", L"Version", L"204");
     }
     MessageBoxW(owner, status.c_str(), L"TC Symbolic Links", MB_OK | (success ? MB_ICONINFORMATION : MB_ICONERROR));
 }
