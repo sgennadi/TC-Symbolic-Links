@@ -2,6 +2,15 @@
 
 ## 0.1.5 (preview)
 
+- Publish complete source on GitHub under `sgennadi/TC-Symbolic-Links`.
+- Confirm GitHub Actions on Windows Server 2025 + VS2026:
+  all four native Windows tests pass; WDX64 and GUI EXE build successfully.
+- Launch real Total Commander 11.58, and create a Hebrew/niqqud hardlink
+  through the link-maker window. TC's internal WDX column GUI remains
+  unverified in the headless runner.
+- Add GitHub Actions report separating full GUI verification from binary/API
+  tests and provide build/test artifacts.
+
 - Add a GitHub Actions stage that downloads **official** Total Commander
   11.58 x64, pins its installer SHA256, validates Authenticode and extracts
   the real `TOTALCMD64.EXE` to a disposable test environment.
@@ -11,7 +20,7 @@
   UTF-16LE selection list and requests a hardlink via the window's controls.
 - Upload a machine-readable smoke-test report and optional screenshots as
   the `TC-RealApp-Smoke-Windows` GitHub Actions artifact.
-- Pin Windows CI runner to `windows-2025-vs2026`, check CMake 4.2+ before
+- Pin Windows CI runner to `windows-2025` (with VS2026), check CMake 4.2+ before
   trying the Visual Studio 18 2026/v145 generator.
 - Keep process-start, WDX-load and full GUI test results separate; don't
   claim GUI integration is verified when a non-interactive runner blocks it.
