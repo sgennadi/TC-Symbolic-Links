@@ -1,5 +1,6 @@
 #include "TcIntegration.h"
 #include <windows.h>
+#include <shellapi.h>
 #include <chrono>
 #include <thread>
 #include <filesystem>
@@ -39,6 +40,13 @@ int wmain(int argc, wchar_t** argv) {
         Require(argc == 2, "Pass WDX module path");
         const fs::path module = argv[1];
         Require(fs::exists(module), "Built WDX64 missing");
+        HICON bigIcon = nullptr, smallIcon = nullptr;
+        const UINT found = ExtractIconExW(module.c_str(), 0,
+                                          &bigIcon, &smallIcon, 1);
+        const bool hasChainIcon = found > 0 && (bigIcon || smallIcon);
+        if (bigIcon) DestroyIcon(bigIcon);
+        if (smallIcon) DestroyIcon(smallIcon);
+        Require(hasChainIcon, "WDX must embed an extractable chain-link toolbar icon");
         wchar_t tempDir[MAX_PATH+1]{};
         Require(GetTempPathW(MAX_PATH+1, tempDir) > 0, "GetTempPathW failed");
         wchar_t path[MAX_PATH+1]{};
@@ -94,6 +102,9 @@ int wmain(int argc, wchar_t** argv) {
         Require(!buttonParams.empty() && buttonParams.front() == L'"' &&
                 buttonParams.find(L"\" --tc-launch") != std::wstring::npos,
                 "regression: INI reader stripped critical surrounding argument quotes");
+        const auto iconSetting = Ini(bar, L"Buttonbar", L"button4");
+        Require(iconSetting.find(L"SymlinkInspector.wdx64,0") != std::wstring::npos,
+                "new TC button must use the WDX embedded chain icon");
         Require(buttonParams.find(L"SymlinkInspector.wdx64") != std::wstring::npos,
                 "button missing WDX module");
         Require(buttonParams.find(L"%COMMANDER_PATH%") == std::wstring::npos &&

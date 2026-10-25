@@ -74,7 +74,8 @@ if(WIN32)
 
   add_library(tc_integration STATIC src/TcIntegration.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp)
+  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp src/LinkMaker.rc)
+  target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 comctl32 shell32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
 
@@ -110,7 +111,7 @@ if(WIN32)
       target_compile_options(windows_default_bar_tests PRIVATE /W4 /utf-8)
     endif()
     add_executable(windows_integration_tests tests/windows_integration_tests.cpp)
-    target_link_libraries(windows_integration_tests PRIVATE tc_integration)
+    target_link_libraries(windows_integration_tests PRIVATE tc_integration shell32)
     add_test(NAME tc_one_dll_installer_and_rundll32
       COMMAND windows_integration_tests $<TARGET_FILE:SymlinkInspector>)
     set_tests_properties(tc_one_dll_installer_and_rundll32 PROPERTIES TIMEOUT 70)

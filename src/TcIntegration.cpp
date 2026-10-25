@@ -318,7 +318,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     const auto number = std::to_wstring(targetSlot);
     bool ok = WriteIni(barFile, L"Buttonbar", L"cmd" + number, host) &&
         WriteIni(barFile, L"Buttonbar", L"param" + number, arguments) &&
-        WriteIni(barFile, L"Buttonbar", L"button" + number, L"WCMICONS.DLL,44") &&
+        WriteIni(barFile, L"Buttonbar", L"button" + number, actualDll + L",0") &&
         WriteIni(barFile, L"Buttonbar", L"menu" + number, kButtonLabel);
     if (ok && !slot) ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", number);
     // Test the exact reader used by our toolbar parser. Quote-loss is a
