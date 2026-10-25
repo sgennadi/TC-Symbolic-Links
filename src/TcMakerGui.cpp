@@ -28,10 +28,8 @@ constexpr int ID_PREVIEW = 110;
 constexpr int ID_SOURCE_PATH = 111;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
-constexpr COLORREF kBackground = RGB(248, 250, 253);
-constexpr COLORREF kInk = RGB(35, 48, 65);
-constexpr COLORREF kSecondary = RGB(86, 103, 126);
-constexpr COLORREF kAccent = RGB(29, 104, 186);
+// Respect the Windows/Total Commander classic colours and user's OS theme.
+constexpr COLORREF kSecondary = RGB(85, 85, 85);
 
 struct Ui {
     bool ru = false;
@@ -272,6 +270,14 @@ void Layout(HWND hwnd, Ui& s) {
     const int paneHeight = (std::max)(Dp(s, 72), paneBottom - paneY);
     place(s.sources, margin, paneY, leftWidth, paneHeight);
     place(s.results, rightX, paneY, rightWidth, paneHeight);
+    if (s.sources) {
+        const int nameWidth = (std::max)(Dp(s, 110), leftWidth * 42 / 100);
+        const int typeWidth = Dp(s, 76);
+        ListView_SetColumnWidth(s.sources, 0, nameWidth);
+        ListView_SetColumnWidth(s.sources, 1, typeWidth);
+        ListView_SetColumnWidth(s.sources, 2,
+            (std::max)(Dp(s, 80), leftWidth - nameWidth - typeWidth - Dp(s, 8)));
+    }
 
     // Help is always available, but doesn't steal file panel space.
     const int infoY = paneBottom + Dp(s, 6);
@@ -551,7 +557,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_CREATE:
             if (state) {
                 state->dpi = GetDpiForWindow(hwnd);
-                state->backgroundBrush = CreateSolidBrush(kBackground);
+                state->backgroundBrush = CreateSolidBrush(GetSysColor(COLOR_BTNFACE));
                 CreateControls(hwnd, *state);
             }
             return 0;
@@ -563,8 +569,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
             RECT usable{};
             SystemParametersInfoW(SPI_GETWORKAREA, 0, &usable, 0);
-            info->ptMinTrackSize.x = (std::min)(MulDiv(620, dpi, 96), static_cast<int>(usable.right - usable.left) - 24);
-            info->ptMinTrackSize.y = (std::min)(MulDiv(505, dpi, 96), static_cast<int>(usable.bottom - usable.top) - 24);
+            info->ptMinTrackSize.x = (std::min)(MulDiv(760, dpi, 96), static_cast<int>(usable.right - usable.left) - 24);
+            info->ptMinTrackSize.y = (std::min)(MulDiv(540, dpi, 96), static_cast<int>(usable.bottom - usable.top) - 24);
             return 0;
         }
         case WM_DPICHANGED:
@@ -590,12 +596,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             PAINTSTRUCT paint{};
             HDC dc = BeginPaint(hwnd, &paint);
             if (state) {
-                HPEN line = CreatePen(PS_SOLID, Dp(*state, 2), kAccent);
-                HPEN old = reinterpret_cast<HPEN>(SelectObject(dc, line));
-                MoveToEx(dc, Dp(*state, 18), Dp(*state, 72), nullptr);
-                LineTo(dc, Dp(*state, 130), Dp(*state, 72));
-                SelectObject(dc, old);
-                DeleteObject(line);
+                RECT client{};
+                GetClientRect(hwnd, &client);
+                HPEN line = CreatePen(PS_SOLID, 1, GetSysColor(COLOR_3DSHADOW));
+                if (line) {
+                    HGDIOBJ old = SelectObject(dc, line);
+                    MoveToEx(dc, 0, Dp(*state, 31), nullptr);
+                    LineTo(dc, client.right, Dp(*state, 31));
+                    MoveToEx(dc, 0, client.bottom - Dp(*state, 40), nullptr);
+                    LineTo(dc, client.right, client.bottom - Dp(*state, 40));
+                    SelectObject(dc, old);
+                    DeleteObject(line);
+                }
             }
             EndPaint(hwnd, &paint);
             return 0;
@@ -605,9 +617,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 HDC dc = reinterpret_cast<HDC>(wParam);
                 SetBkMode(dc, TRANSPARENT);
                 const HWND ctl = reinterpret_cast<HWND>(lParam);
-                SetTextColor(dc, ctl == state->title ? kAccent :
-                    ((ctl == state->subtitle || ctl == state->modeHint ||
-                      ctl == state->relativeHint || ctl == state->status) ? kSecondary : kInk));
+                SetTextColor(dc, (ctl == state->subtitle || ctl == state->modeHint ||
+                    ctl == state->relativeHint || ctl == state->status)
+                    ? kSecondary : GetSysColor(COLOR_WINDOWTEXT));
                 return reinterpret_cast<LRESULT>(state->backgroundBrush);
             }
             break;
@@ -619,9 +631,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 UpdateModeHelp(*state);
             } else if (state && LOWORD(wParam) == ID_DEST && HIWORD(wParam) == EN_CHANGE) {
                 UpdatePreview(*state);
-            } else if (state && LOWORD(wParam) == ID_CREATE && HIWORD(wParam) == BN_CLICKED) {
+            } else if (state && LOWORD(wParam) == ID_CREATE &&
+                       (HIWORD(wParam) == BN_CLICKED || lParam == 0)) {
                 BeginCreate(hwnd, *state);
-            } else if (LOWORD(wParam) == ID_CLOSE && HIWORD(wParam) == BN_CLICKED) {
+            } else if (LOWORD(wParam) == ID_CLOSE &&
+                       (HIWORD(wParam) == BN_CLICKED || lParam == 0)) {
                 if (state && state->creating) FinishCreate(hwnd, *state, true);
                 else DestroyWindow(hwnd);
             }
@@ -710,6 +724,8 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     state->he = PRIMARYLANGID(uiLanguage) == LANG_HEBREW;
     state->selected = std::move(selected);
     state->initialDestination = std::move(destination);
+    INITCOMMONCONTROLSEX common{sizeof(common), ICC_LISTVIEW_CLASSES};
+    if (!InitCommonControlsEx(&common)) { delete state; return 5; }
     WNDCLASSEXW cls{sizeof(cls)};
     cls.style = CS_DBLCLKS;
     cls.lpfnWndProc = WindowProc;
@@ -721,14 +737,14 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     if (!RegisterClassExW(&cls)) { delete state; return 5; }
     RECT work{};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
-    const int winWidth = (std::min)(MulDiv(850, static_cast<int>(GetDpiForSystem()), 96),
+    const int winWidth = (std::min)(MulDiv(960, static_cast<int>(GetDpiForSystem()), 96),
                                     static_cast<int>(work.right - work.left) - 24);
-    const int winHeight = (std::min)(MulDiv(665, static_cast<int>(GetDpiForSystem()), 96),
+    const int winHeight = (std::min)(MulDiv(640, static_cast<int>(GetDpiForSystem()), 96),
                                      static_cast<int>(work.bottom - work.top) - 24);
     HWND window = CreateWindowExW(0, kClassName,
         state->he ? L"TC Symbolic Links — יצירת קישורים" :
         (state->ru ? L"TC Symbolic Links — создание ссылок" :
-                     L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW,
+                     L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT, CW_USEDEFAULT, winWidth, winHeight, nullptr, nullptr, instance, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.
@@ -736,12 +752,20 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     }
     ShowWindow(window, show == SW_HIDE ? SW_SHOWNORMAL : show);
     UpdateWindow(window);
+    // The exact same F5 and Esc shortcuts appear on the bottom buttons.
+    ACCEL mappings[] = {
+        {FVIRTKEY, VK_F5, static_cast<WORD>(ID_CREATE)},
+        {FVIRTKEY, VK_ESCAPE, static_cast<WORD>(ID_CLOSE)}
+    };
+    HACCEL shortcuts = CreateAcceleratorTableW(mappings, 2);
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (shortcuts && TranslateAcceleratorW(window, shortcuts, &msg)) continue;
         if (!IsDialogMessageW(window, &msg)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
     }
+    if (shortcuts) DestroyAcceleratorTable(shortcuts);
     return static_cast<int>(msg.wParam);
 }
