@@ -1,7 +1,7 @@
 # Real Total Commander acceptance in GitHub Actions (0.1.5)
 
 The `windows-vs2026` GitHub Actions job runs on the explicit
-`windows-2025-vs2026` image, which has Visual Studio 2026 and CMake 4.2+.
+`windows-2025` runner (which provides the VS2026 image), which has Visual Studio 2026 and CMake 4.2+.
 The job does the normal CMake/CTest Windows tests **and runs the actual**
 `TOTALCMD64.EXE`, using `scripts/windows-tc-smoke.ps1`.
 
@@ -56,13 +56,28 @@ installer and ABI tests; screenshots may not be available. You can invoke the
 script manually on an interactive Windows PC or runner with `-RequireFullGui`
 to make incomplete GUI acceptance fail the step.
 
-## How to run
+## Actual results, October 25, 2026
 
-After creating a repository containing this project, use **Actions** ->
-**TC Symbolic Links - VS2026, real TC GUI smoke and Linux Unicode** ->
-**Run workflow**. See artifacts from the `windows-vs2026` job.
+The first completed GitHub Actions Windows job is available at
+[run #40192126587](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587).
 
-No GitHub Actions job has been executed from this workspace: the connected
-GitHub account has no `TC-Symbolic-Links` repository and the GitHub connector
-does not expose repository creation. CI outcome remains **pending** until the
-files are pushed to a repository and Actions run.
+- VS2026 x64 compile: passed, both `TCSymlinkMaker.exe` and `SymlinkInspector.wdx64`.
+- CTest native Windows tests: **4 / 4 passed**, including Hebrew/niqqud.
+- Official Total Commander 11.58 verified and real `TOTALCMD64.EXE` launched.
+- Maker Win32 GUI detected and created a real hardlink for a Hebrew-named file.
+- TC's main window **was not found** on the hosted runner: WDX loading inside TC and custom-column rendering remain unverified.
+- Smoke report and screenshots: [artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598008845).
+
+The normal `.github/workflows/windows-build.yml` additionally runs a strict
+GUI acceptance step as a **non-blocking** check, and writes each boolean
+result to the GitHub Actions step summary. The native build and WDX API tests
+are independent and must pass even when GUI acceptance is unavailable.
+
+## How to run again
+
+In the repository, open [GitHub Actions](https://github.com/sgennadi/TC-Symbolic-Links/actions) →
+**TC Symbolic Links - Visual Studio 2026 x64 and Unicode tests** →
+**Run workflow** on branch `main`.
+
+Use an interactive, licensed Windows runner for final visual acceptance if
+Total Commander cannot show its main window on hosted CI.
