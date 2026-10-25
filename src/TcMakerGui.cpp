@@ -5,6 +5,7 @@
 #include "TcMakerGui.h"
 #include <windows.h>
 #include <shellapi.h>
+#include <commctrl.h>
 #include <algorithm>
 #include <cstddef>
 #include <exception>
@@ -24,6 +25,7 @@ constexpr int ID_CLOSE = 106;
 constexpr int ID_MODE_HINT = 108;
 constexpr int ID_RELATIVE_HINT = 109;
 constexpr int ID_PREVIEW = 110;
+constexpr int ID_SOURCE_PATH = 111;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
 constexpr COLORREF kBackground = RGB(248, 250, 253);
@@ -44,6 +46,7 @@ struct Ui {
     HWND subtitle = nullptr;
     HWND labelSources = nullptr;
     HWND sources = nullptr;
+    HWND sourcePath = nullptr;
     HWND labelDestination = nullptr;
     HWND destination = nullptr;
     HWND labelKind = nullptr;
@@ -61,6 +64,7 @@ struct Ui {
     std::wstring initialDestination;
     bool creating = false;
     bool privilegeError = false;
+    bool hasRun = false;
     std::size_t nextItem = 0;
     int completed = 0;
     int failed = 0;
@@ -107,16 +111,16 @@ void RecreateFont(Ui& state) {
     const auto oldTitle = state.fontTitle;
     const auto oldLabel = state.fontLabel;
     const auto oldSmall = state.fontSmall;
-    state.font = MakeFont(state.dpi, 10, FW_NORMAL);
-    state.fontTitle = MakeFont(state.dpi, 16, FW_SEMIBOLD);
-    state.fontLabel = MakeFont(state.dpi, 10, FW_SEMIBOLD);
+    state.font = MakeFont(state.dpi, 9, FW_NORMAL);
+    state.fontTitle = MakeFont(state.dpi, 10, FW_SEMIBOLD);
+    state.fontLabel = MakeFont(state.dpi, 9, FW_SEMIBOLD);
     state.fontSmall = MakeFont(state.dpi, 9, FW_NORMAL);
     if (!state.font) state.font = oldFont;
     if (!state.fontTitle) state.fontTitle = oldTitle;
     if (!state.fontLabel) state.fontLabel = oldLabel;
     if (!state.fontSmall) state.fontSmall = oldSmall;
-    for (HWND item : {state.sources, state.destination, state.kind, state.relative,
-                      state.results, state.create, state.close}) {
+    for (HWND item : {state.sources, state.sourcePath, state.destination, state.kind,
+                      state.relative, state.results, state.create, state.close}) {
         if (item && state.font) SendMessageW(item, WM_SETFONT,
                                              reinterpret_cast<WPARAM>(state.font), TRUE);
     }
@@ -145,6 +149,22 @@ HWND AddControl(HWND parent, const wchar_t* cls, const wchar_t* title,
         GetModuleHandleW(nullptr), nullptr);
 }
 
+void UpdatePlannedOutput(Ui& s) {
+    // Right file panel previews destinations until a batch starts. Do not
+    // replace actual success/error output when paths change after creation.
+    if (!s.results || s.creating || s.hasRun) return;
+    const std::wstring dir = tcs::FullPath(GetText(s.destination));
+    std::wstring lines;
+    const auto count = (std::min)(s.selected.size(), std::size_t{80});
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto name = tcs::BaseName(s.selected[i]);
+        if (!name.empty()) lines += L"  " + name + L"  ->  " + tcs::Join(dir, name) + L"\r\n";
+    }
+    if (count < s.selected.size()) lines += s.Choose(
+        L"...more selected items", L"...остальные выделенные элементы", L"...פריטים נוספים");
+    SetWindowTextW(s.results, lines.c_str());
+}
+
 void UpdatePreview(Ui& s) {
     if (!s.preview || !s.destination || s.selected.empty()) return;
     const auto name = tcs::BaseName(s.selected.front());
@@ -155,6 +175,7 @@ void UpdatePreview(Ui& s) {
         tcs::Join(destination, name);
     if (s.selected.size() > 1) value += L"  (+" + std::to_wstring(s.selected.size()-1) + L")";
     SetWindowTextW(s.preview, value.c_str());
+    UpdatePlannedOutput(s);
 }
 
 void UpdateModeHelp(Ui& s) {
@@ -329,7 +350,7 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
         (cancelled ? state.Choose(L"Stopped.", L"Остановлено.", L"נעצר.") :
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     EnableWindow(state.create, TRUE);
-    SetWindowTextW(state.close, state.Choose(L"Close", L"Закрыть", L"סגור"));
+    SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
     SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links - Create Links",
         L"TC Symbolic Links - создание ссылок", L"TC Symbolic Links - יצירת קישורים"));
     UpdateModeHelp(state);
@@ -388,12 +409,13 @@ void BeginCreate(HWND hwnd, Ui& state) {
     state.failed = 0;
     state.privilegeError = false;
     state.creating = true;
+    state.hasRun = true;
     SetWindowTextW(state.results, L"");
     EnableWindow(state.create, FALSE);
     EnableWindow(state.relative, FALSE);
     SetWindowTextW(state.status, state.Choose(L"Creating links...",
         L"Создание ссылок...", L"יוצר קישורים..."));
-    SetWindowTextW(state.close, state.Choose(L"Stop", L"Остановить", L"עצור"));
+    SetWindowTextW(state.close, state.Choose(L"Esc  Stop", L"Esc  Остановить", L"Esc  עצור"));
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }
 
