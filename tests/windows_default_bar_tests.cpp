@@ -133,6 +133,19 @@ int wmain(int argc, wchar_t** argv) {
         Check(Read(usercmd) == oldUsercmd, "usercmd.ini modified");
         Check(Read(defaultBar.wstring() + L".tcslinks.bak") == oldButtons,
               "DEFAULT.BAR pre-change backup missing or incorrect");
+        // Immutable first-install backup AND a fresh before-every-update
+        // snapshot are needed when users have added commands since 0.2.1.
+        auto countPreupdateCopies = [&] {
+            int copies = 0;
+            for (const auto& entry : fs::directory_iterator(tcDir)) {
+                const auto filename = entry.path().filename().wstring();
+                if (filename.starts_with(L"DEFAULT.BAR.tcslinks.preupdate.") &&
+                    filename.ends_with(L".bak") && entry.is_regular_file()) ++copies;
+            }
+            return copies;
+        };
+        Check(countPreupdateCopies() >= 1,
+              "No immediate pre-update toolbar snapshot was created");
         Check(Read(ini.wstring() + L".tcslinks.bak") == initialIni,
               "INI pre-change backup missing or incorrect");
         Check(Ini(ini, L"CustomFields", L"Titles") == L"Personal|Media|TC Symbolic Links",
@@ -175,6 +188,10 @@ int wmain(int argc, wchar_t** argv) {
               Ini(ini, L"Buttonbar", L"Buttonbar").empty(),
               "Reinstall duplicated buttons or switched toolbar");
         Check(Read(usercmd) == oldUsercmd, "Reinstall modified user commands");
+        Check(Read(defaultBar.wstring() + L".tcslinks.bak") == oldButtons,
+              "Reinstall overwrote the original pre-plugin toolbar backup");
+        Check(countPreupdateCopies() >= 2,
+              "Reinstall did not preserve a new immediate pre-update snapshot");
         // Previous versions' hidden/clone bars MUST be refused until restored.
         for (const auto* clone : {L"TCSymbolicLinks.bar", L"TC-Symbolic-Links-Default.bar"}) {
             const auto otherIni = configDir / (std::wstring(L"wincmd-") + clone + L".ini");
