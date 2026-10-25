@@ -229,47 +229,72 @@ void UpdateModeHelp(Ui& s) {
 }
 
 void Layout(HWND hwnd, Ui& s) {
-    RECT client{};
-    GetClientRect(hwnd, &client);
-    const int w = client.right - client.left;
-    const int h = client.bottom - client.top;
-    const bool compact = h < Dp(s, 610);
-    const int margin = Dp(s, compact ? 13 : 18);
-    const int wide = (std::max)(Dp(s, 200), w - margin * 2);
-    const int labelH = Dp(s, compact ? 17 : 20);
-    const int editH = Dp(s, compact ? 27 : 30);
-    const int gap = Dp(s, compact ? 7 : 11);
-    const int sourceH = Dp(s, compact ? 56 : 94);
-    const int hintH = Dp(s, compact ? 37 : 44);
-    const int relHintH = Dp(s, compact ? 36 : 43);
-    auto pos = [&](HWND item, int x, int y, int width, int height) {
-        if (item) MoveWindow(item, x, y, (std::max)(1, width), (std::max)(1, height), TRUE);
+    RECT rc{};
+    GetClientRect(hwnd, &rc);
+    const int width = rc.right - rc.left;
+    const int height = rc.bottom - rc.top;
+    const int margin = Dp(s, 10);
+    const int space = Dp(s, 8);
+    const int usable = (std::max)(Dp(s, 320), width - 2 * margin);
+    const int leftWidth = (usable - space) / 2;
+    const int rightX = margin + leftWidth + space;
+    const int rightWidth = usable - leftWidth - space;
+
+    auto place = [&](HWND child, int x, int y, int w, int h) {
+        if (child) MoveWindow(child, x, y, (std::max)(1, w),
+                              (std::max)(1, h), TRUE);
     };
-    pos(s.title, margin, Dp(s, compact ? 9 : 14), wide, Dp(s, 31));
-    pos(s.subtitle, margin, Dp(s, compact ? 39 : 48), wide, Dp(s, compact ? 19 : 23));
-    int y = Dp(s, compact ? 76 : 89);
-    pos(s.labelSources, margin, y, wide, labelH); y += labelH + Dp(s, 3);
-    pos(s.sources, margin, y, wide, sourceH); y += sourceH + gap;
-    pos(s.labelDestination, margin, y, wide, labelH); y += labelH + Dp(s, 3);
-    pos(s.destination, margin, y, wide, editH); y += editH + gap;
-    pos(s.labelKind, margin, y + Dp(s, 3), Dp(s, 126), editH);
-    pos(s.kind, margin + Dp(s, 133), y, wide - Dp(s, 133), Dp(s, 230));
-    y += editH + Dp(s, 6);
-    pos(s.modeHint, margin + Dp(s, 8), y, wide - Dp(s, 15), hintH); y += hintH + Dp(s, 3);
-    pos(s.relative, margin, y, wide, Dp(s, 26)); y += Dp(s, 26) + Dp(s, 3);
-    pos(s.relativeHint, margin + Dp(s, 22), y, wide - Dp(s, 25), relHintH);
-    y += relHintH + Dp(s, 6);
-    pos(s.preview, margin, y, wide, Dp(s, 21)); y += Dp(s, 21) + Dp(s, 6);
-    pos(s.labelResults, margin, y, wide, labelH); y += labelH + Dp(s, 3);
-    const int footerTop = h - Dp(s, 62);
-    const int resultsH = (std::max)(Dp(s, 24), footerTop - y);
-    pos(s.results, margin, y, wide, resultsH);
-    const int btnH = Dp(s, 33);
-    const int btnY = h - Dp(s, 13) - btnH;
-    pos(s.create, w - margin - Dp(s, 230), btnY, Dp(s, 132), btnH);
-    pos(s.close, w - margin - Dp(s, 89), btnY, Dp(s, 89), btnH);
-    pos(s.status, margin, btnY + Dp(s, 6),
-        (std::max)(Dp(s, 120), w - 2 * margin - Dp(s, 244)), Dp(s, 23));
+    // Compact tool strip above two Commander-style file panels.
+    place(s.title, margin, Dp(s, 6), Dp(s, 220), Dp(s, 22));
+    place(s.subtitle, margin + Dp(s, 230), Dp(s, 7),
+          (std::max)(Dp(s, 80), usable - Dp(s, 230)), Dp(s, 20));
+    const int toolsY = Dp(s, 37);
+    const int labelWidth = Dp(s, 75);
+    const int kindWidth = (std::min)(Dp(s, 360),
+          (std::max)(Dp(s, 225), usable / 2 - labelWidth - Dp(s, 5)));
+    place(s.labelKind, margin, toolsY + Dp(s, 5), labelWidth, Dp(s, 19));
+    place(s.kind, margin + labelWidth, toolsY, kindWidth, Dp(s, 300));
+    const int checkX = margin + labelWidth + kindWidth + space;
+    place(s.relative, checkX, toolsY + Dp(s, 3),
+          (std::max)(Dp(s, 105), width - margin - checkX), Dp(s, 24));
+
+    const int headingY = Dp(s, 74);
+    place(s.labelSources, margin, headingY, leftWidth, Dp(s, 19));
+    place(s.labelResults, rightX, headingY, rightWidth, Dp(s, 19));
+    const int pathY = Dp(s, 95);
+    const int pathH = Dp(s, 27);
+    place(s.sourcePath, margin, pathY, leftWidth, pathH);
+    place(s.destination, rightX, pathY, rightWidth, pathH);
+
+    const int paneY = pathY + pathH + Dp(s, 6);
+    const bool compact = height < Dp(s, 540);
+    const int paneBottom = height - Dp(s, compact ? 129 : 147);
+    const int paneHeight = (std::max)(Dp(s, 72), paneBottom - paneY);
+    place(s.sources, margin, paneY, leftWidth, paneHeight);
+    place(s.results, rightX, paneY, rightWidth, paneHeight);
+
+    // Help is always available, but doesn't steal file panel space.
+    const int infoY = paneBottom + Dp(s, 6);
+    place(s.modeHint, margin + Dp(s, 3), infoY, usable - Dp(s, 6),
+          Dp(s, compact ? 28 : 35));
+    place(s.relativeHint, margin + Dp(s, 3),
+          infoY + Dp(s, compact ? 30 : 38), usable - Dp(s, 6),
+          Dp(s, compact ? 28 : 35));
+    place(s.preview, margin + Dp(s, 3), height - Dp(s, 60),
+          usable - Dp(s, 6), Dp(s, 20));
+
+    // Function-key buttons just like Total Commander's bottom command strip.
+    const int actionY = height - Dp(s, 35);
+    const int createWidth = Dp(s, 120);
+    const int closeWidth = Dp(s, 103);
+    const int actionH = Dp(s, 29);
+    place(s.create, width - margin - closeWidth - space - createWidth,
+          actionY, createWidth, actionH);
+    place(s.close, width - margin - closeWidth,
+          actionY, closeWidth, actionH);
+    place(s.status, margin, actionY + Dp(s, 4),
+          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - 2 * space),
+          Dp(s, 22));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
