@@ -209,6 +209,11 @@ int wmain(int argc, wchar_t** argv) {
                 pos += to.size();
             }
         };
+        // TC expands its installation and profile variables when invoking
+        // a button; the test executable lives next to the plugin DLL, so
+        // these are the exact directories used by its integration fixture.
+        substitute(L"%COMMANDER_PATH%", module.parent_path().wstring());
+        substitute(L"%COMMANDER_INI_PATH%", profile.wstring());
         substitute(L"%WL", selection.wstring());
         substitute(L"%T", destination.wstring() + L"\\");
         // In actual TC these macros are expanded by TC; they must not remain.
