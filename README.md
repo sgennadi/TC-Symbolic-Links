@@ -1,30 +1,41 @@
 # TC Symbolic Links
 
-**Unicode-aware symbolic link utilities for Total Commander x64.** Create Windows file and directory symlinks, NTFS junctions and hardlinks from the active panel to the opposite panel, and inspect existing links through a WDX content plugin.
+**Native Total Commander x64 utilities for symbolic links, directory junctions and hardlinks.**
 
-> **Preview v0.1.5** — Linux tests passed; Windows/Total Commander integration must pass CI before a stable release.
+[Windows x64 build / tested artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598253250) · [CI run and test logs](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587) · [Manual acceptance checklist](docs/MANUAL-TESTS.md)
 
-## Features
+> **Preview 0.1.5**. Windows Server 2025 / Visual Studio 2026 compilation and all four native Windows tests passed. The *real* Total Commander 11.58 executable started, and the GUI companion created a Hebrew/niqqud hardlink. Loading the WDX into TC's own window and rendering its custom columns remain **unverified**, because the main TC window was not available to the headless runner.
 
-- Native Windows C++23 link creation through Win32 APIs; no `cmd.exe`, scripts or third-party DLLs required at runtime.
-- `TCSymlinkMaker.exe` for batch operations with a responsive UI, progress and stop button.
-- `SymlinkInspector.wdx64` with custom fields: link type, target, target existence and hardlink count.
-- Full UTF-16 path support: Hebrew (עברית), Russian, niqqud and mixed RTL/LTR names.
-- Native Linux `SymlinkInspector.wdx` for Double Commander; this is **not** a Windows DLL.
-- Automated build and unit/integration checks on GitHub Actions, including a real Total Commander smoke-test attempt.
+## What it does
 
-## Install (after Windows CI succeeds)
+- **Create links:** `TCSymlinkMaker.exe` makes file symlinks, directory symlinks, NTFS directory junctions and file hardlinks using native Unicode Win32 APIs — no shell, `cmd.exe` or extra runtime DLLs.
+- **Inspect links:** `SymlinkInspector.wdx64` adds content fields `Link type`, `Link target`, `Target exists` and `Hardlink count` to Total Commander custom columns.
+- **Bulk operation:** accepts files selected in one TC panel, creates links in the other panel, shows progress and offers Stop.
+- **Languages:** English, Russian and Hebrew UI; UTF-16 filenames with Hebrew niqqud, mixed RTL/LTR, Cyrillic, spaces, emoji and long paths.
+- **Double Commander on Linux:** build the same WDX source as a native ELF `SymlinkInspector.wdx` with a POSIX backend; it inspects Linux symlinks and hardlinks.
 
-1. Download the `TC-Symbolic-Links-win64-VS2026` artifact from [Actions](../../actions).
-2. Open the inner `TC-Symbolic-Links-win64.zip` in **Total Commander x64** and accept the WDX plugin installation.
-3. Add a TC button pointing to the installed `TCSymlinkMaker.exe` with parameters `--list "%WL" --dest "%T"` and start path `%P`.
-4. Select files in one panel and navigate to a destination folder in the other panel. Click the button to choose the link type.
+The WDX is an inspector, **not** a context-menu plugin. Link creation is provided by a separate TC button-bar application.
 
-The creator never silently overwrites an existing file. Junctions require a local directory target; hardlinks require a file on the same volume; symbolic link creation requires suitable Windows privileges or Developer Mode.
+## Install in Total Commander (Windows x64)
 
-## Building
+1. Download [TC-Symbolic-Links-win64-VS2026](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598253250) from the successful Windows Actions run. Extract `TC-Symbolic-Links-win64.zip` from the downloaded artifact.
+2. Open the inner ZIP in Total Commander x64; use its plugin installer for `SymlinkInspector.wdx64`. Ensure `TCSymlinkMaker.exe` is alongside the installed WDX.
+3. Add a new button to Total Commander's button bar with these settings:
 
-Use Visual Studio 2026 (MSVC v145) and CMake 4.2+ on Windows.
+   | TC button field | Value |
+   |---|---|
+   | **Command** | Full path to installed `TCSymlinkMaker.exe` |
+   | **Parameters** | `--list "%WL" --dest "%T"` |
+   | **Start path** | `%P` |
+
+4. Select files and/or folders in the source panel and navigate to an existing destination directory in the opposite panel. Click the button, choose the link type and create links.
+5. In **Configuration → Options → Custom columns**, add fields from the WDX plugin to display link metadata.
+
+The tool does not overwrite existing destinations. Windows symbolic links need appropriate privileges or Developer Mode; junction targets must be local directories; hardlinks must be files on the same volume.
+
+## Build and test
+
+**Windows:** Visual Studio 2026, MSVC v145, CMake 4.2+, Windows SDK, x64.
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
@@ -32,18 +43,41 @@ cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-On Linux, use CMake + GCC or Clang, then `ctest` to exercise the native WDX loader, Unicode paths, POSIX links and portable NTFS reparse decoder.
+Or run `build-windows.cmd`.
 
-## Project status
+**Linux:**
 
-This repository is being initialized from the tested 0.1.5 source snapshot. Check [Actions](../../actions) for actual Windows build results; **a passing Linux build is not proof of successful Windows/Total Commander GUI integration**.
+```bash
+cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+cmake --build build-linux --parallel
+ctest --test-dir build-linux --output-on-failure
+```
 
-## Project metadata
+## Verification (Preview 0.1.5)
 
-Suggested GitHub About description: **Total Commander plugin for symbolic links, NTFS junctions and hardlinks. Native C++23, Unicode (Hebrew/Russian), Windows x64 and Linux WDX.**
+| Test | Status |
+|---|---|
+| VS 2026 Windows x64 build: EXE and WDX64 | **Passed** |
+| Win32 symlinks, junctions, hardlinks with Hebrew paths | **Passed** |
+| WDX64 API exports and UTF-16 fields via direct Windows loader | **Passed** |
+| Unicode file-selection parsing, including niqqud | **Passed** |
+| NTFS reparse decoder, malformed buffers and UTF-16 validation | **Passed** |
+| Native Linux WDX tests (including real POSIX links) | **Passed** |
+| Total Commander 11.58 x64 process launch | **Passed** |
+| GUI companion creates Hebrew hardlink | **Passed** |
+| WDX loaded and custom columns displayed **inside Total Commander** | **Not yet verified** |
 
-Suggested topics: `total-commander`, `wdx`, `symbolic-links`, `symlink`, `junction`, `hardlink`, `c-plus-plus`, `windows`, `unicode`, `double-commander`.
+Full evidence: [GitHub Actions run #1](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587) and [TC smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598008845). The smoke-test job records this limitation explicitly rather than treating process startup as a complete GUI pass.
+
+## Documentation
+
+- [Windows GitHub Actions and build](docs/GITHUB-CI.md)
+- [Real Total Commander CI test](docs/REAL-TC-CI.md)
+- [Manual Windows / Hebrew acceptance tests](docs/MANUAL-TESTS.md)
+- [Native Linux WDX](README-LINUX.md)
+- [Changelog](CHANGELOG.md)
+- [GitHub repository About description and topic suggestions](docs/ABOUT.md)
 
 ## License
 
-No open-source license has been selected yet. Until one is added, all rights are reserved.
+No open-source license has been selected. All rights reserved unless an explicit license is later added.
