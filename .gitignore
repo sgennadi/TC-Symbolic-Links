@@ -1,0 +1,12 @@
+build*/
+.vs/
+.idea/
+*.user
+*.suo
+*.obj
+*.ilk
+*.pdb
+*.exe
+*.wdx64
+*.wdx
+*.zip

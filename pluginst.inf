@@ -1,0 +1,6 @@
+[plugininstall]
+description=TC Symbolic Links - Unicode symlink/junction/hardlink inspector
+version=0.1.5
+type=wdx
+file=SymlinkInspector.wdx64
+defaultdir=TCSymbolicLinks
