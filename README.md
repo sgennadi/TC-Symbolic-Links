@@ -88,6 +88,27 @@ interactive user validation.
   `.bar` files and the original INI backup; it does not modify anything.
 - Version 0.2.6 does **not** change the `[Buttonbar] Buttonbar=` selection.
 
+## Preserving and recovering your own Total Commander commands
+
+Recent recovery hardening does **not** replace or re-encode usercmd.ini.
+The toolbar installer preserves the original `.tcslinks.bak` file, and now
+also creates a uniquely named `.tcslinks.preupdate.*.bak` snapshot before
+each later configuration write. This protects buttons added after the first
+plugin install.
+
+If custom `em_*` definitions are missing, use the recovery artifact's
+`Restore-TC-Missing-Commands.cmd` (or its PowerShell script). After you
+close Total Commander and select your **actual** `wincmd.ini` from
+Help > About, the tool compares `usercmd.ini` against
+`usercmd.ini.tcslinks.bak`. It restores **only missing** `em_*` sections,
+never replaces existing definitions, creates a rollback snapshot, and verifies
+each recovered section. It refuses to guess commands when the old backup is
+absent. On error it rolls back the command file.
+
+Recovery is distinct from plugin installation. Restoring a toolbar selection
+does not necessarily restore missing `usercmd.ini` definitions, and
+restoring commands does not recreate an erased `.bar` layout. Check both.
+
 ## First: restore your existing toolbar if its icons disappeared
 
 1. In Total Commander open **Help > About** and note the exact `wincmd.ini` path.
