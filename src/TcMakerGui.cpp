@@ -7,6 +7,9 @@
 #include <shellapi.h>
 #include <commctrl.h>
 #include <richedit.h>
+#include <shobjidl.h>
+#include <shlobj.h>
+#include <objbase.h>
 #include <algorithm>
 #include <cstddef>
 #include <exception>
@@ -30,6 +33,7 @@ constexpr int ID_SOURCE_PATH = 111;
 constexpr int ID_SOURCE_GLYPH = 112;
 constexpr int ID_TARGET_GLYPH = 113;
 constexpr int ID_STATUS_GLYPH = 114;
+constexpr int ID_BROWSE = 115;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
@@ -58,6 +62,7 @@ struct Ui {
     HMODULE richEditModule = nullptr;
     bool hoveringCreate = false;
     bool hoveringClose = false;
+    bool hoveringBrowse = false;
     unsigned animationFrame = 0;
     HBRUSH backgroundBrush = nullptr;
     HWND title = nullptr;
@@ -70,6 +75,7 @@ struct Ui {
     HWND sourcePath = nullptr;
     HWND labelDestination = nullptr;
     HWND destination = nullptr;
+    HWND browse = nullptr;
     HWND labelKind = nullptr;
     HWND kind = nullptr;
     HWND modeHint = nullptr;
@@ -172,6 +178,7 @@ void RecreateFont(Ui& state) {
     if (!state.fontSmall) state.fontSmall = oldSmall;
     if (!state.fontIcon) state.fontIcon = oldIcon;
     for (HWND item : {state.sources, state.sourcePath, state.destination, state.kind,
+                      state.browse,
                       state.relative, state.results, state.create, state.close}) {
         if (item && state.font) SendMessageW(item, WM_SETFONT,
                                              reinterpret_cast<WPARAM>(state.font), TRUE);
@@ -382,7 +389,8 @@ LRESULT CALLBACK ActionButtonProc(HWND hwnd, UINT msg, WPARAM wParam,
                                   LPARAM lParam, UINT_PTR id, DWORD_PTR value) {
     auto* state = reinterpret_cast<Ui*>(value);
     if (state) {
-        bool& hovering = id == ID_CREATE ? state->hoveringCreate : state->hoveringClose;
+        bool& hovering = id == ID_CREATE ? state->hoveringCreate :
+                         id == ID_CLOSE ? state->hoveringClose : state->hoveringBrowse;
         if (msg == WM_MOUSEMOVE && !hovering) {
             hovering = true;
             TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0};
@@ -398,17 +406,20 @@ LRESULT CALLBACK ActionButtonProc(HWND hwnd, UINT msg, WPARAM wParam,
 void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     RECT r = item.rcItem;
     const bool create = item.CtlID == ID_CREATE;
+    const bool browse = item.CtlID == ID_BROWSE;
     const bool enabled = (item.itemState & ODS_DISABLED) == 0;
     const bool pressed = (item.itemState & ODS_SELECTED) != 0;
-    const bool hot = create ? state.hoveringCreate : state.hoveringClose;
-    const COLORREF fill = create ?
+    const bool hot = create ? state.hoveringCreate :
+                     browse ? state.hoveringBrowse : state.hoveringClose;
+    const COLORREF fill = browse ? (hot ? RGB(219, 232, 255) : kSoftButton) :
+                          create ?
         (!enabled ? RGB(169, 183, 209) : pressed ? RGB(30, 64, 175) :
           hot ? kAccentHover : kAccent) :
         (state.creating ? (hot ? RGB(254, 226, 226) : RGB(254, 242, 242)) :
           hot ? RGB(222, 231, 245) : kSoftButton);
     const COLORREF border = create ? fill :
         (state.creating ? RGB(254, 202, 202) : kLine);
-    const COLORREF ink = create ? kSurface :
+    const COLORREF ink = browse ? kAccent : create ? kSurface :
         state.creating ? kDanger : kInk;
 
     HDC memory = CreateCompatibleDC(item.hDC);
@@ -431,10 +442,11 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     DeleteObject(pen);
     DeleteObject(brush);
 
-    RECT icon{r.left + Dp(state, 9), r.top,
+    RECT icon = browse ? r : RECT{r.left + Dp(state, 9), r.top,
               r.left + Dp(state, 38), r.bottom};
     PaintSymbol(dc, state, icon,
                 create ? static_cast<wchar_t>(0xE71B) :
+                browse ? static_cast<wchar_t>(0xE8B7) :
                 state.creating ? static_cast<wchar_t>(0xE71A) :
                                  static_cast<wchar_t>(0xE8BB), ink);
     std::wstring label = GetText(item.hwndItem);
@@ -443,7 +455,7 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
         SelectObject(dc, state.fontLabel) : nullptr;
     const int oldMode = SetBkMode(dc, TRANSPARENT);
     const COLORREF oldText = SetTextColor(dc, ink);
-    DrawTextW(dc, label.c_str(), -1, &labelRect,
+    if (!browse) DrawTextW(dc, label.c_str(), -1, &labelRect,
               DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SetTextColor(dc, oldText);
     SetBkMode(dc, oldMode);
@@ -502,6 +514,47 @@ void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
         GetWindowLongPtrW(parent, GWLP_USERDATA)), 350));
 }
 
+void ChooseDestination(HWND owner, Ui& state) {
+    if (!state.destination || state.creating) return;
+    const HRESULT apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
+                                                     COINIT_DISABLE_OLE1DDE);
+    const bool ownApartment = SUCCEEDED(apartment);
+    if (FAILED(apartment) && apartment != RPC_E_CHANGED_MODE) return;
+    IFileOpenDialog* dialog = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+             CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog))) && dialog) {
+        FILEOPENDIALOGOPTIONS options{};
+        if (SUCCEEDED(dialog->GetOptions(&options)))
+            dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        dialog->SetTitle(state.Choose(
+            L"Choose destination folder", L"Выберите папку назначения",
+            L"בחירת תיקיית יעד"));
+        const auto current = tcs::FullPath(GetText(state.destination));
+        IShellItem* initial = nullptr;
+        if (!current.empty() && SUCCEEDED(SHCreateItemFromParsingName(
+                current.c_str(), nullptr, IID_PPV_ARGS(&initial))) && initial) {
+            dialog->SetFolder(initial);
+            initial->Release();
+        }
+        if (SUCCEEDED(dialog->Show(owner))) {
+            IShellItem* choice = nullptr;
+            if (SUCCEEDED(dialog->GetResult(&choice)) && choice) {
+                PWSTR path = nullptr;
+                if (SUCCEEDED(choice->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path) {
+                    SetWindowTextW(state.destination, path);
+                    // Also supports programmatic SetWindowText on nested dialogs.
+                    RefreshCreateSafety(state);
+                    UpdatePreview(state);
+                    CoTaskMemFree(path);
+                }
+                choice->Release();
+            }
+        }
+        dialog->Release();
+    }
+    if (ownApartment) CoUninitialize();
+}
+
 void Layout(HWND hwnd, Ui& s) {
     RECT rc{};
     GetClientRect(hwnd, &rc);
@@ -542,7 +595,9 @@ void Layout(HWND hwnd, Ui& s) {
     const int pathY = Dp(s, 95);
     const int pathH = Dp(s, 27);
     place(s.sourcePath, margin, pathY, leftWidth, pathH);
-    place(s.destination, rightX, pathY, rightWidth, pathH);
+    place(s.destination, rightX, pathY, rightWidth - Dp(s, 42), pathH);
+    place(s.browse, rightX + rightWidth - Dp(s, 36), pathY,
+          Dp(s, 36), pathH);
 
     const int paneY = pathY + pathH + Dp(s, 6);
     const bool compact = height < Dp(s, 540);
@@ -651,6 +706,8 @@ void CreateControls(HWND hwnd, Ui& s) {
     s.destination = AddControl(hwnd, L"EDIT", s.initialDestination.c_str(),
         WS_TABSTOP | ES_AUTOHSCROLL | WS_BORDER, ID_DEST,
         WS_EX_CLIENTEDGE);
+    s.browse = AddControl(hwnd, L"BUTTON", L"",
+        WS_TABSTOP | BS_OWNERDRAW, ID_BROWSE);
 
     // Native report-view table: familiar TC name/type/path columns and icons.
     s.sources = AddControl(hwnd, WC_LISTVIEWW, L"",
@@ -749,6 +806,12 @@ void CreateControls(HWND hwnd, Ui& s) {
                       reinterpret_cast<DWORD_PTR>(&s));
     SetWindowSubclass(s.close, ActionButtonProc, ID_CLOSE,
                       reinterpret_cast<DWORD_PTR>(&s));
+    SetWindowSubclass(s.browse, ActionButtonProc, ID_BROWSE,
+                      reinterpret_cast<DWORD_PTR>(&s));
+    AddToolTip(hwnd, s.browse, s.Choose(
+        L"Choose another destination folder...",
+        L"Выберите папку назначения...",
+        L"בחירת תיקיית יעד אחרת..."));
     AddToolTip(hwnd, s.create, s.Choose(
         L"Create links in the destination panel (F5)",
         L"Создать ссылки в папке назначения (F5)",
@@ -769,6 +832,7 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     InvalidateRect(hwnd, nullptr, FALSE);
     if (state.statusGlyph) InvalidateRect(state.statusGlyph, nullptr, TRUE);
     if (state.close) InvalidateRect(state.close, nullptr, FALSE);
+    if (state.browse) EnableWindow(state.browse, TRUE);
     AppendLine(state.results, L"------------------------------");
     AppendLine(state.results, state.Choose(L"Created: ", L"Создано: ", L"נוצרו: ") +
         std::to_wstring(state.completed) + state.Choose(L"; skipped / failed: ",
@@ -859,6 +923,7 @@ void BeginCreate(HWND hwnd, Ui& state) {
     state.hasRun = true;
     SetWindowTextW(state.results, L"");
     EnableWindow(state.create, FALSE);
+    if (state.browse) EnableWindow(state.browse, FALSE);
     EnableWindow(state.relative, FALSE);
     SetWindowTextW(state.status, state.Choose(L"Creating links...",
         L"Создание ссылок...", L"יוצר קישורים..."));
@@ -973,7 +1038,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_DRAWITEM:
             if (state && lParam) {
                 const auto* item = reinterpret_cast<const DRAWITEMSTRUCT*>(lParam);
-                if (item->CtlID == ID_CREATE || item->CtlID == ID_CLOSE) {
+                if (item->CtlID == ID_CREATE || item->CtlID == ID_CLOSE ||
+                    item->CtlID == ID_BROWSE) {
                     PaintAction(*state, *item);
                     return TRUE;
                 }
@@ -1013,7 +1079,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) ContinueCreate(hwnd, *state);
             return 0;
         case WM_COMMAND:
-            if (state && LOWORD(wParam) == ID_KIND && HIWORD(wParam) == CBN_SELCHANGE) {
+            if (state && LOWORD(wParam) == ID_BROWSE && HIWORD(wParam) == BN_CLICKED) {
+                ChooseDestination(hwnd, *state);
+            } else if (state && LOWORD(wParam) == ID_KIND && HIWORD(wParam) == CBN_SELCHANGE) {
                 UpdateModeHelp(*state);
             } else if (state && LOWORD(wParam) == ID_DEST && HIWORD(wParam) == EN_CHANGE) {
                 UpdatePreview(*state);
