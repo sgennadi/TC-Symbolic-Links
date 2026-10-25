@@ -76,7 +76,7 @@ if(WIN32)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp src/LinkMaker.rc)
   target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 comctl32 shell32)
+  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 comctl32 shell32 ole32 uuid)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
 
   if(BUILD_TESTING)
