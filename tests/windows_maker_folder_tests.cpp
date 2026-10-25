@@ -83,6 +83,9 @@ int wmain(int argc, wchar_t** argv) {
         bool wrongHint = false;
         bool commanderLayout = false;
         bool actionStripOnScreen = false;
+        bool rejectsSameFolder = false;
+        bool rejectsChildDestination = false;
+        bool allowsSafeTarget = false;
         if (window) {
             // TC-style regression: two resizable file panels and familiar
             // classic list view must exist while retaining the old WDX IDs.
@@ -114,6 +117,20 @@ int wmain(int argc, wchar_t** argv) {
                     left.right <= right.left && left.top == right.top &&
                     srcLine.right <= dstLine.left && srcLine.top == dstLine.top &&
                     ControlText(action).find(L"F5") != std::wstring::npos;
+            }
+            // User screenshot regression: source Downloads\PS1, target
+            // Downloads\. must NOT attempt to create Downloads\PS1 again.
+            HWND destination = GetDlgItem(window, 101);
+            HWND make = GetDlgItem(window, 105);
+            if (destination && make) {
+                const auto identical = (root.dir / L".").wstring();
+                SetWindowTextW(destination, identical.c_str());
+                rejectsSameFolder = !IsWindowEnabled(make);
+                // No recursive links: don't create a selected folder within itself.
+                SetWindowTextW(destination, (folder / L".").c_str());
+                rejectsChildDestination = !IsWindowEnabled(make);
+                SetWindowTextW(destination, output.c_str());
+                allowsSafeTarget = IsWindowEnabled(make);
             }
             HWND combo = GetDlgItem(window, 102);
             HWND createButton = GetDlgItem(window, 105);
@@ -149,6 +166,8 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
+        Check(rejectsSameFolder && rejectsChildDestination && allowsSafeTarget,
+              "Maker F5 not guarded against same-directory or recursive link destination");
         Check(actionStripOnScreen, "TC-style F5 button clipped by Windows taskbar/work area");
         Check(helpPresent && relativeDisabled, "The selected Junction mode needs useful help and disabled relative option");
         Check(created, "%WL directory ending in backslash did not create a junction");
