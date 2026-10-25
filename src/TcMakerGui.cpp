@@ -300,53 +300,148 @@ void Layout(HWND hwnd, Ui& s) {
 
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
-    const DWORD captionStyle = s.he ? SS_RIGHT : 0;
-    s.title = AddControl(hwnd, L"STATIC", s.Choose(L"Create symbolic links",
-        L"Создание ссылок", L"יצירת קישורים"), SS_ENDELLIPSIS | captionStyle, 0, captionEx);
-    s.subtitle = AddControl(hwnd, L"STATIC", s.Choose(
-        L"Total Commander  |  File and folder links  |  Nothing is overwritten",
-        L"Total Commander  |  Ссылки на файлы и папки  |  Без перезаписи",
-        L"Total Commander  |  קישורים לקבצים ולתיקיות  |  ללא דריסה"), SS_ENDELLIPSIS | captionStyle, 0, captionEx);
-    const std::wstring sourcesTitle = std::wstring(s.Choose(L"SOURCE ITEMS",
-        L"ИСТОЧНИКИ", L"פריטי מקור")) + L"  (" + std::to_wstring(s.selected.size()) + L")";
-    s.labelSources = AddControl(hwnd, L"STATIC", sourcesTitle.c_str(), captionStyle, 0, captionEx);
-    s.sources = AddControl(hwnd, L"LISTBOX", L"", WS_TABSTOP | WS_VSCROLL | WS_HSCROLL |
-        WS_BORDER | LBS_NOINTEGRALHEIGHT, ID_SOURCES, WS_EX_CLIENTEDGE);
-    s.labelDestination = AddControl(hwnd, L"STATIC", s.Choose(L"DESTINATION  -  opposite panel",
-        L"НАЗНАЧЕНИЕ  -  другая панель", L"יעד  -  החלונית השנייה"), captionStyle, 0, captionEx);
-    s.destination = AddControl(hwnd, L"EDIT", s.initialDestination.c_str(),
-        WS_TABSTOP | ES_AUTOHSCROLL | WS_BORDER, ID_DEST, WS_EX_CLIENTEDGE);
-    s.labelKind = AddControl(hwnd, L"STATIC", s.Choose(L"LINK TYPE",
-        L"ТИП ССЫЛКИ", L"סוג קישור"), captionStyle, 0, captionEx);
-    s.kind = AddControl(hwnd, L"COMBOBOX", L"", WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, ID_KIND);
-    s.modeHint = AddControl(hwnd, L"STATIC", L"", SS_LEFT | SS_EDITCONTROL, ID_MODE_HINT, captionEx);
-    s.relative = AddControl(hwnd, L"BUTTON", s.Choose(
-        L"Use a relative target path (symlinks only)",
-        L"Использовать относительный путь (только Symlink)",
-        L"השתמש בנתיב יעד יחסי (קישור סמלי בלבד)"),
-        WS_TABSTOP | BS_AUTOCHECKBOX | (s.he ? BS_RIGHTBUTTON : 0), ID_RELATIVE, captionEx);
-    s.relativeHint = AddControl(hwnd, L"STATIC", L"", SS_LEFT | SS_EDITCONTROL, ID_RELATIVE_HINT, captionEx);
-    s.preview = AddControl(hwnd, L"STATIC", L"", SS_ENDELLIPSIS, ID_PREVIEW, captionEx);
-    s.labelResults = AddControl(hwnd, L"STATIC", s.Choose(L"RESULTS",
-        L"РЕЗУЛЬТАТЫ", L"תוצאות"), captionStyle, 0, captionEx);
-    s.results = AddControl(hwnd, L"EDIT", L"", WS_VSCROLL | WS_HSCROLL | ES_MULTILINE |
-        ES_READONLY | ES_AUTOVSCROLL | WS_BORDER, ID_RESULTS, WS_EX_CLIENTEDGE);
-    s.status = AddControl(hwnd, L"STATIC", s.Choose(L"Ready to create links.",
-        L"Готово к созданию ссылок.", L"מוכן ליצירת קישורים."), SS_ENDELLIPSIS, 0, captionEx);
-    s.create = AddControl(hwnd, L"BUTTON", s.Choose(L"Create links", L"Создать ссылки",
-        L"צור קישורים"), WS_TABSTOP | BS_DEFPUSHBUTTON, ID_CREATE, captionEx);
-    s.close = AddControl(hwnd, L"BUTTON", s.Choose(L"Close", L"Закрыть", L"סגור"),
-        WS_TABSTOP, ID_CLOSE, captionEx);
-    for (const auto& source : s.selected) SendMessageW(s.sources, LB_ADDSTRING, 0,
-                                               reinterpret_cast<LPARAM>(source.c_str()));
-    for (const wchar_t* value : {s.Choose(L"Automatic symlink (file or folder)",
-            L"Автоматически: Symlink файла / папки", L"אוטומטי: קישור לקובץ או תיקייה"),
-           s.Choose(L"File symbolic link", L"Symlink файла", L"קישור סמלי לקובץ"),
-           s.Choose(L"Directory symbolic link", L"Symlink папки", L"קישור סמלי לתיקייה"),
-           s.Choose(L"Directory junction (NTFS)", L"Junction папки (NTFS)", L"צומת תיקיות (NTFS)"),
-           s.Choose(L"File hardlink (same volume)", L"Hardlink файла (один диск)", L"קישור קשיח לקובץ (אותו כונן)")}) {
-        SendMessageW(s.kind, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(value));
+    const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links",
+        SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
+        L"selected  |  Existing files are never overwritten",
+        L"выбрано  |  Существующие файлы не перезаписываются",
+        L"נבחרו  |  קבצים קיימים לא יוחלפו");
+    s.subtitle = AddControl(hwnd, L"STATIC", subtitle.c_str(),
+        SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    s.labelKind = AddControl(hwnd, L"STATIC",
+        s.Choose(L"Link type:", L"Тип ссылки:", L"סוג קישור:"),
+        SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    s.kind = AddControl(hwnd, L"COMBOBOX", L"",
+        WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST, ID_KIND);
+    s.relative = AddControl(hwnd, L"BUTTON",
+        s.Choose(L"Relative target (symlinks)",
+                 L"Относительный путь (symlink)",
+                 L"נתיב יחסי (קישור סמלי)"),
+        WS_TABSTOP | BS_AUTOCHECKBOX | (s.he ? BS_RIGHTBUTTON : 0),
+        ID_RELATIVE, captionEx);
+
+    const std::wstring sourceCaption = std::wstring(s.Choose(
+        L"Source panel", L"Исходная панель", L"חלונית מקור")) + L"  [" +
+        std::to_wstring(s.selected.size()) + L"]";
+    s.labelSources = AddControl(hwnd, L"STATIC", sourceCaption.c_str(),
+        SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    s.labelResults = AddControl(hwnd, L"STATIC", s.Choose(
+        L"Target panel  |  Planned links / results",
+        L"Целевая панель  |  Ссылки / результат",
+        L"חלונית יעד  |  קישורים / תוצאות"),
+        SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+
+    // Display the selected parent folder like TC's path bar. Never change the
+    // original selected strings: the LinkCore still receives the exact paths.
+    std::wstring origin = s.selected.empty() ? L"" : s.selected.front();
+    auto stripSlash = [](std::wstring path) {
+        while (path.size() > 3 &&
+               (path.back() == L'\\' || path.back() == L'/')) path.pop_back();
+        return path;
+    };
+    origin = stripSlash(std::move(origin));
+    const auto slash = origin.find_last_of(L"\\/");
+    const std::wstring parent = slash == std::wstring::npos ?
+        L"" : origin.substr(0, slash + 1);
+    bool sameParent = true;
+    for (const auto& item : s.selected) {
+        const auto source = stripSlash(item);
+        const auto i = source.find_last_of(L"\\/");
+        if ((i == std::wstring::npos ? L"" : source.substr(0, i + 1)) != parent) {
+            sameParent = false;
+            break;
+        }
     }
+    const std::wstring displayOrigin = sameParent ? parent : s.Choose(
+        L"(multiple source folders)", L"(несколько исходных папок)",
+        L"(מספר תיקיות מקור)");
+    s.sourcePath = AddControl(hwnd, L"EDIT", displayOrigin.c_str(),
+        ES_READONLY | ES_AUTOHSCROLL | WS_BORDER, ID_SOURCE_PATH,
+        WS_EX_CLIENTEDGE);
+    s.destination = AddControl(hwnd, L"EDIT", s.initialDestination.c_str(),
+        WS_TABSTOP | ES_AUTOHSCROLL | WS_BORDER, ID_DEST,
+        WS_EX_CLIENTEDGE);
+
+    // Native report-view table: familiar TC name/type/path columns and icons.
+    s.sources = AddControl(hwnd, WC_LISTVIEWW, L"",
+        WS_TABSTOP | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS |
+        LVS_SINGLESEL, ID_SOURCES, WS_EX_CLIENTEDGE);
+    ListView_SetExtendedListViewStyle(s.sources,
+        LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+    auto col = [&](int index, int pixels, const wchar_t* text) {
+        LVCOLUMNW column{};
+        column.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
+        column.cx = Dp(s, pixels);
+        column.fmt = LVCFMT_LEFT;
+        column.pszText = const_cast<LPWSTR>(text);
+        ListView_InsertColumn(s.sources, index, &column);
+    };
+    col(0, 185, s.Choose(L"Name", L"Имя", L"שם"));
+    col(1, 74, s.Choose(L"Type", L"Тип", L"סוג"));
+    col(2, 335, s.Choose(L"Full path", L"Полный путь", L"נתיב מלא"));
+
+    SHFILEINFOW dirIcon{}, regularIcon{};
+    const HIMAGELIST icons = reinterpret_cast<HIMAGELIST>(SHGetFileInfoW(
+        L"folder", FILE_ATTRIBUTE_DIRECTORY, &dirIcon, sizeof(dirIcon),
+        SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES));
+    SHGetFileInfoW(L"file.txt", FILE_ATTRIBUTE_NORMAL, &regularIcon,
+        sizeof(regularIcon), SHGFI_SYSICONINDEX | SHGFI_SMALLICON |
+        SHGFI_USEFILEATTRIBUTES);
+    if (icons) ListView_SetImageList(s.sources, icons, LVSIL_SMALL);
+
+    for (std::size_t i = 0; i < s.selected.size(); ++i) {
+        const auto& full = s.selected[i];
+        const auto name = tcs::BaseName(full);
+        const std::wstring normalized = stripSlash(full);
+        const DWORD attrib = GetFileAttributesW(normalized.c_str());
+        const bool directory = attrib != INVALID_FILE_ATTRIBUTES &&
+                               (attrib & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        LVITEMW item{};
+        item.mask = LVIF_TEXT | LVIF_IMAGE;
+        item.iItem = static_cast<int>(i);
+        item.iImage = directory ? dirIcon.iIcon : regularIcon.iIcon;
+        item.pszText = const_cast<LPWSTR>(name.c_str());
+        const int row = ListView_InsertItem(s.sources, &item);
+        if (row == -1) continue;
+        const wchar_t* type = directory ? s.Choose(L"<DIR>", L"<КАТ>", L"<תיקייה>") :
+                                          s.Choose(L"File", L"Файл", L"קובץ");
+        ListView_SetItemText(s.sources, row, 1, const_cast<LPWSTR>(type));
+        ListView_SetItemText(s.sources, row, 2, const_cast<LPWSTR>(full.c_str()));
+    }
+    if (!s.selected.empty())
+        ListView_SetItemState(s.sources, 0, LVIS_SELECTED | LVIS_FOCUSED,
+                             LVIS_SELECTED | LVIS_FOCUSED);
+
+    s.results = AddControl(hwnd, L"EDIT", L"",
+        WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_READONLY |
+        ES_AUTOVSCROLL | WS_BORDER, ID_RESULTS, WS_EX_CLIENTEDGE);
+    s.modeHint = AddControl(hwnd, L"STATIC", L"",
+        SS_EDITCONTROL | alignCaption, ID_MODE_HINT, captionEx);
+    s.relativeHint = AddControl(hwnd, L"STATIC", L"",
+        SS_EDITCONTROL | alignCaption, ID_RELATIVE_HINT, captionEx);
+    s.preview = AddControl(hwnd, L"STATIC", L"",
+        SS_ENDELLIPSIS | alignCaption, ID_PREVIEW, captionEx);
+    s.status = AddControl(hwnd, L"STATIC", s.Choose(
+        L"Ready.", L"Готово.", L"מוכן."), SS_ENDELLIPSIS | alignCaption, 0,
+        captionEx);
+    s.create = AddControl(hwnd, L"BUTTON", s.Choose(
+        L"F5  Create", L"F5  Создать", L"F5  צור"),
+        WS_TABSTOP | BS_DEFPUSHBUTTON, ID_CREATE);
+    s.close = AddControl(hwnd, L"BUTTON", s.Choose(
+        L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"),
+        WS_TABSTOP, ID_CLOSE);
+
+    for (const wchar_t* label : {
+        s.Choose(L"Automatic (file / folder)", L"Автоматически (файл / папка)",
+                 L"אוטומטי (קובץ / תיקייה)"),
+        s.Choose(L"File symbolic link", L"Symlink файла", L"קישור סמלי לקובץ"),
+        s.Choose(L"Directory symbolic link", L"Symlink папки", L"קישור סמלי לתיקייה"),
+        s.Choose(L"Directory junction (NTFS)", L"Junction папки (NTFS)",
+                 L"צומת תיקיות (NTFS)"),
+        s.Choose(L"File hardlink", L"Hardlink файла", L"קישור קשיח לקובץ")
+    }) SendMessageW(s.kind, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label));
+
     SendMessageW(s.kind, CB_SETCURSEL, 0, 0);
     SendMessageW(s.relative, BM_SETCHECK, BST_UNCHECKED, 0);
     RecreateFont(s);
