@@ -1,30 +1,44 @@
-# GitHub Windows CI: TC Symbolic Links 0.1.5
+# GitHub Actions build and test guide
 
-This project needs its **own repository**, e.g. `Digitoxin1/TC-Symbolic-Links`; it should not be merged into the unrelated ISO-WCX source tree.
+Repository: [sgennadi/TC-Symbolic-Links](https://github.com/sgennadi/TC-Symbolic-Links).
 
-1. Create an empty GitHub repository named `TC-Symbolic-Links` under your account. Leave GitHub's initialization checkboxes disabled.
-2. Upload the **contents of the source archive root**, including `.github/workflows/windows-build.yml` (avoid uploading a parent `TC-Symbolic-Links-0.1.5` directory instead).
-3. In **Actions**, enable workflows if GitHub requests confirmation, and run **TC Symbolic Links - Windows VS2026 and Linux Unicode** via **Run workflow** from the `main` branch. Pushes to main also run it.
-4. Three jobs must pass: `windows-vs2026`, `linux-wdx-unicode`, `linux-sanitizers`. The Windows job compiles with CMake `Visual Studio 18 2026` and `v145` on the `windows-2025-vs2026` runner.
-5. Download the workflow artifact **TC-Symbolic-Links-win64-VS2026**. Inside it are the **TC-Symbolic-Links-win64.zip** package and its `.sha256` file. Test the plugin in Total Commander x64 using `docs/MANUAL-TESTS.md` before declaring a stable release.
-6. Only after the workflow passes, a tag `v0.1.5` can automatically publish a GitHub **prerelease** with Windows and Linux bundles. **A tag does not certify GUI integration.**
+## Status
 
-Commands on a machine with Git, and with the repository already created:
+The full source tree, CMake project, GitHub Actions workflows, localized GUI,
+portable WDX implementation and unit tests were imported into `main` on
+October 25, 2026.
 
-    git init
-    git add .
-    git commit -m "TC Symbolic Links 0.1.5 preview"
-    git branch -M main
-    git remote add origin https://github.com/Digitoxin1/TC-Symbolic-Links.git
-    git push -u origin main
+- [Verified initial Windows + Linux run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587): **passed**.
+- Windows Server 2025, Visual Studio 2026 (v145): **4/4 native CTest tests passed**.
+- Linux Unicode / WDX loader tests: **3/3 passed**.
+- Total Commander 11.58 and the link maker both launched; Hebrew/niqqud
+  hardlink creation through the maker GUI: **passed**.
+- Total Commander internal WDX custom columns: **not yet fully GUI-verified**.
+- The normal workflow also exercises Linux ASan/UBSan and packages both Windows
+  and Linux plugins.
 
-No workflow or GitHub release has been run from this Linux container. A repository must exist and its GitHub Actions checks must pass first.
+## Start CI
 
-## Additional real-app test (0.1.5)
+1. Open [Actions](https://github.com/sgennadi/TC-Symbolic-Links/actions).
+2. Select **TC Symbolic Links - Visual Studio 2026 x64 and Unicode tests**.
+3. Click **Run workflow** and select `main`.
+4. Inspect three jobs: `windows-vs2026`, `linux-wdx-unicode`, `linux-sanitizers`.
+5. Download Windows artifact `TC-Symbolic-Links-win64-VS2026` containing
+   `TC-Symbolic-Links-win64.zip` and `.sha256`; the Linux job produces
+   `TC-Symbolic-Links-Linux-WDX-x64`.
+6. Inspect `TC-RealApp-Smoke-Windows` for `tc-smoke.json`, screenshots, and
+   specifically `interactive_gui_verified`. Process launch alone does not
+   count as successful WDX column rendering.
 
-The Windows job executes `scripts/windows-tc-smoke.ps1` after CTest.
-It verifies the official Total Commander 11.58 installer and starts
-`TOTALCMD64.EXE` with an isolated WDX configuration and Hebrew paths. The
-`TC-RealApp-Smoke-Windows` Actions artifact reports which additional GUI
-checks actually succeeded. See [`REAL-TC-CI.md`](REAL-TC-CI.md) for detailed
-interpretation and restrictions.
+The runner is `windows-2025` with the **Visual Studio 2026**
+toolchain; CMake generator `Visual Studio 18 2026`, MSVC v145.
+
+## Release policy
+
+Only use a `v*` Git tag to publish a GitHub **prerelease** after Windows,
+Linux and sanitizer workflows have passed. Keep the project in Preview while
+`interactive_gui_verified` is false. Do not claim a stable release from a
+passing compile or DLL ABI test alone.
+
+See [REAL-TC-CI.md](REAL-TC-CI.md) for detailed, licensing-respecting
+Total Commander GUI testing.
