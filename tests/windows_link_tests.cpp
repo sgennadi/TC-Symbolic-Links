@@ -66,9 +66,18 @@ int main() {
                 tcs::LinkKind::Hardlink, false) != ERROR_SUCCESS,
                 "Existing destination was unexpectedly overwritten");
 
+        // TC %WL directory selections end with a backslash. Regression:
+        // v0.2.5 reported "Invalid source name" instead of creating a link.
+        const auto directoryWithSlash = sourceFolder.wstring() + L"\\";
+        Require(tcs::BaseName(directoryWithSlash) == sourceFolder.filename().wstring(),
+                "Folder selection ending in backslash has an empty link name");
+        Require(tcs::BaseName(sourceFolder.wstring()) == tcs::BaseName(directoryWithSlash),
+                "Trailing-slash and ordinary folder names must match");
+        Require(tcs::BaseName(L"C:\\").empty(),
+                "Drive root should not be given a fabricated link name");
         // Directory junction with mixed Hebrew/Latin directory names.
         const fs::path junction = targetFolder / L"קישור תיקייה 2026";
-        const DWORD junctionError = tcs::CreateLink(sourceFolder.wstring(), junction.wstring(),
+        const DWORD junctionError = tcs::CreateLink(directoryWithSlash, junction.wstring(),
                                                        tcs::LinkKind::Junction, false);
         Require(junctionError == ERROR_SUCCESS, "Hebrew directory junction creation failed");
         const auto junctionDetails = tcs::InspectLink(junction.wstring());
@@ -108,7 +117,7 @@ int main() {
         }
 
         const fs::path directorySymlink = targetFolder / L"סימלינק תיקייה";
-        const DWORD dirSymbolError = tcs::CreateLink(sourceFolder.wstring(), directorySymlink.wstring(),
+        const DWORD dirSymbolError = tcs::CreateLink(directoryWithSlash, directorySymlink.wstring(),
                                                      tcs::LinkKind::DirectorySymbolic, true);
         if (dirSymbolError == ERROR_PRIVILEGE_NOT_HELD) {
             std::cout << "SKIP: directory symlink needs Developer Mode or elevated privilege\n";

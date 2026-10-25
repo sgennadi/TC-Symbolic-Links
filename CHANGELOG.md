@@ -1,3 +1,15 @@
+## 0.2.6 (Preview) — real user folder selection and link maker UI
+
+- Fix `%WL` directory paths that end with a backslash; previously the GUI
+  said `Invalid source name` and never created directory symlinks or junctions.
+- New explicit Win32 regression with trailing-slash Hebrew folder selection,
+  actual WDX UI, Junction creation, link traversal and error-message checks.
+- Modernized native responsive Unicode / HiDPI maker layout and added
+  contextual explanations for every link type and relative symlink targets.
+- Display Error 1314 guidance only for real privilege errors.
+- Add optional, read-only toolbar inspection utility to identify the original
+  custom icon bar. Keep the safe 0.2.5 toolbar selection behavior unchanged.
+
 ## 0.2.5 (Preview) — critical customized-toolbar safety fix
 
 - Fix **real 0.2.4 user report**: the saved button's `%COMMANDER_PATH%` was

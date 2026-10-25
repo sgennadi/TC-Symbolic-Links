@@ -88,3 +88,24 @@ The standard TC installer **cannot** itself execute WDX setup code. If the initi
 6. Reinstall; verify no duplicated buttons or column groups.
 7. For a profile with an explicitly configured .bar, verify its path does not
    change and no shadow bar is activated.
+
+## 0.2.6 actual user screenshot regressions (mandatory)
+
+1. With TC's existing custom toolbar selected, note all original icons and
+   verify `[Buttonbar] Buttonbar` remains identical before and after setup.
+2. If icons were already hidden by 0.2.1/0.2.4, run the read-only
+   `Inspect-TC-Toolbars.cmd` and the consent-gated surgical restore before
+   doing any further plugin setup. Do not overwrite old `.bar` files.
+3. Select a directory named `WinPE-CHKDSK-v1.0.17` in the source panel; TC
+   should transmit `...\WinPE-CHKDSK-v1.0.17\` in the UTF-16LE `%WL` list.
+4. Choose a different folder in the opposite panel; select **Directory Junction**
+   and Create. It must create a working folder link and must NOT show
+   "Invalid source name" or an irrelevant Error 1314 privilege warning.
+5. Select **Directory symbolic link** and Create in a fresh destination,
+   recording privilege-dependent results separately from folder-name validation.
+6. Verify the description changes for each of the five link types, the
+   Relative target example is readable and only enabled for symlink kinds,
+   and long paths/HiDPI at 100%, 150%, 200% do not clip the buttons.
+7. Test Hebrew, Cyrillic, spaces and ending separators in selected folders.
+8. Verify file Hardlink and file Symlink still create expected link kinds,
+   and no pre-existing destination is ever overwritten.

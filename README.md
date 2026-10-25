@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.5 Preview
+# TC Symbolic Links 0.2.6 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,28 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.6: folder links and improved maker window
+
+- **Fixed actual user screenshot:** Total Commander sends selected folders with a trailing
+  `\` in `%WL`. The old `BaseName()` returned an empty name and falsely reported
+  "Invalid source name". The plugin now strips only trailing separators from
+  non-root paths, including Unicode folder names, and preserves drive roots.
+- Directory Symlinks and NTFS Junctions work for those folder selections.
+  A Windows integration test **launches the DLL's GUI** with a UTF-16LE folder
+  list ending in `\`, chooses **Directory Junction**, creates the link, checks
+  its NTFS type, and confirms that the source content is accessible.
+- Refreshed native Windows UI with a clear source and output preview, helpful
+  explanations for all five link types, and a permanent explanation of **Relative
+  target**. That option is disabled for Junction and Hardlink.
+- Fixed misleading errors: "Windows Error 1314 / Developer Mode" now appears
+  only for an actual insufficient-symlink-privilege error, not for bad names or
+  pre-existing targets. The result pane displays Windows error codes per item.
+- **Previously lost custom icons are not reconstructed by reinstalling the WDX.**
+  First close TC, restore the original toolbar with the included recovery script,
+  and verify the icons. The new `Inspect-TC-Toolbars.cmd` only examines candidate
+  `.bar` files and the original INI backup; it does not modify anything.
+- Version 0.2.6 does **not** change the `[Buttonbar] Buttonbar=` selection.
 
 ## First: restore your existing toolbar if its icons disappeared
 
@@ -26,7 +48,9 @@ the installed DLL through the system `rundll32.exe`.
    keeps all other settings and `.bar` files, and refuses uncertain backups.
 5. Start TC and confirm your custom buttons are present **before** installing
    another preview. If the helper refuses or the old bar does not return,
-   do not retry the plugin: preserve your backups for diagnosis.
+   do not retry the plugin: run `Inspect-TC-Toolbars.cmd` (read-only),
+   preserve the candidate `.bar` files, and select the real original bar
+   through **Configuration > Change button bar** if needed.
 
 ## What changes in 0.2.5
 
@@ -59,7 +83,7 @@ Russian and Hebrew UI, mixed RTL/LTR and Unicode paths are supported.
 ## Installation
 
 1. Download a **Windows x64 CI artifact** from [GitHub Actions](https://github.com/sgennadi/TC-Symbolic-Links/actions)
-   for a passing 0.2.5 build. Inside the artifact there is the Total Commander
+   for a passing 0.2.6 build. Inside the artifact there is the Total Commander
    installer ZIP; open that ZIP in TC, not with Ctrl+PgDn.
 2. When the WDX is first initialized by TC, it offers to configure the
    **startup** toolbar button and the two custom-column views. Confirm only

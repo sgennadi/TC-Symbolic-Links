@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.5 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.6 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,9 +87,16 @@ if(WIN32)
     target_link_libraries(wdx_abi_tests PRIVATE tc_link_core)
     add_test(NAME wdx_unicode_exports COMMAND wdx_abi_tests $<TARGET_FILE:SymlinkInspector>)
 
+    add_executable(windows_maker_folder_tests tests/windows_maker_folder_tests.cpp)
+    target_link_libraries(windows_maker_folder_tests PRIVATE tc_link_core)
+    add_test(NAME tc_real_folder_selection_and_junction_gui
+      COMMAND windows_maker_folder_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_real_folder_selection_and_junction_gui PROPERTIES TIMEOUT 45)
+
     if(MSVC)
       target_compile_options(windows_link_tests PRIVATE /W4 /utf-8)
       target_compile_options(wdx_abi_tests PRIVATE /W4 /utf-8)
+      target_compile_options(windows_maker_folder_tests PRIVATE /W4 /utf-8)
     endif()
   endif()
 
