@@ -20,10 +20,18 @@ struct Cleanup {
     ~Cleanup() { std::error_code ec; fs::remove_all(dir, ec); }
 };
 std::wstring ControlText(HWND hwnd) {
-    int length = GetWindowTextLengthW(hwnd);
+    if (!hwnd) return {};
+    // The WDX maker is hosted in another rundll32.exe process. Cross-process
+    // GetWindowText cannot read EDIT controls; WM_GETTEXT is marshalled by
+    // USER32 and is required for genuine integration-test assertions.
+    const auto length = SendMessageW(hwnd, WM_GETTEXTLENGTH, 0, 0);
+    if (length <= 0 || length > 200000) return {};
     std::wstring result(static_cast<std::size_t>(length + 1), L'\0');
-    length = GetWindowTextW(hwnd, result.data(), length + 1);
-    result.resize(static_cast<std::size_t>(length));
+    const auto count = SendMessageW(hwnd, WM_GETTEXT,
+        static_cast<WPARAM>(length + 1),
+        reinterpret_cast<LPARAM>(result.data()));
+    if (count < 0) return {};
+    result.resize(static_cast<std::size_t>(count));
     return result;
 }
 void WideList(const fs::path& out, const std::wstring& folder) {
@@ -125,15 +133,17 @@ int wmain(int argc, wchar_t** argv) {
             if (destination && make) {
                 const auto identical = (root.dir / L".").wstring();
                 auto refresh = [&](const std::wstring& value) {
-                    Check(SetWindowTextW(destination, value.c_str()) != FALSE,
-                          "Cannot set destination in GUI guard test");
+                    Check(SendMessageW(destination, WM_SETTEXT, 0,
+                                       reinterpret_cast<LPARAM>(value.c_str())) != 0,
+                          "Cross-process WM_SETTEXT could not update destination");
                     // Simulate the exact EN_CHANGE event emitted when a user
                     // edits the path in the destination panel.
                     SendMessageW(window, WM_COMMAND, MAKEWPARAM(101, EN_CHANGE),
                                  reinterpret_cast<LPARAM>(destination));
                 };
                 refresh(identical);
-                rejectsSameFolder = !IsWindowEnabled(make);
+                rejectsSameFolder = !IsWindowEnabled(make) &&
+                    ControlText(GetDlgItem(window, 110)).find(L"same folder") != std::wstring::npos;
                 // No recursive links: don't create a selected folder within itself.
                 refresh((folder / L".").wstring());
                 rejectsChildDestination = !IsWindowEnabled(make);
