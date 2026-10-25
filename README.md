@@ -111,25 +111,29 @@ The GitHub Actions workflow also attempts the real Total Commander 11.58 x64 smo
 
 Linux `.wdx` is compatible with the Double Commander WDX ABI, including its 16-bit UTF-16 `WCHAR` representation. Linux tests cover real POSIX links, Unicode files and malformed NTFS reparse data. This does not replace Windows GUI acceptance.
 
-## CI status and outstanding acceptance — October 25, 2026
+## Verified CI status — October 25, 2026
 
-**0.2.4 includes the 0.2.2 safety fix and a new persisted-button GUI test; interactive user acceptance is still required.**
-The previous [0.2.1 GitHub Actions run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503)
-passed Windows unit tests, and the real WDX maker GUI created a Hebrew hardlink.
-However, these tests missed a live-user regression: 0.2.1 overwrote the active toolbar
-reference, hid custom buttons, and routed its own button through `usercmd.ini`.
+Version **0.2.4 Preview** passed the complete [GitHub Actions run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40206502697):
 
-The Windows integration regression explicitly requires:
+- **Visual Studio 2026 x64 / Windows Server 2025: 8/8 native CTest checks passed.**
+- The new `tc_implicit_default_toolbar_install` test reproduces a profile with **no `Buttonbar=` setting**, a *read-only* global `DEFAULT.BAR`, existing buttons, icon and subbar entries, and a Hebrew-named profile. It verifies the global original is unchanged, all buttons survive in a per-user copy, the copied bar's WDX command launches through actual `rundll32.exe`, backups exist, and repeat installs add no duplicates. Collision and missing-original safety checks also passed.
+- The explicit custom-toolbar test executes the *persisted* button command, opens the one-WDX Maker GUI and creates an actual Hebrew hardlink.
+- **Native Linux WDX: 4/4 passed. Linux ASan/UBSan: 4/4 passed.**
+- Real Total Commander 11.58 x64 process launch and Hebrew/niqqud hardlink creation via the DLL's Maker GUI succeeded.
 
-- The original `Buttonbar` path never changes and every existing bar button remains.
-- A new button is appended **directly** with a system `rundll32.exe` command and a valid `TCLinkCreate` Unicode parameter.
-- `usercmd.ini` remains **byte-for-byte identical** (including unrelated `em_` entries).
-- Original `.bar` and INI files are backed up, configuration remains repeatable, and unrelated buttons are never modified.
-- Both panels use the intended WDX preset while existing presets are preserved.
-- Unsafe ambiguous configurations and legacy broken shadow bars fail without modification.
+**Remaining acceptance:** the GitHub-hosted Windows environment did not expose
+Total Commander's main window (`tc_window_found=false`) for a final visual test.
+Confirm the toolbar, click-to-open and WDX columns in both TC panels on a real
+interactive profile before declaring stable. The official plugin installer
+still has no supported post-install hook for WDX button/column customization;
+our one-time setup executes when Total Commander first initializes the WDX.
 
-**0.2.4 CI additionally launches the exact newly generated button command after simulating TC Unicode `%WL` and `%T` substitutions and verifies link creation through the DLL dialog; Windows CTest also tests the toolbar-only recovery. Full live TC button clicks and WDX column rendering still need interactive user-profile testing.**
+### Build artifacts
 
-[Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
+- [Windows x64, one SymlinkInspector.wdx64 installer package](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40206502697/artifacts/12603903368)
+- [Native Linux WDX](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40206502697/artifacts/12603833622)
+- [Restore original toolbar reference after v0.2.1](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40206502697/artifacts/12603329738)
+- [Actual Total Commander smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40206502697/artifacts/12603569224)
+- [Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
 
 No open-source license has yet been selected.
