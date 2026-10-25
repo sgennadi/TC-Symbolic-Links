@@ -25,7 +25,8 @@ function Get-Value([string]$path,[string]$section,[string]$key) {
     return $buf.ToString()
 }
 try {
-    $profile = Join-Path $root 'עברית original profile'
+    $hebrew = -join @([char]0x05e2, [char]0x05d1, [char]0x05e8, [char]0x05d9, [char]0x05ea)
+    $profile = Join-Path $root ($hebrew + ' original profile')
     New-Item -ItemType Directory -Force $profile | Out-Null
     $ini = Join-Path $profile 'wincmd.ini'
     $usercmd = Join-Path $profile 'usercmd.ini'
