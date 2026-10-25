@@ -3,6 +3,7 @@
 // report "Invalid source name" or suggest Error 1314 for an unrelated error.
 #include "LinkCore.h"
 #include <windows.h>
+#include <commctrl.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -80,7 +81,29 @@ int wmain(int argc, wchar_t** argv) {
         bool helpPresent = false;
         bool relativeDisabled = false;
         bool wrongHint = false;
+        bool commanderLayout = false;
         if (window) {
+            // TC-style regression: two resizable file panels and familiar
+            // classic list view must exist while retaining the old WDX IDs.
+            HWND sourceList = GetDlgItem(window, 100);
+            HWND sourcePath = GetDlgItem(window, 111);
+            HWND destinationPath = GetDlgItem(window, 101);
+            HWND resultPane = GetDlgItem(window, 104);
+            HWND action = GetDlgItem(window, 105);
+            RECT left{}, right{}, srcLine{}, dstLine{};
+            wchar_t className[80]{};
+            if (sourceList && sourcePath && destinationPath && resultPane && action) {
+                GetClassNameW(sourceList, className, 80);
+                GetWindowRect(sourceList, &left);
+                GetWindowRect(resultPane, &right);
+                GetWindowRect(sourcePath, &srcLine);
+                GetWindowRect(destinationPath, &dstLine);
+                commanderLayout = _wcsicmp(className, L"SysListView32") == 0 &&
+                    SendMessageW(sourceList, LVM_GETITEMCOUNT, 0, 0) == 1 &&
+                    left.right <= right.left && left.top == right.top &&
+                    srcLine.right <= dstLine.left && srcLine.top == dstLine.top &&
+                    ControlText(action).find(L"F5") != std::wstring::npos;
+            }
             HWND combo = GetDlgItem(window, 102);
             HWND createButton = GetDlgItem(window, 105);
             HWND relativeButton = GetDlgItem(window, 103);
@@ -92,8 +115,8 @@ int wmain(int argc, wchar_t** argv) {
                     MAKEWPARAM(102, CBN_SELCHANGE), reinterpret_cast<LPARAM>(combo));
                 helpPresent = !ControlText(help).empty() && !ControlText(relativeInfo).empty();
                 relativeDisabled = !IsWindowEnabled(relativeButton);
-                PostMessageW(window, WM_COMMAND, MAKEWPARAM(105, BN_CLICKED),
-                             reinterpret_cast<LPARAM>(createButton));
+                // F5 must create exactly as clicking the TC-style action key.
+                PostMessageW(window, WM_KEYDOWN, VK_F5, 0);
                 const auto link = output / folder.filename();
                 for (int i = 0; i < 100; ++i) {
                     if (fs::exists(link / L"child.txt")) {
@@ -114,10 +137,11 @@ int wmain(int argc, wchar_t** argv) {
         }
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
+        Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
         Check(helpPresent && relativeDisabled, "The selected Junction mode needs useful help and disabled relative option");
         Check(created, "%WL directory ending in backslash did not create a junction");
         Check(!wrongHint, "Screenshot regression: invalid-name or 1314 error shown for working directory");
-        std::cout << "PASS: exact trailing-slash TC folder list creates a junction via Maker GUI; help and status verified\n";
+        std::cout << "PASS: TC-like two panels, file table, path bars, F5 hotkey and Hebrew Junction creation\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << "\n";
