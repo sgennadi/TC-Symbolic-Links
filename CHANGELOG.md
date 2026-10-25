@@ -2,6 +2,10 @@
 
 ## 0.2.1 (preview)
 
+- Fix Windows VS2026 integration test failure: call the base export name in
+  `rundll32.exe` so Windows picks the `...W` UTF-16 entrypoint correctly;
+  avoid accidental ANSI argument delivery for Hebrew filenames.
+
 - Correct Total Commander `SpecialView` offset: custom view #N must be N+2;
   add a portable regression test covering all 90 supported view numbers;
   ensure both panels show details and test the selected third custom preset.

@@ -1,4 +1,7 @@
 // Exported Unicode entry points invoked by the OS-provided rundll32.exe.
+// Invoke them as ,TCLinkCreate / ,TCLinkSetup / ,TCLinkProbe.
+// rundll32 appends W to the requested base name and supplies LPWSTR only when
+// it finds the suffixed export. Asking for ...W itself can cause ANSI fallback.
 // The WDX content API is implemented by SymlinkInspector.cpp in this SAME DLL.
 #include "TcIntegration.h"
 #include "TcMakerGui.h"

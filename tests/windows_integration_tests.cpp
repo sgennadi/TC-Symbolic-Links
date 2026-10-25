@@ -72,6 +72,8 @@ int wmain(int argc, wchar_t** argv) {
         Require(params.find(module.wstring()) != std::wstring::npos, "WDX path not in command");
         Require(params.find(L"%WL") != std::wstring::npos && params.find(L"%T.") != std::wstring::npos,
                 "TC substitution variables missing");
+        Require(params.find(L",TCLinkCreate --list") != std::wstring::npos,
+                "rundll32 requires the base name, not an explicitly W-suffixed export");
         Require(fs::exists(ini.wstring() + L".tcslinks.bak"), "no wincmd.ini backup");
         Require(fs::exists(bar), "existing toolbar damaged");
         Require(tcs::ConfigureForTotalCommander(ini.wstring(), module.wstring(), message), "repeat install failed");
@@ -98,13 +100,24 @@ int wmain(int argc, wchar_t** argv) {
         Require(Ini(conflictCmd.wstring(), L"em_TCSymbolicLinks_Create", L"param") == oldCommand,
                 "unrelated user command was overwritten");
 
+        // Check the exact Windows export. rundll32 is invoked with the
+        // unsuffixed TCLinkProbe name, which resolves to TCLinkProbeW and
+        // delivers a UTF-16 command line. Passing TCLinkProbeW on the CLI
+        // can instead fall back to ANSI after probing TCLinkProbeWW.
+        HMODULE hWdx = LoadLibraryW(module.wstring().c_str());
+        Require(hWdx != nullptr, "cannot load the one-DLL WDX in Windows");
+        const bool hasProbe = GetProcAddress(hWdx, "TCLinkProbeW") != nullptr;
+        const bool hasCreator = GetProcAddress(hWdx, "TCLinkCreateW") != nullptr;
+        FreeLibrary(hWdx);
+        Require(hasProbe && hasCreator, "Unicode rundll32 entrypoints missing from WDX");
+
         // Verify Win32's built-in rundll32 can load the WDX and call its
         // Unicode export without a separate TCSymlinkMaker.exe.
         fs::path marker = local / L"בדיקת rundll32 עִבְרִית.txt";
         wchar_t systemDir[MAX_PATH + 1]{};
         Require(GetSystemDirectoryW(systemDir, MAX_PATH + 1) > 0, "system directory");
         auto cmd = L"\"" + std::wstring(systemDir) + L"\\rundll32.exe\" \"" +
-                   module.wstring() + L"\",TCLinkProbeW \"" + marker.wstring() + L"\"";
+                   module.wstring() + L"\",TCLinkProbe \"" + marker.wstring() + L"\"";
         STARTUPINFOW start{sizeof(start)};
         PROCESS_INFORMATION proc{};
         Require(CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE,

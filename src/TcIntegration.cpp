@@ -205,7 +205,9 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             _wcsicmp(priorCommand.c_str() + (priorCommand.size() - kHostChars),
                       kHostName) == 0;
         const bool oldLauncher = exactHost || absoluteHost;
-        if (!oldLauncher || priorParameters.find(L",TCLinkCreateW ") == std::wstring::npos ||
+        const bool ownExport = priorParameters.find(L",TCLinkCreate ") != std::wstring::npos ||
+            priorParameters.find(L",TCLinkCreateW ") != std::wstring::npos;
+        if (!oldLauncher || !ownExport ||
             priorParameters.find(L"SymlinkInspector.wdx64") == std::wstring::npos) {
             status = L"An unrelated user command already has the reserved name. No changes made.";
             return false;
@@ -259,7 +261,11 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     // TC %T always ends with a backslash. Appending '.' inside the quotes
     // avoids CommandLineToArgvW treating that trailing slash as an escape of
     // the closing quotation mark (e.g. "C:\destination\").
-    const std::wstring arguments = L"\"" + dllPath + L"\",TCLinkCreateW --list \"%WL\" --dest \"%T.\"";
+    // rundll32 first tries <requested_name>W and only calls that candidate
+    // with a UTF-16 command line. Request TCLinkCreate, NOT TCLinkCreateW:
+    // the latter would search TCLinkCreateWW before falling back to an ANSI
+    // invocation of the exact name, corrupting Hebrew and other Unicode paths.
+    const std::wstring arguments = L"\"" + dllPath + L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"";
     wchar_t systemFolder[32768]{};
     const UINT systemChars = GetSystemDirectoryW(systemFolder, 32768);
     if (!systemChars || systemChars >= 32768) {

@@ -16,7 +16,7 @@ The Linux build is a native ELF `.wdx` for Double Commander. It provides inspect
 
 For an explicit setup call if the first-load prompt has not appeared, use the same installed WDX with the Windows built-in rundll32 (there is still no separate application):
 
-`rundll32.exe "C:\Path\To\SymlinkInspector.wdx64",TCLinkSetupW "C:\Path\To\wincmd.ini"`
+`rundll32.exe "C:\Path\To\SymlinkInspector.wdx64",TCLinkSetup "C:\Path\To\wincmd.ini"`
 
 Close TC before executing that command to avoid its shutdown overwriting INI changes. The setup reports any unsupported profile redirects, never knowingly overwrites existing user commands, and backs up settings.
 
@@ -25,7 +25,7 @@ Close TC before executing that command to avoid its shutdown overwriting INI cha
 After successful setup, a **Create Links** button is added via `em_TCSymbolicLinks_Create` in `usercmd.ini`. It calls:
 
 - Command: full absolute path to Windows system `rundll32.exe` (built into Windows, not found by searching the current directory).
-- Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreateW --list "%WL" --dest "%T."`
+- Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreate --list "%WL" --dest "%T."`
 
 The `%T.` form is intentional: TC's destination placeholder has a trailing backslash; appending a dot prevents Windows command-line parsing from escaping the closing quote. The plugin normalizes the target path before creating links.
 

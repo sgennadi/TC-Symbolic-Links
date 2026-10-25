@@ -241,7 +241,7 @@ Options1=-1|1
         [byte[]]($utf16le.GetPreamble() + $utf16le.GetBytes($hebrewFile + "`r`n")))
     $rundll32 = Join-Path $env:WINDIR 'System32\rundll32.exe'
     if (-not (Test-Path -LiteralPath $rundll32)) { throw 'Native x64 rundll32.exe missing' }
-    $makerArgs = '"' + $wdx + '",TCLinkCreateW --list "' + $listFile + '" --dest "' + $dest + '"'
+    $makerArgs = '"' + $wdx + '",TCLinkCreate --list "' + $listFile + '" --dest "' + $dest + '"'
     $makerProcess = Start-Process -FilePath $rundll32 -ArgumentList $makerArgs -PassThru
     Start-Sleep -Seconds 2
     $makerProcess.Refresh()
