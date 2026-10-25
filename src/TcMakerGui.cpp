@@ -272,6 +272,9 @@ void RefreshCreateSafety(Ui& s) {
                      L"מוכן ליצירת קישורים."));
     }
     if (s.status) InvalidateRect(s.status, nullptr, TRUE);
+    if (s.statusGlyph) InvalidateRect(s.statusGlyph, nullptr, TRUE);
+    if (s.create) InvalidateRect(s.create, nullptr, FALSE);
+    if (s.preview) InvalidateRect(s.preview, nullptr, TRUE);
 }
 
 void UpdatePlannedOutput(Ui& s) {
@@ -762,6 +765,10 @@ void CreateControls(HWND hwnd, Ui& s) {
 
 void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     state.creating = false;
+    KillTimer(hwnd, ID_ANIMATION_TIMER);
+    InvalidateRect(hwnd, nullptr, FALSE);
+    if (state.statusGlyph) InvalidateRect(state.statusGlyph, nullptr, TRUE);
+    if (state.close) InvalidateRect(state.close, nullptr, FALSE);
     AppendLine(state.results, L"------------------------------");
     AppendLine(state.results, state.Choose(L"Created: ", L"Создано: ", L"נוצרו: ") +
         std::to_wstring(state.completed) + state.Choose(L"; skipped / failed: ",
@@ -845,6 +852,10 @@ void BeginCreate(HWND hwnd, Ui& state) {
     state.failed = 0;
     state.privilegeError = false;
     state.creating = true;
+    state.animationFrame = 0;
+    SetTimer(hwnd, ID_ANIMATION_TIMER, 80, nullptr);
+    if (state.close) InvalidateRect(state.close, nullptr, FALSE);
+    if (state.statusGlyph) InvalidateRect(state.statusGlyph, nullptr, TRUE);
     state.hasRun = true;
     SetWindowTextW(state.results, L"");
     EnableWindow(state.create, FALSE);
@@ -918,6 +929,43 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     SelectObject(dc, old);
                     DeleteObject(line);
                 }
+                // A restrained Commander-style accent strip and animated
+                // batch progress. The moving light is active ONLY during work.
+                RECT accent{0, 0, client.right, Dp(*state, 3)};
+                HBRUSH accentBrush = CreateSolidBrush(kAccent);
+                FillRect(dc, &accent, accentBrush);
+                DeleteObject(accentBrush);
+                RECT track{0, client.bottom - Dp(*state, 40),
+                           client.right, client.bottom - Dp(*state, 36)};
+                HBRUSH trackBrush = CreateSolidBrush(kLine);
+                FillRect(dc, &track, trackBrush);
+                DeleteObject(trackBrush);
+                if (state->creating || state->hasRun) {
+                    const auto total = (std::max)(std::size_t{1}, state->selected.size());
+                    const auto done = (std::min)(total,
+                        static_cast<std::size_t>(state->completed + state->failed));
+                    const int filled = (std::min)(client.right,
+                        static_cast<int>(static_cast<unsigned long long>(client.right) *
+                                         done / total));
+                    RECT bar{0, track.top, filled, track.bottom};
+                    HBRUSH progress = CreateSolidBrush(state->creating ? kAccent :
+                        state->failed ? kWarning : kPositive);
+                    FillRect(dc, &bar, progress);
+                    DeleteObject(progress);
+                    if (state->creating && filled > 0) {
+                        const int stripe = Dp(*state, 25);
+                        const int offset = static_cast<int>(
+                            (state->animationFrame * Dp(*state, 12)) %
+                            static_cast<unsigned>((std::max)(1, filled + stripe)));
+                        RECT shine{(std::max)(0, offset - stripe), track.top,
+                                   (std::min)(filled, offset), track.bottom};
+                        if (shine.right > shine.left) {
+                            HBRUSH light = CreateSolidBrush(RGB(132, 184, 255));
+                            FillRect(dc, &shine, light);
+                            DeleteObject(light);
+                        }
+                    }
+                }
             }
             EndPaint(hwnd, &paint);
             return 0;
@@ -948,6 +996,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     (ctl == state->subtitle || ctl == state->modeHint ||
                      ctl == state->relativeHint ? kSecondary : kInk));
                 return reinterpret_cast<LRESULT>(state->backgroundBrush);
+            }
+            break;
+        case WM_TIMER:
+            if (state && wParam == ID_ANIMATION_TIMER && state->creating) {
+                state->animationFrame = (state->animationFrame + 1) % 60;
+                RECT area{};
+                GetClientRect(hwnd, &area);
+                area.top = area.bottom - Dp(*state, 42);
+                area.bottom = area.top + Dp(*state, 8);
+                InvalidateRect(hwnd, &area, FALSE);
+                return 0;
             }
             break;
         case WM_TCS_CREATE_NEXT:
