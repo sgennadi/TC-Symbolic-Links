@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.6 Preview
+# TC Symbolic Links 0.2.7 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,33 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.7 Preview: familiar Total Commander-style Maker window
+
+The native link maker now looks and behaves like a compact Total Commander
+operation dialog, while remaining entirely inside **SymlinkInspector.wdx64**:
+
+- **Side-by-side source and destination panels**, with path strips that resemble
+  TC's directory bars. The source remains read-only; the opposite panel path is
+  editable before creation.
+- **Details-view file table** with small Windows icons, Name / Type / Full path,
+  full-row selection, and a flexible width when the window is resized.
+- **Live destination preview** on the right before creation, changing into
+  individual success / Windows-error results when you start the batch.
+- Native Windows system colours, compact Segoe UI 9-point controls and a
+  traditional bottom command strip instead of large modern cards.
+- **F5 = Create Links**, **Esc = Stop / Close**, also visible on the two buttons.
+- Keeps automatic/file/folder symlink, junction, hardlink and relative-path
+  options, multiline contextual help, Hebrew/Russian/English, and DPI-aware
+  resizing including 4K/200% Windows display scaling.
+- Keeps the WDX, toolbar integration and existing user configuration handling
+  independent of these window layout changes.
+
+The CI verifies that the dialog actually contains two non-overlapping panels,
+a native \`SysListView32\` table and source/destination path strips, then
+creates an NTFS Junction from a Hebrew folder with the **F5** accelerator.
+The real Total Commander GUI shell/custom-column rendering still needs
+interactive user validation.
 
 ## 0.2.6: folder links and improved maker window
 

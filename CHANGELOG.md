@@ -1,3 +1,17 @@
+## 0.2.7 (Preview) — Total Commander-style native link maker
+
+- Replace the large single-column WDX Maker interface with compact left/right
+  source and target file panels, path strips and familiar Windows file icons.
+- Display a native report-view table (Name / Type / Full path), with full-row
+  selection and flexible column widths. Show destination link previews before
+  creation, and keep detailed success/error results after creation.
+- Use system Windows colours, smaller type, a conventional status/action strip,
+  plus real F5 Create and Esc Stop/Close keyboard accelerators.
+- Preserve English, Russian, Hebrew, Unicode, relative-path help and DPI-resize.
+- Extend the Win32 Junction GUI test to enforce two-pane layout and F5 create.
+- No changes to selected source data, NTFS creation logic, toolbar behaviour or
+  user Total Commander preferences.
+
 ## 0.2.6 (Preview) — real user folder selection and link maker UI
 
 - Fix `%WL` directory paths that end with a backslash; previously the GUI

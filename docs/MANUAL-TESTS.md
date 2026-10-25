@@ -1,4 +1,4 @@
-# Required manual acceptance for 0.2.5 before stable release
+# Required manual acceptance for 0.2.7 before stable release
 
 On a real Total Commander 11.58 x64 machine with existing personal toolbar:
 
@@ -109,3 +109,22 @@ The standard TC installer **cannot** itself execute WDX setup code. If the initi
 7. Test Hebrew, Cyrillic, spaces and ending separators in selected folders.
 8. Verify file Hardlink and file Symlink still create expected link kinds,
    and no pre-existing destination is ever overwritten.
+
+
+## Visual acceptance of the TC-style Creator (0.2.7)
+
+On a Windows 11 workstation with Total Commander x64:
+- Open the Maker from the existing TC button with files and folders selected.
+- Confirm the **two horizontally aligned file panes**: left with Name / Type /
+  Full path and small native icons; right showing planned destination links.
+- Both source and destination path bars must be visible, including paths with
+  Hebrew niqqud and mixed RTL/LTR text. Destination must remain editable.
+- Change link type and destination: preview and guidance update without
+  recreating the window or resetting a completed operation log.
+- Press **F5** to create a Junction or hardlink. Verify the target and success
+  row. Press **Esc** to close; while running, Esc requests Stop.
+- At 100%, 150%, and 200% display scaling and after window resizing, no
+  buttons should overlap the two panes; the destination input must remain
+  accessible. Inspect Win32 fonts and control reading order on Hebrew Windows.
+- Existing Total Commander toolbar icons/custom columns must be unchanged
+  by this purely visual update.
