@@ -1,0 +1,127 @@
+name: Import verified TC Symbolic Links source and run first CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".bootstrap/**"
+      - ".github/workflows/bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Verify source hash and expand into normal repository files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .bootstrap/chunks/chunk00 ]; then
+            echo "Source already imported"
+            exit 0
+          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const zlib = require('zlib');
+          const names = fs.readdirSync('.bootstrap/chunks')
+            .filter((name) => /^chunk[0-9]{2}$/.test(name)).sort();
+          if (names.length !== 10) throw new Error('Expected exactly 10 source chunks');
+          const base64 = names.map((name) =>
+            fs.readFileSync('.bootstrap/chunks/' + name, 'utf8')).join('');
+          if (base64.length !== 39348) throw new Error('Source chunk length mismatch');
+          const compressed = Buffer.from(base64, 'base64');
+          const hash = crypto.createHash('sha256').update(compressed).digest('hex');
+          if (hash !== 'bcbd03600df82fe7fc7abd84cf3e03e5fad333928754413f05c17dcd33e60234')
+            throw new Error('SOURCE HASH MISMATCH: ' + hash);
+          const archive = zlib.brotliDecompressSync(compressed);
+          const archiveHash = crypto.createHash('sha256').update(archive).digest('hex');
+          if (archiveHash !== '66e5b8e4b28ec75049caae0f312bf869c96e0fb7d09a942d9ef498fa8fa07c3a')
+            throw new Error('TAR HASH MISMATCH: ' + archiveHash);
+          fs.writeFileSync('verified-sources.tar', archive);
+          console.log('Source archive verified:', hash);
+          NODE
+          tar -tf verified-sources.tar
+          tar -xf verified-sources.tar
+          rm verified-sources.tar
+          rm -rf .bootstrap
+          test -f CMakeLists.txt
+          test -f src/TCSymlinkMaker.cpp
+          test -f src/SymlinkInspector.cpp
+          test -f tests/list_parser_tests.cpp
+          test -f scripts/windows-tc-smoke.ps1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: import complete v0.1.5 source, tests and documentation"
+          git push origin HEAD:main
+
+  linux-validation:
+    needs: import-source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Build and test Linux WDX with Hebrew Unicode paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+          nm -D --defined-only build/SymlinkInspector.wdx | grep ContentGetValueW
+
+  windows-validation:
+    needs: import-source
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Build with Visual Studio 2026 and test actual Windows links
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake --version
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed' }
+          cmake --build build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
+          ctest --test-dir build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Win32/WDX tests failed' }
+      - name: Attempt real Total Commander GUI smoke test and collect evidence
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./scripts/windows-tc-smoke.ps1 -WdxPath build/Release/SymlinkInspector.wdx64 -MakerPath build/Release/TCSymlinkMaker.exe -OutputPath tc-smoke-results
+      - name: Upload Total Commander smoke evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TC-RealApp-Smoke-Windows-Bootstrap
+          path: tc-smoke-results/
+          if-no-files-found: warn
+      - name: Package WDX and GUI program
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/Release/SymlinkInspector.wdx64,build/Release/TCSymlinkMaker.exe,pluginst.inf,README.md -Destination dist
+          Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win64.zip
+          $hash = (Get-FileHash TC-Symbolic-Links-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  TC-Symbolic-Links-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win64.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TC-Symbolic-Links-win64-VS2026
+          path: |
+            TC-Symbolic-Links-win64.zip
+            TC-Symbolic-Links-win64.zip.sha256
+          if-no-files-found: error
