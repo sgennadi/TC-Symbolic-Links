@@ -421,8 +421,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
             RECT usable{};
             SystemParametersInfoW(SPI_GETWORKAREA, 0, &usable, 0);
-            info->ptMinTrackSize.x = (std::min)(MulDiv(620, dpi, 96), usable.right - usable.left - 24);
-            info->ptMinTrackSize.y = (std::min)(MulDiv(505, dpi, 96), usable.bottom - usable.top - 24);
+            info->ptMinTrackSize.x = (std::min)(MulDiv(620, dpi, 96), static_cast<int>(usable.right - usable.left) - 24);
+            info->ptMinTrackSize.y = (std::min)(MulDiv(505, dpi, 96), static_cast<int>(usable.bottom - usable.top) - 24);
             return 0;
         }
         case WM_DPICHANGED:
@@ -580,9 +580,9 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     RECT work{};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     const int winWidth = (std::min)(MulDiv(850, static_cast<int>(GetDpiForSystem()), 96),
-                                    work.right - work.left - 24);
+                                    static_cast<int>(work.right - work.left) - 24);
     const int winHeight = (std::min)(MulDiv(665, static_cast<int>(GetDpiForSystem()), 96),
-                                     work.bottom - work.top - 24);
+                                     static_cast<int>(work.bottom - work.top) - 24);
     HWND window = CreateWindowExW(0, kClassName,
         state->he ? L"TC Symbolic Links — יצירת קישורים" :
         (state->ru ? L"TC Symbolic Links — создание ссылок" :
