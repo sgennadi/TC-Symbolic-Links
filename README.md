@@ -53,8 +53,34 @@ The GitHub Actions workflow also attempts the real Total Commander 11.58 x64 smo
 
 Linux `.wdx` is compatible with the Double Commander WDX ABI, including its 16-bit UTF-16 `WCHAR` representation. Linux tests cover real POSIX links, Unicode files and malformed NTFS reparse data. This does not replace Windows GUI acceptance.
 
-## Current status
+## Verified Preview status — October 25, 2026
 
-**0.2.1 Preview, not released as stable.** Local Linux CTest: includes portable custom-column index regression. The new single-DLL Windows implementation, toolbar and column setup, Unicode profile handling and `rundll32` integration are pending their first Visual Studio 2026 GitHub CI run and real Total Commander tests. The earlier **0.1.5** separate-EXE preview passed VS2026 Windows ABI and link tests, but that result must not be attributed to the new 0.2.0 code.
+**0.2.1 Preview is available as a single Windows `.wdx64` file.** The
+[GitHub Actions VS2026 / Linux / sanitizer run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503)
+passed all three required jobs:
+
+- Windows Server 2025 + VS2026 (MSVC v145): **6/6 tests passed**, including
+  real Win32 hardlinks, WDX UTF-16 exports, configuration of the TC toolbar
+  and both custom-column presets with backups, and Unicode entrypoints called
+  through the actual Windows `rundll32.exe`.
+- Linux WDX build and Unicode/reparse tests: **4/4 passed**.
+- Linux AddressSanitizer + UndefinedBehaviorSanitizer: **4/4 passed**.
+- Real Total Commander 11.58 launched in CI. The one-DLL creator window
+  successfully created a hardlink for a Hebrew file with niqqud.
+
+**Full TC GUI integration is not yet verified.** GitHub-hosted CI reported
+`tc_window_found=false`, `tc_wdx_loaded_in_process=false`, and
+`interactive_gui_verified=false`: the TC main window could not be found in
+its non-interactive desktop. This does *not* prove the WDX integration is broken,
+but it also does *not* prove that the installed columns or button appeared in
+Total Commander's real GUI. The first-load setup prompt is not a post-install
+hook of `pluginst.inf`; manual interactive confirmation is required for stable.
+
+Download verified CI artifacts:
+
+- [Windows plugin installer ZIP (one WDX DLL, no separate EXE)](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12599843692)
+- [Linux native WDX](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600028345)
+- [Real TC smoke-test JSON and screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600063342)
+- [Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
 
 No open-source license has yet been selected.

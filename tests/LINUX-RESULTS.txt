@@ -1,6 +1,8 @@
-TC Symbolic Links 0.2.0 (Preview)
-Native Linux/Double Commander WDX, UTF-16 selection parser and bounded NTFS reparse parser.
-GCC 14 Release: 3/3 CTest passed.
-Clang 17 Release: 3/3 CTest passed.
-GCC 14 AddressSanitizer + UndefinedBehaviorSanitizer: 3/3 CTest passed.
-Windows VS2026 compilation and actual Total Commander 0.2.0 integration have NOT run.
+TC Symbolic Links 0.2.1 (Preview)
+Native Linux/Double Commander WDX, UTF-16 selection parser, bounded NTFS reparse parser, and custom-column index regression.
+GCC 14 Release: 4/4 CTest passed.
+Clang 17 Release: 4/4 CTest passed.
+GCC 14 AddressSanitizer + UndefinedBehaviorSanitizer: 4/4 CTest passed.
+Windows VS2026 x64: 6/6 CTest passed, including rundll32 Unicode export and TC INI integration.
+Real Total Commander 11.58 launched; embedded GUI created Hebrew/niqqud hardlink.
+Full WDX custom column rendering inside Total Commander remains unverified.

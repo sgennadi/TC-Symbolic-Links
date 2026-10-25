@@ -14,7 +14,9 @@
 - Prevent overwriting an unrelated `em_TCSymbolicLinks_Create` user command;
   accept only upgrades of the plugin-owned entry.
 - Add Windows integration regressions for both the view offset and a colliding
-  custom command. Still pending a native Windows CI build and visual TC test.
+  custom command. VS2026 CI passed all 6/6 native tests; Linux and sanitizer
+  jobs also passed. The real TC executable started and the maker GUI created
+  a Hebrew/niqqud hardlink; WDX custom-column rendering inside TC is unverified.
 
 ## 0.2.0 (Preview — pending Windows acceptance)
 
