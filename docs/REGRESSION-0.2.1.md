@@ -39,3 +39,16 @@ before and after. Verify every existing button survives, new direct button
 launches the DLL UI when clicked, WDX fields render in both panes, old views
 remain available, and no change is made to usercmd.ini. Hosted Windows
 rundll32/ABI tests cannot replace these real application tests.
+
+## Improved recovery (0.2.3)
+
+By default use `scripts/Restore-TC-Toolbar-Only.cmd` instead of restoring the
+whole INI file. It changes only `[Buttonbar] Buttonbar` when the active value
+refers to the broken `TCSymbolicLinks.bar` clone. It keeps all other panel
+settings/columns and every custom command unchanged, creates a timestamped
+rollback snapshot, and verifies the selected .bar reference. The original
+backup file is never modified.
+
+Windows tests must now verify both this recovery and the **actual generated
+button command** after `%WL` and `%T` substitutions. A passing direct
+`rundll32.exe` probe by itself did not catch a broken button.

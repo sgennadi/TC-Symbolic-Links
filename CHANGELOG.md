@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 (preview)
+
+- Add an end-to-end Windows regression that launches the **exact command installed in the user's active .bar**, replaces TC `%WL` / `%T` placeholders, opens the one-DLL maker GUI and creates an actual Hebrew hardlink. Previous CI launched a hand-written command instead of the button's persisted settings.
+- Add a non-destructive **toolbar-only** recovery script for users affected by 0.2.1. It restores only the `[Buttonbar] Buttonbar` key from `wincmd.ini.tcslinks.bak`, retaining all other INI settings and leaving `usercmd.ini` and every `.bar` file unchanged. Requires user consent and creates an additional rollback snapshot.
+- Add a PowerShell Windows regression test for the surgical toolbar restore and a separate CI recovery artifact.
+- Keep one WDX64 DLL, exact original toolbar selection, native system rundll32 and no external project EXE.
+
+
 ## 0.2.2 (preview: regression fix, Windows CI pending)
 
 - **Critical restore**: 0.2.1 could hide all custom TC toolbar buttons by replacing the active `.bar` reference. Never switch `wincmd.ini [Buttonbar] Buttonbar` again.

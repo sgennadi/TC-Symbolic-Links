@@ -25,3 +25,19 @@ The standard TC installer **cannot** itself execute WDX setup code. If the initi
 5. Check both panel column presets display `Link type`, `Link target`, `Target exists`, `Hardlink count`, and previous custom views remain selectable.
 6. Re-run integration explicitly and restart; verify no duplicate button and no unrelated usercmd.ini changes.
 7. If a previous 0.2.1 install hid toolbar buttons, recover from `wincmd.ini.tcslinks.bak` first (see README and scripts/Restore-TC-Buttons-0.2.1.cmd).
+
+## 0.2.3 acceptance: previously affected profile
+
+1. Record the current `wincmd.ini`, previous buttons, and path of the active
+   `.bar` (see TC Help → About, Configuration → Change button bar).
+2. Exit **all** TC instances, then run `Restore-TC-Toolbar-Only.cmd`. Confirm
+   that original button icons return and the other customized views remain.
+3. Install the updated single `.wdx64` ZIP and accept one-time integration.
+   Restart every TC instance. Old buttons must still be present in the same bar.
+4. Select a sample file with Hebrew/niqqud in the source panel and a distinct
+   directory in the other panel. Click **TC Symbolic Links - Create links**.
+   A Win32 dialog must appear. Choose Hardlink and create. Confirm link exists.
+5. Repeat step 4 for a directory junction and a symbolic link, selecting only
+   compatible destination/volume pairs. Verify each WDX field in both panels.
+6. Do not report a stable release unless toolbar click and column rendering
+   both pass in real Total Commander.

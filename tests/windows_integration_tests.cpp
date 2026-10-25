@@ -1,5 +1,7 @@
 #include "TcIntegration.h"
 #include <windows.h>
+#include <chrono>
+#include <thread>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -178,8 +180,89 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(process.hThread);
         CloseHandle(process.hProcess);
         Require(fs::exists(marker), "Unicode WDX function not invoked");
+        // IMPORTANT: the previous CI tested a hand-written rundll32 command,
+        // not the actual command saved into the user's button bar. Reproduce
+        // TC's %WL and %T substitutions on the persisted button arguments and
+        // click the maker GUI. This catches quoting / no-op button regressions.
+        const auto selection = profile / L"TC-selection-עברית.wl";
+        const auto source = profile / L"test קובץ שָלוֹם.txt";
+        const auto destination = profile / L"target יעד";
+        fs::create_directories(destination);
+        WriteText(source, "Unicode link source");
+        {
+            std::vector<unsigned char> data{0xFF, 0xFE};
+            const std::wstring line = source.wstring() + L"\r\n";
+            for (wchar_t c : line) {
+                data.push_back(static_cast<unsigned char>(c & 0xFF));
+                data.push_back(static_cast<unsigned char>((c >> 8) & 0xFF));
+            }
+            std::ofstream output(selection, std::ios::binary);
+            Require(static_cast<bool>(output), "open real button %WL fixture");
+            output.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
+            Require(static_cast<bool>(output), "write real button %WL fixture");
+        }
+        std::wstring buttonParam = Ini(bar, L"Buttonbar", L"param4");
+        auto substitute = [&](const std::wstring& from, const std::wstring& to) {
+            std::size_t pos = 0;
+            while ((pos = buttonParam.find(from, pos)) != std::wstring::npos) {
+                buttonParam.replace(pos, from.size(), to);
+                pos += to.size();
+            }
+        };
+        substitute(L"%WL", selection.wstring());
+        substitute(L"%T", destination.wstring() + L"\\");
+        // In actual TC these macros are expanded by TC; they must not remain.
+        Require(buttonParam.find(L"%WL") == std::wstring::npos &&
+                buttonParam.find(L"%T") == std::wstring::npos,
+                "button substitution left unresolved TC placeholders");
+        const auto buttonHost = Ini(bar, L"Buttonbar", L"cmd4");
+        std::wstring buttonCommand = L"\"" + buttonHost + L"\" " + buttonParam;
+        STARTUPINFOW buttonStartup{sizeof(buttonStartup)};
+        PROCESS_INFORMATION buttonProcess{};
+        Require(CreateProcessW(buttonHost.c_str(), buttonCommand.data(), nullptr, nullptr,
+                               FALSE, 0, nullptr, nullptr, &buttonStartup, &buttonProcess) != FALSE,
+                "installed toolbar command did not launch rundll32");
+        CloseHandle(buttonProcess.hThread);
+        HWND makerWindow = nullptr;
+        for (int i = 0; i < 100; ++i) {
+            HWND candidate = FindWindowW(L"TCSymbolicLinksMakerWindow", nullptr);
+            DWORD owner = 0;
+            if (candidate) GetWindowThreadProcessId(candidate, &owner);
+            if (candidate && owner == buttonProcess.dwProcessId) {
+                makerWindow = candidate;
+                break;
+            }
+            if (WaitForSingleObject(buttonProcess.hProcess, 0) == WAIT_OBJECT_0) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        bool created = false;
+        if (makerWindow) {
+            HWND typeCombo = GetDlgItem(makerWindow, 102);
+            HWND createButton = GetDlgItem(makerWindow, 105);
+            if (typeCombo && createButton && SendMessageW(typeCombo, CB_SETCURSEL, 4, 0) == 4) {
+                PostMessageW(makerWindow, WM_COMMAND,
+                    MAKEWPARAM(105, BN_CLICKED), reinterpret_cast<LPARAM>(createButton));
+                const auto targetFile = destination / source.filename();
+                for (int i = 0; i < 100; ++i) {
+                    if (fs::exists(targetFile)) {
+                        std::error_code ec;
+                        created = fs::equivalent(source, targetFile, ec) && !ec;
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+            PostMessageW(makerWindow, WM_CLOSE, 0, 0);
+        }
+        if (WaitForSingleObject(buttonProcess.hProcess, 4000) != WAIT_OBJECT_0) {
+            TerminateProcess(buttonProcess.hProcess, 1);
+            WaitForSingleObject(buttonProcess.hProcess, 4000);
+        }
+        CloseHandle(buttonProcess.hProcess);
+        Require(makerWindow != nullptr, "exact persisted TC button command opened no Maker window");
+        Require(created, "exact persisted TC button could not create Hebrew hardlink");
         std::cout << "PASS: original buttons retained, command direct and runnable, both columns, "
-                     "usercmd pristine, UTF-16, backups, no duplicates, legacy refusal\n";
+                     "usercmd pristine, UTF-16, backups, no duplicates, legacy refusal, persisted button GUI hardlink\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << '\n';

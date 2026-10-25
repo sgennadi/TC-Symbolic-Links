@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.2 Preview — Toolbar Safety Fix (One DLL)
+# TC Symbolic Links 0.2.3 Preview — One DLL / Toolbar Recovery
 
 One Unicode-aware `.wdx64` module for **Total Commander x64**. It both inspects links in WDX custom columns and creates Windows symbolic links, NTFS junctions, and hardlinks using an integrated Win32 dialog.
 
@@ -30,6 +30,25 @@ Version 0.2.1 could replace the active button bar with `TCSymbolicLinks.bar` and
 4. Version 0.2.2 offers safe integration again. It refuses to touch a legacy `TCSymbolicLinks.bar` shadow; **restore first**. A TC restart is required before the new button is usable.
 
 **Important:** restoring the full pre-0.2.1 `wincmd.ini` also reverses other configuration edits made after that backup. The recovery script saves your current INIs first.
+
+## Non-destructive recovery of buttons hidden by 0.2.1 (recommended)
+
+**Do not run 0.2.1 setup again.** Close every Total Commander instance and
+run `scripts/Restore-TC-Toolbar-Only.cmd`. It prompts you to select the actual
+`wincmd.ini` from TC Help → About, checks that the active bar is the broken
+`TCSymbolicLinks.bar` clone, then reads the **original toolbar reference** from
+`wincmd.ini.tcslinks.bak`. It changes **only** `[Buttonbar] Buttonbar` and
+verifies the result. A timestamped snapshot of the current INI is created first.
+
+Other TC settings (including newly edited custom columns/panel views),
+`usercmd.ini`, and all existing `.bar` files are left untouched. If the active
+bar is not the broken clone, it refuses to modify anything. If the old backup
+is missing, it refuses to guess the right toolbar. Use the older
+`Restore-TC-Buttons-0.2.1.cmd` only when you explicitly want to roll the full
+INI and user-defined commands back to their pre-plugin state.
+
+The toolbar-only recovery helper is a support script; **it is not a separate
+runtime executable and is not needed to create links with the installed WDX**.
 
 ## Button and columns
 
@@ -66,13 +85,13 @@ Linux `.wdx` is compatible with the Double Commander WDX ABI, including its 16-b
 
 ## CI status and outstanding acceptance — October 25, 2026
 
-**0.2.2 is a safety fix awaiting Windows CI and interactive user acceptance.**
+**0.2.3 includes the 0.2.2 safety fix and a new persisted-button GUI test; interactive user acceptance is still required.**
 The previous [0.2.1 GitHub Actions run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503)
 passed Windows unit tests, and the real WDX maker GUI created a Hebrew hardlink.
 However, these tests missed a live-user regression: 0.2.1 overwrote the active toolbar
 reference, hid custom buttons, and routed its own button through `usercmd.ini`.
 
-The new Windows integration regression explicitly requires:
+The Windows integration regression explicitly requires:
 
 - The original `Buttonbar` path never changes and every existing bar button remains.
 - A new button is appended **directly** with a system `rundll32.exe` command and a valid `TCLinkCreate` Unicode parameter.
@@ -81,7 +100,7 @@ The new Windows integration regression explicitly requires:
 - Both panels use the intended WDX preset while existing presets are preserved.
 - Unsafe ambiguous configurations and legacy broken shadow bars fail without modification.
 
-**Full live TC button clicks and WDX column rendering still need interactive testing.**
+**0.2.3 CI additionally launches the exact newly generated button command after simulating TC Unicode `%WL` and `%T` substitutions and verifies link creation through the DLL dialog; Windows CTest also tests the toolbar-only recovery. Full live TC button clicks and WDX column rendering still need interactive user-profile testing.**
 
 [Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
 

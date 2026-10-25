@@ -61,6 +61,19 @@ jobs:
           name: TC-RealApp-Smoke-Windows
           path: tc-smoke-results/
           if-no-files-found: warn
+      - name: Package non-destructive toolbar-only recovery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path toolbar-recovery | Out-Null
+          Copy-Item scripts/Restore-TC-Toolbar-Only.cmd, scripts/Restore-TC-Toolbar-Only.ps1 -Destination toolbar-recovery
+          Copy-Item docs/REGRESSION-0.2.1.md -Destination toolbar-recovery
+          Compress-Archive -Path toolbar-recovery/* -DestinationPath TC-Symbolic-Links-Toolbar-Recovery.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TC-Symbolic-Links-Toolbar-Recovery
+          path: TC-Symbolic-Links-Toolbar-Recovery.zip
+          if-no-files-found: error
       - name: Package Total Commander x64 plugin
         shell: pwsh
         run: |

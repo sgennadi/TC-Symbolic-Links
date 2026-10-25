@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.2 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -98,6 +98,15 @@ if(WIN32)
     target_link_libraries(windows_integration_tests PRIVATE tc_integration)
     add_test(NAME tc_one_dll_installer_and_rundll32
       COMMAND windows_integration_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_one_dll_installer_and_rundll32 PROPERTIES TIMEOUT 70)
+    # Regress the exact on-disk wincmd.ini damage seen with v0.2.1 without
+    # modifying the real user profile or any Total Commander installation.
+    find_program(TC_POWERSHELL NAMES pwsh powershell)
+    if(TC_POWERSHELL)
+      add_test(NAME tc_toolbar_only_recovery
+        COMMAND "${TC_POWERSHELL}" -NoProfile -File
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_recovery.ps1")
+    endif()
     if(MSVC)
       target_compile_options(windows_integration_tests PRIVATE /W4 /utf-8)
     endif()
