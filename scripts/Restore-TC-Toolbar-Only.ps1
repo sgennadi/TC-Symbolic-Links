@@ -87,7 +87,21 @@ $saved = $ini + '.before-toolbar-repair-' + $stamp + '-' + [Guid]::NewGuid().ToS
 Copy-Item -LiteralPath $ini -Destination $saved -ErrorAction Stop
 $restore = if ($original -eq '#__TCS_ABSENT__#') { $null } else { [string]$original }
 $success = [TcIniRecovery]::Write('Buttonbar', 'Buttonbar', $restore, $ini)
-$verified = (Get-BarReference $ini) -ceq $original
+$observed = Get-BarReference $ini
+# Either missing or empty Buttonbar= selects the default TC startup toolbar.
+# Windows INI implementations can encode deletion as an empty key: both states
+# are safe, while any remaining shadow-bar value is strictly rejected.
+$wasImplicit = $original -eq '#__TCS_ABSENT__#'
+$verified = if ($wasImplicit) {
+    $observed -eq '#__TCS_ABSENT__#' -or $observed -eq ''
+} else {
+    $observed -ceq $original
+}
+if ($wasImplicit -and -not $verified) {
+    $success = [TcIniRecovery]::Write('Buttonbar', 'Buttonbar', '', $ini)
+    $observed = Get-BarReference $ini
+    $verified = $observed -eq ''
+}
 if (-not $success -or -not $verified) {
     Copy-Item -LiteralPath $saved -Destination $ini -Force
     throw 'Toolbar-only recovery verification failed; the original current INI was restored.'

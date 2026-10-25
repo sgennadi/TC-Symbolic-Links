@@ -65,7 +65,7 @@ DoNotTouch=YES
         'TC-Symbolic-Links-Default.bar')) -Encoding Ascii
     & (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts/Restore-TC-Toolbar-Only.ps1') -IniPath $ini -Force
     $afterImplicit = Get-Content -LiteralPath $ini -Raw
-    if ($afterImplicit -match '(?m)^Buttonbar=') { throw 'Recovery failed to remove plugin-added Buttonbar key' }
+    if ($afterImplicit -match '(?m)^Buttonbar=\S+') { throw 'Recovery still redirects startup to a non-default toolbar' }
     if ($afterImplicit -notmatch 'DoNotTouch=YES') { throw 'Implicit startup recovery changed unrelated settings' }
     Write-Host 'PASS: 0.2.1 and 0.2.4 shadow-toolbar recovery; implicit default; all other TC settings retained' 
 } finally {
