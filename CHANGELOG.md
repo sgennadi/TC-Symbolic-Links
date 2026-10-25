@@ -2,6 +2,8 @@
 
 ## 0.2.3 (preview)
 
+- Fix **critical root cause of no-op toolbar button**: Win32 INI readers strip the first and last double quotes when an entire `paramN` value begins and ends in quotes. Add harmless trailing `--tc-launch` (ignored by DLL GUI) to preserve DLL/target quoting, verify exact readback before committing and roll back on mismatch.
+
 - Add an end-to-end Windows regression that launches the **exact command installed in the user's active .bar**, replaces TC `%WL` / `%T` placeholders, opens the one-DLL maker GUI and creates an actual Hebrew hardlink. Previous CI launched a hand-written command instead of the button's persisted settings.
 - Add a non-destructive **toolbar-only** recovery script for users affected by 0.2.1. It restores only the `[Buttonbar] Buttonbar` key from `wincmd.ini.tcslinks.bak`, retaining all other INI settings and leaving `usercmd.ini` and every `.bar` file unchanged. Requires user consent and creates an additional rollback snapshot.
 - Add a PowerShell Windows regression test for the surgical toolbar restore and a separate CI recovery artifact.

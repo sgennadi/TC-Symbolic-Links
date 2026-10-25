@@ -213,7 +213,14 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         return false;
     }
     const auto actualDll = MacroPath(dllPath, iniDir, tcDir);
-    const std::wstring arguments = L"\"" + actualDll + L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"";
+    // IMPORTANT: GetPrivateProfileStringW removes the *outer* quote pair if
+    // an INI value both starts and ends with '"'. Our command MUST keep the
+    // quotes around the DLL and the target directory, otherwise rundll32 can
+    // silently open an error dialog instead of our Maker window. Finish with
+    // an ignored but harmless marker so the final character is not a quote.
+    // RunMakerFromArguments deliberately ignores unknown --tc-launch tokens.
+    const std::wstring arguments = L"\"" + actualDll +
+        L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\" --tc-launch";
     if (!AcpRoundTrip(arguments)) {
         status = L"This plugin path is not representable in the active bar's INI encoding. "
                  L"Install the WDX under COMMANDER_PATH or the TC INI folder.";
@@ -305,6 +312,10 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         WriteIni(barFile, L"Buttonbar", L"button" + number, L"WCMICONS.DLL,44") &&
         WriteIni(barFile, L"Buttonbar", L"menu" + number, kButtonLabel);
     if (ok && !slot) ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", number);
+    // Test the exact reader used by our toolbar parser. Quote-loss is a
+    // dangerous no-op-button regression and must fail transactionally.
+    if (ok && ReadIni(barFile, L"Buttonbar", (L"param" + number).c_str()) != arguments)
+        ok = false;
     const auto suffix = std::to_wstring(preset);
     constexpr wchar_t headers[] = L"Name\\nExt\\nLink type\\nLink target\\nExists\\nHardlinks";
     constexpr wchar_t widths[] = L"160,60,140,310,62,-85";

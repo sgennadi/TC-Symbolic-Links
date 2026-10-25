@@ -55,9 +55,9 @@ runtime executable and is not needed to create links with the installed WDX**.
 After successful setup, a **Create Links** button is appended directly to the active `.bar`, keeping its original path unchanged. **`usercmd.ini` is never modified, re-encoded or required.** The button calls:
 
 - Command: full absolute path to Windows system `rundll32.exe` (built into Windows, not found by searching the current directory).
-- Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreate --list "%WL" --dest "%T."`
+- Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreate --list "%WL" --dest "%T." --tc-launch`
 
-The `%T.` form is intentional: TC's destination placeholder has a trailing backslash; appending a dot prevents Windows command-line parsing from escaping the closing quote. The plugin normalizes the target path before creating links.
+The final `--tc-launch` token is an ignored marker that prevents the Windows INI reader from stripping the leading and trailing quotes around the entire parameter string. The `%T.` form is intentional: TC's destination placeholder has a trailing backslash; appending a dot prevents Windows command-line parsing from escaping the closing quote. The plugin normalizes the target path before creating links.
 
 The WDX columns added automatically are **Link type**, **Link target**, **Target exists**, and **Hardlink count**. Column view `TC Symbolic Links` is appended to existing custom views and activated in both panels, rather than replacing another view definition. The correct TC `SpecialView` value is preset number + 2 (the first custom preset is `SpecialView=3`).
 

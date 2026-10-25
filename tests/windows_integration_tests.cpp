@@ -91,6 +91,9 @@ int wmain(int argc, wchar_t** argv) {
         Require(Ini(bar, L"Buttonbar", L"cmd4").find(L"\\rundll32.exe") != std::wstring::npos,
                 "button must directly invoke system rundll32.exe");
         const auto buttonParams = Ini(bar, L"Buttonbar", L"param4");
+        Require(!buttonParams.empty() && buttonParams.front() == L'"' &&
+                buttonParams.find(L"\" --tc-launch") != std::wstring::npos,
+                "regression: INI reader stripped critical surrounding argument quotes");
         Require(buttonParams.find(L"SymlinkInspector.wdx64") != std::wstring::npos,
                 "button missing WDX module");
         Require(buttonParams.find(L",TCLinkCreate --list") != std::wstring::npos,
@@ -221,7 +224,9 @@ int wmain(int argc, wchar_t** argv) {
                 buttonParam.find(L"%T") == std::wstring::npos,
                 "button substitution left unresolved TC placeholders");
         const auto buttonHost = Ini(bar, L"Buttonbar", L"cmd4");
-        // Probe the exact installed DLL path, not a hand-written path.
+        // First probe the EXACT installed module-path prefix, not a hand-
+        // written path. This distinguishes DLL-path substitution failures
+        // from creator argument/GUI failures.
         const auto creator = buttonParam.find(L",TCLinkCreate ");
         Require(creator != std::wstring::npos, "persisted button export not found");
         const auto markerFromBar = profile / L"marker-for-installed-button-path.txt";
@@ -242,7 +247,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         CloseHandle(probeProcess.hProcess);
         if (!fs::exists(markerFromBar)) {
-            std::wcerr << L"persisted BAR probe (fixture): " << probeCommand << L"\\n";
+            std::wcerr << L"persisted BAR probe (redacted fixture): " << probeCommand << L"\n";
             Require(false, "WDX module path in persisted button did NOT load through rundll32");
         }
         std::wstring buttonCommand = L"\"" + buttonHost + L"\" " + buttonParam;
@@ -288,7 +293,7 @@ int wmain(int argc, wchar_t** argv) {
             WaitForSingleObject(buttonProcess.hProcess, 4000);
         }
         CloseHandle(buttonProcess.hProcess);
-        if (!makerWindow) std::wcerr << L"persisted maker command (fixture): " << buttonCommand << L"\\n";
+        if (!makerWindow) std::wcerr << L"persisted maker command (fixture): " << buttonCommand << L"\n";
         Require(makerWindow != nullptr, "exact persisted TC button command opened no Maker window");
         Require(created, "exact persisted TC button could not create Hebrew hardlink");
         std::cout << "PASS: original buttons retained, command direct and runnable, both columns, "
