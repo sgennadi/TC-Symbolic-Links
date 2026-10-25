@@ -82,6 +82,7 @@ int wmain(int argc, wchar_t** argv) {
         bool relativeDisabled = false;
         bool wrongHint = false;
         bool commanderLayout = false;
+        bool actionStripOnScreen = false;
         if (window) {
             // TC-style regression: two resizable file panels and familiar
             // classic list view must exist while retaining the old WDX IDs.
@@ -90,6 +91,16 @@ int wmain(int argc, wchar_t** argv) {
             HWND destinationPath = GetDlgItem(window, 101);
             HWND resultPane = GetDlgItem(window, 104);
             HWND action = GetDlgItem(window, 105);
+            // Test the usable desktop rectangle (taskbar excluded). The new
+            // bottom action buttons must be fully visible after launch.
+            RECT actionRect{}, workArea{};
+            if (action && GetWindowRect(action, &actionRect) &&
+                SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0)) {
+                actionStripOnScreen = actionRect.left >= workArea.left &&
+                    actionRect.right <= workArea.right &&
+                    actionRect.top >= workArea.top &&
+                    actionRect.bottom <= workArea.bottom;
+            }
             RECT left{}, right{}, srcLine{}, dstLine{};
             wchar_t className[80]{};
             if (sourceList && sourcePath && destinationPath && resultPane && action) {
@@ -138,6 +149,7 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
+        Check(actionStripOnScreen, "TC-style F5 button clipped by Windows taskbar/work area");
         Check(helpPresent && relativeDisabled, "The selected Junction mode needs useful help and disabled relative option");
         Check(created, "%WL directory ending in backslash did not create a junction");
         Check(!wrongHint, "Screenshot regression: invalid-name or 1314 error shown for working directory");
