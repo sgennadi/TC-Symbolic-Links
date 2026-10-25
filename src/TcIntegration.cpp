@@ -84,8 +84,20 @@ bool IsFile(const std::wstring& path) {
 }
 bool Backup(const std::wstring& path) {
     if (!IsFile(path)) return true;
-    const auto backup = path + L".tcslinks.bak";
-    return IsFile(backup) || CopyFileW(path.c_str(), backup.c_str(), TRUE) != FALSE;
+    // Preserve the ORIGINAL pre-plugin backup across upgrades. Never replace it.
+    const auto firstBackup = path + L".tcslinks.bak";
+    if (!IsFile(firstBackup) &&
+        !CopyFileW(path.c_str(), firstBackup.c_str(), TRUE)) return false;
+
+    // Also preserve the IMMEDIATE pre-change state on EVERY setup attempt.
+    // This permits recovery of commands added after the very first install.
+    FILETIME now{};
+    GetSystemTimeAsFileTime(&now);
+    const std::uint64_t stamp =
+        (static_cast<std::uint64_t>(now.dwHighDateTime) << 32) | now.dwLowDateTime;
+    const auto snapshot = path + L".tcslinks.preupdate." +
+        std::to_wstring(stamp) + L"." + std::to_wstring(GetCurrentProcessId()) + L".bak";
+    return CopyFileW(path.c_str(), snapshot.c_str(), TRUE) != FALSE;
 }
 bool ReadBytes(const std::wstring& path, std::vector<unsigned char>& bytes) {
     HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
