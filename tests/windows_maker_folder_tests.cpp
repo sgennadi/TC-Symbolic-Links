@@ -91,6 +91,7 @@ int wmain(int argc, wchar_t** argv) {
         bool wrongHint = false;
         bool commanderLayout = false;
         bool actionStripOnScreen = false;
+        bool understandableControls = false;
         bool rejectsSameFolder = false;
         bool rejectsChildDestination = false;
         bool allowsSafeTarget = false;
@@ -102,6 +103,31 @@ int wmain(int argc, wchar_t** argv) {
             HWND destinationPath = GetDlgItem(window, 101);
             HWND resultPane = GetDlgItem(window, 104);
             HWND action = GetDlgItem(window, 105);
+            HWND folderGlyph = GetDlgItem(window, 112);
+            HWND linkGlyph = GetDlgItem(window, 113);
+            HWND statusGlyph = GetDlgItem(window, 114);
+            HWND browseFolder = GetDlgItem(window, 115);
+            HWND closeAction = GetDlgItem(window, 106);
+            RECT folderBounds{}, buttonBounds{};
+            if (folderGlyph && linkGlyph && statusGlyph && browseFolder &&
+                closeAction && action &&
+                GetWindowRect(folderGlyph, &folderBounds) &&
+                GetWindowRect(browseFolder, &buttonBounds)) {
+                const DWORD makeStyle = static_cast<DWORD>(
+                    GetWindowLongPtrW(action, GWL_STYLE));
+                const DWORD browseStyle = static_cast<DWORD>(
+                    GetWindowLongPtrW(browseFolder, GWL_STYLE));
+                const DWORD closeStyle = static_cast<DWORD>(
+                    GetWindowLongPtrW(closeAction, GWL_STYLE));
+                understandableControls =
+                    (makeStyle & BS_TYPEMASK) == BS_OWNERDRAW &&
+                    (browseStyle & BS_TYPEMASK) == BS_OWNERDRAW &&
+                    (closeStyle & BS_TYPEMASK) == BS_OWNERDRAW &&
+                    folderBounds.right > folderBounds.left &&
+                    buttonBounds.right > buttonBounds.left &&
+                    ControlText(action).find(L"Create") != std::wstring::npos &&
+                    ControlText(closeAction).find(L"Close") != std::wstring::npos;
+            }
             // Test the usable desktop rectangle (taskbar excluded). The new
             // bottom action buttons must be fully visible after launch.
             RECT actionRect{}, workArea{};
@@ -192,6 +218,7 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
+        Check(understandableControls, "Source/target/status glyphs, browse icon or labeled Create/Close buttons missing");
         Check(rejectsSameFolder && rejectsChildDestination && allowsSafeTarget,
               "Maker F5 not guarded against same-directory or recursive link destination");
         Check(actionStripOnScreen, "TC-style F5 button clipped by Windows taskbar/work area");
