@@ -741,11 +741,15 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
                                     static_cast<int>(work.right - work.left) - 24);
     const int winHeight = (std::min)(MulDiv(640, static_cast<int>(GetDpiForSystem()), 96),
                                      static_cast<int>(work.bottom - work.top) - 24);
+    // CW_USEDEFAULT can place the bottom F5/Esc strip under the taskbar on
+    // compact desktops. Center inside the actual usable work area instead.
+    const int centeredX = work.left + (work.right - work.left - winWidth) / 2;
+    const int centeredY = work.top + (work.bottom - work.top - winHeight) / 2;
     HWND window = CreateWindowExW(0, kClassName,
         state->he ? L"TC Symbolic Links — יצירת קישורים" :
         (state->ru ? L"TC Symbolic Links — создание ссылок" :
                      L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-        CW_USEDEFAULT, CW_USEDEFAULT, winWidth, winHeight, nullptr, nullptr, instance, state);
+        centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, instance, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.
         return 6;
