@@ -124,13 +124,29 @@ int wmain(int argc, wchar_t** argv) {
             HWND make = GetDlgItem(window, 105);
             if (destination && make) {
                 const auto identical = (root.dir / L".").wstring();
-                SetWindowTextW(destination, identical.c_str());
+                auto refresh = [&](const std::wstring& value) {
+                    Check(SetWindowTextW(destination, value.c_str()) != FALSE,
+                          "Cannot set destination in GUI guard test");
+                    // Simulate the exact EN_CHANGE event emitted when a user
+                    // edits the path in the destination panel.
+                    SendMessageW(window, WM_COMMAND, MAKEWPARAM(101, EN_CHANGE),
+                                 reinterpret_cast<LPARAM>(destination));
+                };
+                refresh(identical);
                 rejectsSameFolder = !IsWindowEnabled(make);
                 // No recursive links: don't create a selected folder within itself.
-                SetWindowTextW(destination, (folder / L".").c_str());
+                refresh((folder / L".").wstring());
                 rejectsChildDestination = !IsWindowEnabled(make);
-                SetWindowTextW(destination, output.c_str());
+                refresh(output.wstring());
                 allowsSafeTarget = IsWindowEnabled(make);
+                if (!rejectsSameFolder || !rejectsChildDestination || !allowsSafeTarget) {
+                    std::wcerr << L"Guard diagnostics: same=" << rejectsSameFolder
+                        << L" nested=" << rejectsChildDestination
+                        << L" safe=" << allowsSafeTarget
+                        << L" status=" << ControlText(GetDlgItem(window, 0))
+                        << L" preview=" << ControlText(GetDlgItem(window, 110))
+                        << L"\n";
+                }
             }
             HWND combo = GetDlgItem(window, 102);
             HWND createButton = GetDlgItem(window, 105);
