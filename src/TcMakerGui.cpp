@@ -1009,7 +1009,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     const auto total = (std::max)(std::size_t{1}, state->selected.size());
                     const auto done = (std::min)(total,
                         static_cast<std::size_t>(state->completed + state->failed));
-                    const int filled = (std::min)(client.right,
+                    const int filled = (std::min)(static_cast<int>(client.right),
                         static_cast<int>(static_cast<unsigned long long>(client.right) *
                                          done / total));
                     RECT bar{0, track.top, filled, track.bottom};
