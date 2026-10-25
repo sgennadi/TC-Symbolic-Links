@@ -1,3 +1,16 @@
+## 0.2.8 (Preview) — self-link guard, embedded icons and colour
+
+- Block source/target pointing into the same directory, including 8.3 and
+  trailing dot aliases, and prevent recursive junction/symlink creation.
+- Preflight shows a localized warning and disables F5; editing destination
+  to a safe directory re-enables F5.
+- Add an original chain-link ICO resource (16/32px) to the WDX DLL, and use
+  that icon for the plugin-created TC toolbar button.
+- Add Win32 vector glyphs for Create, Stop, Close, source folder, target and
+  status, with tooltips and hover feedback.
+- Add coloured RichEdit success/error output and animated blue progress strip.
+- Extend Windows CI for the user's real same-folder and icon regression.
+
 ## 0.2.7 (Preview) — Total Commander-style native link maker
 
 - Replace the large single-column WDX Maker interface with compact left/right

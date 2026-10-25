@@ -381,7 +381,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     if (!IsFile(ini)) return;
     const auto marker = Join(Parent(ini), L"TCSymbolicLinksInstall.ini");
     if ((GetPrivateProfileIntW(L"Setup", L"Completed", 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", L"Version", 0, marker.c_str()) >= 205) ||
+         GetPrivateProfileIntW(L"Setup", L"Version", 0, marker.c_str()) >= 208) ||
         GetPrivateProfileIntW(L"Setup", L"Declined", 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
@@ -408,7 +408,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
         WriteIni(marker, L"Setup", L"Completed", L"1");
-        WriteIni(marker, L"Setup", L"Version", L"205");
+        WriteIni(marker, L"Setup", L"Version", L"208");
     }
     MessageBoxW(owner, status.c_str(), L"TC Symbolic Links", MB_OK | (success ? MB_ICONINFORMATION : MB_ICONERROR));
 }

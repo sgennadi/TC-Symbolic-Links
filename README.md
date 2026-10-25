@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.7 Preview
+# TC Symbolic Links 0.2.8 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,34 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.8: clear icons, colour and safety feedback
+
+- **No self-links:** the maker detects identical source/destination folders
+  (including paths ending in \`\\.\`, mixed-case spellings, junction aliases and
+  NTFS 8.3 directory aliases) and disables **F5 Create**. The destination field
+  stays editable; choosing another existing directory restores the action.
+- **No recursive links:** prevents creating a selected directory's link inside
+  that same selected directory or one of its subdirectories.
+- **Purpose-built link icon** embedded as 16/32px resources in the WDX DLL;
+  the Total Commander toolbar uses that icon instead of an unrelated
+  WCMICONS image. One plugin module remains; no external EXE.
+- In the Maker window, familiar **folder / link / warning / stop / close icons**
+  accompany text labels, with tooltips in English, Russian and Hebrew.
+  Icons use Windows Segoe MDL2 Assets, without bundled fonts.
+- Clear blue **F5 Create** and subdued **Esc Close** action buttons, hover
+  highlighting, and a compact top accent. Batch execution has an **animated
+  progress strip**.
+- Built-in Windows RichEdit colours actual **OK** lines green and **ERR**
+  lines red; safe preview and helpful error text appear before any operation.
+  The old Windows EDIT is retained as a fallback.
+- Retains the previous source/target split panes, Unicode, RTL/Hebrew,
+  Junction/Hardlink and all installer backup safeguards.
+
+**Preview acceptance:** test the new dialog at 100%/150%/200% scaling,
+including the same-folder selection from the user screenshot, and check
+the embedded icon renders in a real TC toolbar. The GitHub runner's headless
+environment cannot fully confirm a user's personalised toolbar layout.
 
 ## 0.2.7 Preview: familiar Total Commander-style Maker window
 

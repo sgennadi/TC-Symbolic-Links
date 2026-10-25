@@ -1,4 +1,4 @@
-# Required manual acceptance for 0.2.7 before stable release
+# Required manual acceptance for 0.2.8 before stable release
 
 On a real Total Commander 11.58 x64 machine with existing personal toolbar:
 
@@ -128,3 +128,22 @@ On a Windows 11 workstation with Total Commander x64:
   accessible. Inspect Win32 fonts and control reading order on Hebrew Windows.
 - Existing Total Commander toolbar icons/custom columns must be unchanged
   by this purely visual update.
+
+
+## 0.2.8 — Link safety, colour and icon regression
+
+1. In Total Commander select \`C:\\Work\\PS1\`, with the opposite panel open
+   to \`C:\\Work\\.\`. **F5 must be disabled** and the dialog must show a warning
+   in the chosen display language. No file or link may be written.
+2. Set destination to \`C:\\Work\\PS1\` or a subfolder of that source directory.
+   The creator must refuse a recursive symlink or junction.
+3. Change destination to a safe existing directory; the blue **chain-link
+   Create** button and F5 must immediately become available.
+4. Create a Junction and a Hardlink. Ensure result lines are green on success,
+   red on failure, and the blue progress indicator animates while working.
+5. Check icons: gold folder beside source; blue link beside target; chain on
+   blue Create button; X for close; square for Stop; red warning when blocked.
+   Hover buttons to see visual highlight and translated tooltips.
+6. The new plugin-installed Total Commander button uses its embedded chain
+   icon, not the prior \`WCMICONS.DLL,44\` image. All other custom toolbar
+   icons and commands remain unchanged.
