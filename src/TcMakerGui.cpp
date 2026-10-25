@@ -60,6 +60,7 @@ struct Ui {
     HFONT fontSmall = nullptr;
     HFONT fontIcon = nullptr;
     HMODULE richEditModule = nullptr;
+    HICON folderIcon = nullptr;
     bool hoveringCreate = false;
     bool hoveringClose = false;
     bool hoveringBrowse = false;
@@ -104,6 +105,7 @@ struct Ui {
         for (HFONT f : {font, fontTitle, fontLabel, fontSmall, fontIcon}) if (f) DeleteObject(f);
         if (backgroundBrush) DeleteObject(backgroundBrush);
         if (richEditModule) FreeLibrary(richEditModule);
+        if (folderIcon) DestroyIcon(folderIcon);
     }
     const wchar_t* Choose(const wchar_t* english, const wchar_t* russian,
                           const wchar_t* hebrew = nullptr) const {
@@ -373,6 +375,14 @@ void UpdateModeHelp(Ui& s) {
 
 // Windows 10/11 include Segoe MDL2 Assets. Icons are vector glyphs, so they
 // stay crisp at 100%, 150%, 200% DPI without shipping extra images or DLLs.
+bool PaintFolderIcon(HDC dc, const Ui& state, const RECT& rect) {
+    if (!state.folderIcon) return false;
+    const int size = Dp(state, 19);
+    const int x = rect.left + (rect.right - rect.left - size) / 2;
+    const int y = rect.top + (rect.bottom - rect.top - size) / 2;
+    return DrawIconEx(dc, x, y, state.folderIcon, size, size, 0, nullptr,
+                      DI_NORMAL) != FALSE;
+}
 void PaintSymbol(HDC dc, const Ui& state, RECT rect, wchar_t symbol, COLORREF tint) {
     if (!state.fontIcon) return;
     const HGDIOBJ oldFont = SelectObject(dc, state.fontIcon);
@@ -444,6 +454,7 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
 
     RECT icon = browse ? r : RECT{r.left + Dp(state, 9), r.top,
               r.left + Dp(state, 38), r.bottom};
+    if (!(browse && PaintFolderIcon(dc, state, icon)))
     PaintSymbol(dc, state, icon,
                 create ? static_cast<wchar_t>(0xE71B) :
                 browse ? static_cast<wchar_t>(0xE8B7) :
@@ -494,7 +505,9 @@ void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
                 state.creating ? kAccent :
                 state.hasRun ? kPositive : kSecondary;
     }
-    PaintSymbol(item.hDC, state, region, glyph, color);
+    if (!(item.CtlID == ID_SOURCE_GLYPH &&
+          PaintFolderIcon(item.hDC, state, region)))
+        PaintSymbol(item.hDC, state, region, glyph, color);
 }
 void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
     if (!control || !help) return;
@@ -944,6 +957,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) {
                 state->dpi = GetDpiForWindow(hwnd);
                 state->backgroundBrush = CreateSolidBrush(kCanvas);
+                SHFILEINFOW folderInfo{};
+                if (SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY,
+                        &folderInfo, sizeof(folderInfo),
+                        SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | SHGFI_SMALLICON))
+                    state->folderIcon = folderInfo.hIcon;
                 CreateControls(hwnd, *state);
             }
             return 0;
