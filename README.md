@@ -1,10 +1,12 @@
 # TC Symbolic Links
 
+[![Windows VS2026 + Linux WDX + Sanitizers](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml/badge.svg)](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml)
+
 **Native Total Commander x64 utilities for symbolic links, directory junctions and hardlinks.**
 
-[Windows x64 build / tested artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598253250) · [CI run and test logs](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587) · [Manual acceptance checklist](docs/MANUAL-TESTS.md)
+[Windows x64 build / tested artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) · [CI run and test logs](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) · [Manual acceptance checklist](docs/MANUAL-TESTS.md)
 
-> **Preview 0.1.5**. Windows Server 2025 / Visual Studio 2026 compilation and all four native Windows tests passed. The *real* Total Commander 11.58 executable started, and the GUI companion created a Hebrew/niqqud hardlink. Loading the WDX into TC's own window and rendering its custom columns remain **unverified**, because the main TC window was not available to the headless runner.
+> **Preview 0.1.5**. Full GitHub Actions matrix passed: Windows Server 2025 / Visual Studio 2026 compilation, all four native Windows tests, Linux WDX build/tests and ASan/UBSan. The *real* Total Commander 11.58 executable started, and the GUI companion created a Hebrew/niqqud hardlink. Loading the WDX into TC's own window and rendering its custom columns remain **unverified**, because the main TC window was not available to the headless runner.
 
 ## What it does
 
@@ -18,7 +20,7 @@ The WDX is an inspector, **not** a context-menu plugin. Link creation is provide
 
 ## Install in Total Commander (Windows x64)
 
-1. Download [TC-Symbolic-Links-win64-VS2026](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598253250) from the successful Windows Actions run. Extract `TC-Symbolic-Links-win64.zip` from the downloaded artifact.
+1. Download [TC-Symbolic-Links-win64-VS2026](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) from the successful Windows Actions run. Extract `TC-Symbolic-Links-win64.zip` from the downloaded artifact.
 2. Open the inner ZIP in Total Commander x64; use its plugin installer for `SymlinkInspector.wdx64`. Ensure `TCSymlinkMaker.exe` is alongside the installed WDX.
 3. Add a new button to Total Commander's button bar with these settings:
 
@@ -63,11 +65,12 @@ ctest --test-dir build-linux --output-on-failure
 | Unicode file-selection parsing, including niqqud | **Passed** |
 | NTFS reparse decoder, malformed buffers and UTF-16 validation | **Passed** |
 | Native Linux WDX tests (including real POSIX links) | **Passed** |
+| Linux ASan + UBSan | **Passed** |
 | Total Commander 11.58 x64 process launch | **Passed** |
 | GUI companion creates Hebrew hardlink | **Passed** |
 | WDX loaded and custom columns displayed **inside Total Commander** | **Not yet verified** |
 
-Full evidence: [GitHub Actions run #1](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587) and [TC smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192126587/artifacts/12598008845). The smoke-test job records this limitation explicitly rather than treating process startup as a complete GUI pass.
+Full evidence: [GitHub Actions verified VS2026/Linux/sanitizer run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) and [TC smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598288654). The smoke-test job records this limitation explicitly rather than treating process startup as a complete GUI pass.
 
 ## Documentation
 
