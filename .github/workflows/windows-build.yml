@@ -66,7 +66,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path toolbar-recovery | Out-Null
-          Copy-Item scripts/Restore-TC-Toolbar-Only.cmd, scripts/Restore-TC-Toolbar-Only.ps1 -Destination toolbar-recovery
+          Copy-Item scripts/Restore-TC-Toolbar-Only.cmd, scripts/Restore-TC-Toolbar-Only.ps1, scripts/Inspect-TC-Toolbars.cmd, scripts/Inspect-TC-Toolbars.ps1 -Destination toolbar-recovery
           Copy-Item docs/REGRESSION-0.2.1.md -Destination toolbar-recovery
           Compress-Archive -Path toolbar-recovery/* -DestinationPath TC-Symbolic-Links-Toolbar-Recovery.zip -Force
       - uses: actions/upload-artifact@v4
