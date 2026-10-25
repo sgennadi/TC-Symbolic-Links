@@ -1185,7 +1185,12 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     cls.lpfnWndProc = WindowProc;
     cls.hInstance = instance;
     cls.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    cls.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    // Use the same embedded chain icon as our Total Commander toolbar button.
+    cls.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(101));
+    cls.hIconSm = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(101),
+        IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
+        LR_SHARED));
+    if (!cls.hIcon) cls.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
     cls.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     cls.lpszClassName = kClassName;
     if (!RegisterClassExW(&cls)) { delete state; return 5; }
