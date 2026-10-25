@@ -1,0 +1,1 @@
+TC Symbolic Links 0.2.1 preview changes: corrected Total Commander SpecialView index mapping, fixed system rundll32 path and protected existing usercmd entries. Windows VS2026 validation remains required.
