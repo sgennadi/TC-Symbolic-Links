@@ -361,6 +361,144 @@ void UpdateModeHelp(Ui& s) {
                  L"ל-Junction ול-Hardlink אין נתיב יעד יחסי."));
 }
 
+// Windows 10/11 include Segoe MDL2 Assets. Icons are vector glyphs, so they
+// stay crisp at 100%, 150%, 200% DPI without shipping extra images or DLLs.
+void PaintSymbol(HDC dc, const Ui& state, RECT rect, wchar_t symbol, COLORREF tint) {
+    if (!state.fontIcon) return;
+    const HGDIOBJ oldFont = SelectObject(dc, state.fontIcon);
+    const int oldMode = SetBkMode(dc, TRANSPARENT);
+    const COLORREF oldColor = SetTextColor(dc, tint);
+    wchar_t glyph[2]{symbol, L'\0'};
+    DrawTextW(dc, glyph, 1, &rect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    SetTextColor(dc, oldColor);
+    SetBkMode(dc, oldMode);
+    SelectObject(dc, oldFont);
+}
+LRESULT CALLBACK ActionButtonProc(HWND hwnd, UINT msg, WPARAM wParam,
+                                  LPARAM lParam, UINT_PTR id, DWORD_PTR value) {
+    auto* state = reinterpret_cast<Ui*>(value);
+    if (state) {
+        bool& hovering = id == ID_CREATE ? state->hoveringCreate : state->hoveringClose;
+        if (msg == WM_MOUSEMOVE && !hovering) {
+            hovering = true;
+            TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0};
+            TrackMouseEvent(&track);
+            InvalidateRect(hwnd, nullptr, FALSE);
+        } else if (msg == WM_MOUSELEAVE && hovering) {
+            hovering = false;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+    }
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
+    RECT r = item.rcItem;
+    const bool create = item.CtlID == ID_CREATE;
+    const bool enabled = (item.itemState & ODS_DISABLED) == 0;
+    const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+    const bool hot = create ? state.hoveringCreate : state.hoveringClose;
+    const COLORREF fill = create ?
+        (!enabled ? RGB(169, 183, 209) : pressed ? RGB(30, 64, 175) :
+          hot ? kAccentHover : kAccent) :
+        (state.creating ? (hot ? RGB(254, 226, 226) : RGB(254, 242, 242)) :
+          hot ? RGB(222, 231, 245) : kSoftButton);
+    const COLORREF border = create ? fill :
+        (state.creating ? RGB(254, 202, 202) : kLine);
+    const COLORREF ink = create ? kSurface :
+        state.creating ? kDanger : kInk;
+
+    HDC memory = CreateCompatibleDC(item.hDC);
+    const int w = r.right - r.left, h = r.bottom - r.top;
+    HBITMAP bitmap = memory ? CreateCompatibleBitmap(item.hDC, w, h) : nullptr;
+    HGDIOBJ originalBitmap = memory && bitmap ? SelectObject(memory, bitmap) : nullptr;
+    HDC dc = memory && bitmap ? memory : item.hDC;
+    if (dc == memory) { r.left = 0; r.top = 0; r.right = w; r.bottom = h; }
+    HBRUSH canvas = CreateSolidBrush(kCanvas);
+    FillRect(dc, &r, canvas);
+    DeleteObject(canvas);
+    HBRUSH brush = CreateSolidBrush(fill);
+    HPEN pen = CreatePen(PS_SOLID, 1, border);
+    const HGDIOBJ oldPen = SelectObject(dc, pen);
+    const HGDIOBJ oldBrush = SelectObject(dc, brush);
+    RoundRect(dc, r.left + 1, r.top + 1, r.right - 1, r.bottom - 1,
+              Dp(state, 9), Dp(state, 9));
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(pen);
+    DeleteObject(brush);
+
+    RECT icon{r.left + Dp(state, 9), r.top,
+              r.left + Dp(state, 38), r.bottom};
+    PaintSymbol(dc, state, icon,
+                create ? static_cast<wchar_t>(0xE71B) :
+                state.creating ? static_cast<wchar_t>(0xE71A) :
+                                 static_cast<wchar_t>(0xE8BB), ink);
+    std::wstring label = GetText(item.hwndItem);
+    RECT labelRect{r.left + Dp(state, 35), r.top, r.right - Dp(state, 5), r.bottom};
+    const HGDIOBJ oldFont = state.fontLabel ?
+        SelectObject(dc, state.fontLabel) : nullptr;
+    const int oldMode = SetBkMode(dc, TRANSPARENT);
+    const COLORREF oldText = SetTextColor(dc, ink);
+    DrawTextW(dc, label.c_str(), -1, &labelRect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+    SetTextColor(dc, oldText);
+    SetBkMode(dc, oldMode);
+    if (oldFont) SelectObject(dc, oldFont);
+    if (item.itemState & ODS_FOCUS) {
+        RECT focus{r.left + Dp(state, 5), r.top + Dp(state, 4),
+                   r.right - Dp(state, 5), r.bottom - Dp(state, 4)};
+        DrawFocusRect(dc, &focus);
+    }
+    if (dc == memory) BitBlt(item.hDC, item.rcItem.left, item.rcItem.top,
+                            w, h, memory, 0, 0, SRCCOPY);
+    if (originalBitmap) SelectObject(memory, originalBitmap);
+    if (bitmap) DeleteObject(bitmap);
+    if (memory) DeleteDC(memory);
+}
+void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
+    RECT region = item.rcItem;
+    HBRUSH fill = CreateSolidBrush(kCanvas);
+    FillRect(item.hDC, &region, fill);
+    DeleteObject(fill);
+    wchar_t glyph = static_cast<wchar_t>(0xE71B);
+    COLORREF color = kAccent;
+    if (item.CtlID == ID_SOURCE_GLYPH) {
+        glyph = static_cast<wchar_t>(0xE8B7);
+        color = RGB(217, 151, 19);
+    } else if (item.CtlID == ID_TARGET_GLYPH) {
+        glyph = static_cast<wchar_t>(0xE71B);
+        color = kAccent;
+    } else if (item.CtlID == ID_STATUS_GLYPH) {
+        glyph = state.unsafeDestination ? static_cast<wchar_t>(0xE7BA) :
+                state.creating ? static_cast<wchar_t>(0xE72C) :
+                state.failed ? static_cast<wchar_t>(0xE783) :
+                state.hasRun ? static_cast<wchar_t>(0xE73E) :
+                               static_cast<wchar_t>(0xE71B);
+        color = state.unsafeDestination || state.failed ? kDanger :
+                state.creating ? kAccent :
+                state.hasRun ? kPositive : kSecondary;
+    }
+    PaintSymbol(item.hDC, state, region, glyph, color);
+}
+void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
+    if (!control || !help) return;
+    HWND tooltip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr,
+        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+        parent, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!tooltip) return;
+    TOOLINFOW tip{};
+    tip.cbSize = sizeof(tip);
+    tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+    tip.hwnd = parent;
+    tip.uId = reinterpret_cast<UINT_PTR>(control);
+    tip.lpszText = const_cast<LPWSTR>(help);
+    SendMessageW(tooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tip));
+    SendMessageW(tooltip, TTM_SETMAXTIPWIDTH, 0, Dp(*reinterpret_cast<Ui*>(
+        GetWindowLongPtrW(parent, GWLP_USERDATA)), 350));
+}
+
 void Layout(HWND hwnd, Ui& s) {
     RECT rc{};
     GetClientRect(hwnd, &rc);
@@ -392,8 +530,12 @@ void Layout(HWND hwnd, Ui& s) {
           (std::max)(Dp(s, 105), width - margin - checkX), Dp(s, 24));
 
     const int headingY = Dp(s, 74);
-    place(s.labelSources, margin, headingY, leftWidth, Dp(s, 19));
-    place(s.labelResults, rightX, headingY, rightWidth, Dp(s, 19));
+    place(s.sourceGlyph, margin, headingY - Dp(s, 2), Dp(s, 22), Dp(s, 22));
+    place(s.labelSources, margin + Dp(s, 25), headingY,
+          leftWidth - Dp(s, 25), Dp(s, 19));
+    place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 22), Dp(s, 22));
+    place(s.labelResults, rightX + Dp(s, 25), headingY,
+          rightWidth - Dp(s, 25), Dp(s, 19));
     const int pathY = Dp(s, 95);
     const int pathH = Dp(s, 27);
     place(s.sourcePath, margin, pathY, leftWidth, pathH);
@@ -433,8 +575,9 @@ void Layout(HWND hwnd, Ui& s) {
           actionY, createWidth, actionH);
     place(s.close, width - margin - closeWidth,
           actionY, closeWidth, actionH);
-    place(s.status, margin, actionY + Dp(s, 4),
-          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - 2 * space),
+    place(s.statusGlyph, margin, actionY + Dp(s, 2), Dp(s, 25), Dp(s, 24));
+    place(s.status, margin + Dp(s, 29), actionY + Dp(s, 4),
+          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - 2 * space - Dp(s, 29)),
           Dp(s, 22));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
@@ -467,6 +610,8 @@ void CreateControls(HWND hwnd, Ui& s) {
         std::to_wstring(s.selected.size()) + L"]";
     s.labelSources = AddControl(hwnd, L"STATIC", sourceCaption.c_str(),
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    s.sourceGlyph = AddControl(hwnd, L"STATIC", L"", SS_OWNERDRAW, ID_SOURCE_GLYPH);
+    s.targetGlyph = AddControl(hwnd, L"STATIC", L"", SS_OWNERDRAW, ID_TARGET_GLYPH);
     s.labelResults = AddControl(hwnd, L"STATIC", s.Choose(
         L"Target panel  |  Planned links / results",
         L"Целевая панель  |  Ссылки / результат",
@@ -574,6 +719,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         SS_EDITCONTROL | alignCaption, ID_RELATIVE_HINT, captionEx);
     s.preview = AddControl(hwnd, L"STATIC", L"",
         SS_ENDELLIPSIS | alignCaption, ID_PREVIEW, captionEx);
+    s.statusGlyph = AddControl(hwnd, L"STATIC", L"", SS_OWNERDRAW, ID_STATUS_GLYPH);
     s.status = AddControl(hwnd, L"STATIC", s.Choose(
         L"Ready.", L"Готово.", L"מוכן."), SS_ENDELLIPSIS | alignCaption, 0,
         captionEx);
@@ -596,6 +742,18 @@ void CreateControls(HWND hwnd, Ui& s) {
 
     SendMessageW(s.kind, CB_SETCURSEL, 0, 0);
     SendMessageW(s.relative, BM_SETCHECK, BST_UNCHECKED, 0);
+    SetWindowSubclass(s.create, ActionButtonProc, ID_CREATE,
+                      reinterpret_cast<DWORD_PTR>(&s));
+    SetWindowSubclass(s.close, ActionButtonProc, ID_CLOSE,
+                      reinterpret_cast<DWORD_PTR>(&s));
+    AddToolTip(hwnd, s.create, s.Choose(
+        L"Create links in the destination panel (F5)",
+        L"Создать ссылки в папке назначения (F5)",
+        L"יצירת קישורים בחלונית היעד (F5)"));
+    AddToolTip(hwnd, s.close, s.Choose(
+        L"Close window, or stop the running operation (Esc)",
+        L"Закрыть окно или остановить операцию (Esc)",
+        L"סגירה או עצירת הפעולה (Esc)"));
     RecreateFont(s);
     UpdateModeHelp(s);
     UpdatePreview(s);
@@ -764,14 +922,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             EndPaint(hwnd, &paint);
             return 0;
         }
+        case WM_DRAWITEM:
+            if (state && lParam) {
+                const auto* item = reinterpret_cast<const DRAWITEMSTRUCT*>(lParam);
+                if (item->CtlID == ID_CREATE || item->CtlID == ID_CLOSE) {
+                    PaintAction(*state, *item);
+                    return TRUE;
+                }
+                if (item->CtlID == ID_SOURCE_GLYPH ||
+                    item->CtlID == ID_TARGET_GLYPH ||
+                    item->CtlID == ID_STATUS_GLYPH) {
+                    PaintPanelSymbol(*state, *item);
+                    return TRUE;
+                }
+            }
+            break;
         case WM_CTLCOLORSTATIC:
             if (state && state->backgroundBrush) {
                 HDC dc = reinterpret_cast<HDC>(wParam);
                 SetBkMode(dc, TRANSPARENT);
                 const HWND ctl = reinterpret_cast<HWND>(lParam);
-                SetTextColor(dc, (ctl == state->subtitle || ctl == state->modeHint ||
-                    ctl == state->relativeHint || ctl == state->status)
-                    ? kSecondary : GetSysColor(COLOR_WINDOWTEXT));
+                SetTextColor(dc, ctl == state->status || ctl == state->preview ?
+                    (state->unsafeDestination || state->failed ? kDanger :
+                     state->hasRun ? kPositive : kSecondary) :
+                    (ctl == state->subtitle || ctl == state->modeHint ||
+                     ctl == state->relativeHint ? kSecondary : kInk));
                 return reinterpret_cast<LRESULT>(state->backgroundBrush);
             }
             break;
