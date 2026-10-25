@@ -1,3 +1,22 @@
+## 0.2.5 (Preview) — critical customized-toolbar safety fix
+
+- Fix **real 0.2.4 user report**: the saved button's `%COMMANDER_PATH%` was
+  interpreted by Total Commander as `%C` (selected filename) plus trailing
+  text, yielding a RunDLL "specified module not found" error. Generate an
+  absolute plugin path in .bar parameters and reject any percent signs.
+- STOP replacing the selected startup toolbar for profiles without an
+  explicit `[Buttonbar] Buttonbar=`. Modify real DEFAULT.BAR in place only
+  when writable and backed up; otherwise refuse without modifying settings.
+- Refuse legacy 0.2.1 and 0.2.4 plugin-created shadow bars until original
+  toolbar is recovered.
+- Repair helper restores ONLY `[Buttonbar] Buttonbar` from the original backup
+  for both known broken shadow bars, with a timestamped snapshot and no
+  changes to other TC settings, usercmd.ini, or .bar files.
+- Add Windows tests for a plugin physically installed beneath
+  `%COMMANDER_PATH%`, persisted absolute .bar DLL arguments, system rundll32
+  loading, custom-icon preservation, read-only refusal, and both recovery
+  profiles. Upgrade first-load marker to 205.
+
 ## 0.2.4 (Preview) — October 25, 2026
 
 - Fix valid Total Commander profiles without an explicit `[Buttonbar] Buttonbar=`.

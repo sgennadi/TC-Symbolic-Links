@@ -64,19 +64,22 @@ struct ReadOnly {
 }
 int wmain(int argc, wchar_t** argv) {
     try {
-        Check(argc == 2, "Pass built Windows WDX path");
-        const fs::path dll = argv[1];
-        Check(fs::is_regular_file(dll), "Expected SymlinkInspector.wdx64");
-        wchar_t tempBase[MAX_PATH + 1]{};
-        Check(GetTempPathW(MAX_PATH + 1, tempBase) > 0, "GetTempPathW failed");
-        wchar_t uniqueFile[MAX_PATH + 1]{};
-        Check(GetTempFileNameW(tempBase, L"TSD", 0, uniqueFile) != 0, "GetTempFileNameW failed");
-        Check(DeleteFileW(uniqueFile) != FALSE, "DeleteFileW failed");
-        TempDir root{fs::path(uniqueFile)};
+        Check(argc == 2, "Pass the built Windows WDX path");
+        const fs::path compiledDll = argv[1];
+        Check(fs::is_regular_file(compiledDll), "Missing SymlinkInspector.wdx64");
+        wchar_t temporary[MAX_PATH + 1]{};
+        Check(GetTempPathW(MAX_PATH + 1, temporary) > 0, "GetTempPathW failed");
+        wchar_t candidate[MAX_PATH + 1]{};
+        Check(GetTempFileNameW(temporary, L"TSD", 0, candidate) != 0, "GetTempFileNameW failed");
+        Check(DeleteFileW(candidate) != FALSE, "DeleteFileW failed");
+        TempDir root{fs::path(candidate)};
         const auto tcDir = root.folder / L"TotalCommander";
-        const auto configDir = root.folder / L"Settings עברית";
-        fs::create_directories(tcDir);
+        const auto configDir = root.folder / L"Settings";
+        const auto plugDir = tcDir / L"plugins" / L"wdx" / L"TCSymbolicLinks";
+        fs::create_directories(plugDir);
         fs::create_directories(configDir);
+        const auto dll = plugDir / L"SymlinkInspector.wdx64";
+        fs::copy_file(compiledDll, dll);
         EnvVar tcPath(L"COMMANDER_PATH", tcDir.wstring());
         const auto defaultBar = tcDir / L"DEFAULT.BAR";
         const std::string oldButtons =
@@ -87,106 +90,118 @@ int wmain(int argc, wchar_t** argv) {
             "button3=WCMICONS.DLL,3\r\nmenu3=My own subbar\r\n"
             "[CustomOptions]\r\nImportant=keep me\r\n";
         Write(defaultBar, oldButtons);
-        ReadOnly protectedBar(defaultBar);
         const auto ini = configDir / L"wincmd.ini";
         const auto usercmd = configDir / L"usercmd.ini";
-        const std::string existingCmd = "[em_Custom]\r\ncmd=explorer.exe\r\nparam=C:\\\r\n";
-        Write(usercmd, existingCmd);
         const std::string initialIni =
             "[Configuration]\r\nSomeUserSetting=untouched\r\n"
             "[CustomFields]\r\nTitles=Personal|Media\r\nContents1=[=tc.name]\r\n"
             "[left]\r\nSpecialView=1\r\n"
             "[right]\r\nSpecialView=2\r\n";
-        // The key reported by the user is absent: no [Buttonbar] section at all.
+        const std::string oldUsercmd = "[em_Custom]\r\ncmd=notepad.exe\r\nparam=hello\r\n";
         Write(ini, initialIni);
+        Write(usercmd, oldUsercmd);
         std::wstring status;
-        Check(tcs::ConfigureForTotalCommander(ini.wstring(), dll.wstring(), status),
-              "Installing with implicit DEFAULT.BAR was rejected");
-        const auto copy = configDir / L"TC-Symbolic-Links-Default.bar";
-        Check(fs::exists(copy), "No user-owned copy of default toolbar created");
-        Check(Ini(ini, L"Buttonbar", L"Buttonbar") ==
-              L"%COMMANDER_INI_PATH%\\TC-Symbolic-Links-Default.bar",
-              "Clone was not activated via TC's portable INI path variable");
-        Check(Read(defaultBar) == oldButtons, "REGRESSION: global DEFAULT.BAR was modified");
-        Check((GetFileAttributesW(defaultBar.wstring().c_str()) & FILE_ATTRIBUTE_READONLY) != 0,
-              "REGRESSION: global DEFAULT.BAR access flags changed");
-        Check(Ini(copy, L"Buttonbar", L"Buttoncount") == L"4", "Wrong button count in clone");
-        Check(Ini(copy, L"Buttonbar", L"cmd1") == L"cm_Copy", "Copy button missing");
-        Check(Ini(copy, L"Buttonbar", L"cmd2") == L"cm_Delete", "Delete button missing");
-        Check(Ini(copy, L"Buttonbar", L"menu3") == L"My own subbar", "Personal subbar missing");
-        Check(Ini(copy, L"Buttonbar", L"button3") == L"WCMICONS.DLL,3", "Personal icon changed");
-        Check(Ini(copy, L"CustomOptions", L"Important") == L"keep me", "Other .bar settings changed");
-        Check(Ini(copy, L"Buttonbar", L"cmd4").find(L"\\rundll32.exe") != std::wstring::npos,
-              "Create Links button command missing");
-        const auto params = Ini(copy, L"Buttonbar", L"param4");
-        Check(!params.empty() && params.front() == L'"' &&
-              params.find(L",TCLinkCreate --list") != std::wstring::npos &&
-              params.ends_with(L" --tc-launch"),
-              "Rundll32 DLL path was unquoted by the INI reader");
-        // Exercise the exact DLL-path prefix written into the cloned button,
-        // using Windows rundll32, without showing a GUI in the test runner.
-        const auto creatorAt = params.find(L",TCLinkCreate ");
-        Check(creatorAt != std::wstring::npos, "Cannot extract stored DLL prefix");
-        const auto marker = configDir / L"מבחן בדיקת הקישור.txt";
-        const std::wstring rundll = Ini(copy, L"Buttonbar", L"cmd4");
-        const std::wstring probeArgs = params.substr(0, creatorAt) +
-            L",TCLinkProbe \"" + marker.wstring() + L"\"";
-        std::wstring probeLine = L"\"" + rundll + L"\" " + probeArgs;
-        STARTUPINFOW startup{sizeof(startup)};
-        PROCESS_INFORMATION proc{};
-        Check(CreateProcessW(rundll.c_str(), probeLine.data(), nullptr, nullptr, FALSE,
-                             CREATE_NO_WINDOW, nullptr, nullptr, &startup, &proc) != FALSE,
-              "Cannot invoke saved default-bar button using rundll32");
-        CloseHandle(proc.hThread);
-        const DWORD waited = WaitForSingleObject(proc.hProcess, 12000);
-        if (waited != WAIT_OBJECT_0) {
-            TerminateProcess(proc.hProcess, 1);
-            WaitForSingleObject(proc.hProcess, 1500);
+        {
+            ReadOnly locked(defaultBar);
+            Check(!tcs::ConfigureForTotalCommander(ini.wstring(), dll.wstring(), status),
+                  "Read-only DEFAULT.BAR MUST refuse rather than switch the user's toolbar");
+            Check(Read(ini) == initialIni && Read(defaultBar) == oldButtons,
+                  "Refusal must not modify settings or original toolbar");
+            Check(!fs::exists(configDir / L"TC-Symbolic-Links-Default.bar"),
+                  "Refusal incorrectly created a shadow replacement toolbar");
         }
-        CloseHandle(proc.hProcess);
-        Check(waited == WAIT_OBJECT_0 && fs::is_regular_file(marker),
-              "Cloned default-bar WDX module was not loaded by saved command");
-        Check(Read(usercmd) == existingCmd, "REGRESSION: unrelated usercmd.ini edited");
-        Check(Ini(ini, L"Configuration", L"SomeUserSetting") == L"untouched",
-              "REGRESSION: unrelated wincmd.ini values lost");
-        Check(Ini(ini, L"CustomFields", L"Titles") == L"Personal|Media|TC Symbolic Links",
-              "Previous custom column groups lost");
-        Check(Ini(ini, L"left", L"SpecialView") == L"5" &&
-              Ini(ini, L"right", L"SpecialView") == L"5", "Columns not enabled in both panels");
-        Check(Read(ini.wstring() + L".tcslinks.bak") == initialIni,
-              "Original wincmd.ini was not backed up intact");
-        Check(!fs::exists(defaultBar.wstring() + L".tcslinks.bak"),
-              "Global default was modified or backed up unnecessarily");
         Check(tcs::ConfigureForTotalCommander(ini.wstring(), dll.wstring(), status),
-              "Installing again after default bar was cloned must succeed");
-        Check(Ini(copy, L"Buttonbar", L"Buttoncount") == L"4", "Duplicate button after second install");
-        Check(Read(defaultBar) == oldButtons, "Default bar mutated after repeat install");
-        // Collision safety: Never overwrite an unrelated local BAR with the
-        // destination name if the user still has an implicit default setting.
-        const auto collisionDir = root.folder / L"Collision";
-        fs::create_directories(collisionDir);
-        const auto collisionIni = collisionDir / L"wincmd.ini";
-        const auto collisionBar = collisionDir / L"TC-Symbolic-Links-Default.bar";
-        Write(collisionIni, initialIni);
-        Write(collisionBar, "my unrelated existing toolbar");
-        Check(!tcs::ConfigureForTotalCommander(collisionIni.wstring(), dll.wstring(), status),
-              "Installer replaced pre-existing same-name file");
-        Check(Read(collisionIni) == initialIni && Read(collisionBar) == "my unrelated existing toolbar",
-              "Configuration changed despite file collision");
-        // Missing global DEFAULT.BAR: fail safely without writing to profile.
-        const auto missingTC = root.folder / L"EmptyTcInstallation";
-        fs::create_directories(missingTC);
-        Check(SetEnvironmentVariableW(L"COMMANDER_PATH", missingTC.wstring().c_str()) != FALSE,
-              "Cannot simulate missing default toolbar");
-        const auto missingDir = root.folder / L"NoDefaultBar";
+              "Could not append to writable DEFAULT.BAR in place");
+        // CRITICAL: NEVER set or replace the startup toolbar selection.
+        Check(Ini(ini, L"Buttonbar", L"Buttonbar").empty(),
+              "Installer replaced default startup bar: user icons may disappear");
+        Check(!fs::exists(configDir / L"TC-Symbolic-Links-Default.bar"),
+              "Installer created an unrequested shadow toolbar");
+        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"4",
+              "Expected one button added to actual DEFAULT.BAR");
+        Check(Ini(defaultBar, L"Buttonbar", L"cmd1") == L"cm_Copy" &&
+              Ini(defaultBar, L"Buttonbar", L"button1") == L"WCMICONS.DLL,1",
+              "Copy button/icon changed");
+        Check(Ini(defaultBar, L"Buttonbar", L"cmd2") == L"cm_Delete" &&
+              Ini(defaultBar, L"Buttonbar", L"button2") == L"WCMICONS.DLL,2",
+              "Delete button/icon changed");
+        Check(Ini(defaultBar, L"Buttonbar", L"menu3") == L"My own subbar" &&
+              Ini(defaultBar, L"Buttonbar", L"button3") == L"WCMICONS.DLL,3",
+              "Custom subbar/icon lost");
+        Check(Ini(defaultBar, L"CustomOptions", L"Important") == L"keep me",
+              "Unrelated buttonbar settings changed");
+        Check(Read(usercmd) == oldUsercmd, "usercmd.ini modified");
+        Check(Read(defaultBar.wstring() + L".tcslinks.bak") == oldButtons,
+              "DEFAULT.BAR pre-change backup missing or incorrect");
+        Check(Read(ini.wstring() + L".tcslinks.bak") == initialIni,
+              "INI pre-change backup missing or incorrect");
+        Check(Ini(ini, L"CustomFields", L"Titles") == L"Personal|Media|TC Symbolic Links",
+              "Existing custom column sets lost");
+        Check(Ini(ini, L"left", L"SpecialView") == L"5" &&
+              Ini(ini, L"right", L"SpecialView") == L"5",
+              "WDX columns were not enabled in both panels");
+        const std::wstring params = Ini(defaultBar, L"Buttonbar", L"param4");
+        const auto exportAt = params.find(L",TCLinkCreate ");
+        Check(!params.empty() && params.front() == L'"' && exportAt != std::wstring::npos &&
+              params.ends_with(L" --tc-launch"), "Malformed persisted WDX command");
+        Check(params.find(dll.wstring()) != std::wstring::npos,
+              "Installer did not write the ABSOLUTE installed WDX path");
+        Check(params.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
+              params.find(L"%COMMANDER_INI_PATH%") == std::wstring::npos,
+              "Regression: TC expands %C in %COMMANDER_PATH% as the selected file name");
+        // Run the exact persisted WDX prefix through Windows rundll32.exe.
+        const auto marker = configDir / L"wdx-probe.txt";
+        const std::wstring host = Ini(defaultBar, L"Buttonbar", L"cmd4");
+        const std::wstring probeParams = params.substr(0, exportAt) +
+            L",TCLinkProbe \"" + marker.wstring() + L"\"";
+        std::wstring cmdline = L"\"" + host + L"\" " + probeParams;
+        STARTUPINFOW si{sizeof(si)};
+        PROCESS_INFORMATION pi{};
+        Check(CreateProcessW(host.c_str(), cmdline.data(), nullptr, nullptr,
+              FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi) != FALSE,
+              "Could not spawn saved Create Links host command");
+        CloseHandle(pi.hThread);
+        const DWORD wait = WaitForSingleObject(pi.hProcess, 12000);
+        if (wait != WAIT_OBJECT_0) {
+            TerminateProcess(pi.hProcess, 1);
+            WaitForSingleObject(pi.hProcess, 2000);
+        }
+        CloseHandle(pi.hProcess);
+        Check(wait == WAIT_OBJECT_0 && fs::exists(marker),
+              "Saved button could not load the DLL from Total Commander plugins dir");
+        Check(tcs::ConfigureForTotalCommander(ini.wstring(), dll.wstring(), status),
+              "Idempotent reconfiguration failed");
+        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"4" &&
+              Ini(ini, L"Buttonbar", L"Buttonbar").empty(),
+              "Reinstall duplicated buttons or switched toolbar");
+        Check(Read(usercmd) == oldUsercmd, "Reinstall modified user commands");
+        // Previous versions' hidden/clone bars MUST be refused until restored.
+        for (const auto* clone : {L"TCSymbolicLinks.bar", L"TC-Symbolic-Links-Default.bar"}) {
+            const auto otherIni = configDir / (std::wstring(L"wincmd-") + clone + L".ini");
+            // Must have basename wincmd.ini? ConfigureForTotalCommander uses any INI.
+            const auto brokenBar = configDir / clone;
+            Write(brokenBar, "[Buttonbar]\r\nButtoncount=1\r\ncmd1=cm_Copy\r\n");
+            Write(otherIni, "[Configuration]\r\nkeep=YES\r\n");
+            Check(WritePrivateProfileStringW(L"Buttonbar", L"Buttonbar",
+                  brokenBar.wstring().c_str(), otherIni.wstring().c_str()) != FALSE,
+                  "Cannot create historical corrupted toolbar fixture");
+            const auto before = Read(otherIni);
+            Check(!tcs::ConfigureForTotalCommander(otherIni.wstring(), dll.wstring(), status),
+                  "Legacy shadow toolbar was modified instead of refused");
+            Check(Read(otherIni) == before, "Refusal changed historical profile");
+        }
+        const auto missingDir = root.folder / L"MissingTC";
         fs::create_directories(missingDir);
-        const auto missingIni = missingDir / L"wincmd.ini";
+        Check(SetEnvironmentVariableW(L"COMMANDER_PATH", missingDir.wstring().c_str()) != FALSE,
+              "Cannot simulate missing default toolbar");
+        const auto missingIni = configDir / L"missing-wincmd.ini";
         Write(missingIni, initialIni);
         Check(!tcs::ConfigureForTotalCommander(missingIni.wstring(), dll.wstring(), status),
-              "Missing DEFAULT.BAR was incorrectly accepted");
-        Check(Read(missingIni) == initialIni, "Missing-default failure changed settings");
-        std::cout << "PASS: implicit DEFAULT.BAR, read-only global bar, cloned buttons/icons/subbar, "
-                     "Hebrew profile, columns, backups, collision refusal, missing-source refusal, idempotence\n";
+              "Missing DEFAULT.BAR was accepted");
+        Check(Read(missingIni) == initialIni, "Missing default bar changed INI");
+        std::cout << "PASS: no toolbar replacement; read-only refusal; writable DEFAULT.BAR "
+                     "in-place edit; icons and subbar intact; absolute DLL path in TC install; "
+                     "actual rundll32 probe; backups; columns; legacy clone refusal\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << '\n';

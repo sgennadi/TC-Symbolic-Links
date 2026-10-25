@@ -1,7 +1,7 @@
 [plugininstall]
 description=TC Symbolic Links - all-in-one WDX and Create Links
 descriptionRUS=TC Symbolic Links - WDX symlinks, junctions and hardlinks
-version=0.2.4-preview
+version=0.2.5-preview
 type=wdx
 file=SymlinkInspector.wdx64
 defaultdir=TCSymbolicLinks

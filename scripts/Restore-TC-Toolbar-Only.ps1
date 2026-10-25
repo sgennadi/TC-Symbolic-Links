@@ -1,5 +1,6 @@
-# Surgical recovery for the TC Symbolic Links 0.2.1 toolbar regression.
-# Only restores [Buttonbar] Buttonbar from the pre-0.2.1 INI backup.
+# Surgical recovery for toolbar regressions in versions 0.2.1 through 0.2.4.
+# Recognizes both plugin-owned shadow bars. Restores ONLY the old startup
+# [Buttonbar] Buttonbar selector and keeps all other configuration unchanged.
 # Does NOT replace the INI, usercmd.ini, any .bar file or any other setting.
 [CmdletBinding()]
 param(
@@ -62,15 +63,16 @@ $original = Get-BarReference $backup
 if ($original -eq '#__TCS_ABSENT__#') {
     Write-Host 'The backup does not explicitly select a toolbar; restore the default by removing the plugin entry.'
 }
-if ($current -notmatch '(?i)(?:^|[\\/])TCSymbolicLinks\.bar$') {
-    Write-Host "Active toolbar is NOT the old TCSymbolicLinks.bar clone: $current"
+if ($current -notmatch '(?i)(?:^|[\\/])(TCSymbolicLinks|TC-Symbolic-Links-Default)\.bar$') {
+    Write-Host "Active toolbar is not one of the plugin-created shadow bars: $current"
     Write-Host 'No change is necessary. Existing settings remain untouched.'
     return
 }
-if ($original -ieq $current) {
-    throw 'Both INIs select the same shadow toolbar. Refusing an ineffective restore.'
+if ($original -ieq $current -or
+    $original -match '(?i)(?:^|[\\/])(TCSymbolicLinks|TC-Symbolic-Links-Default)\.bar$') {
+    throw 'Backup still points to a plugin-created shadow toolbar. Refusing to overwrite the selection with another broken copy.'
 }
-Write-Host "Current broken toolbar reference: $current"
+Write-Host "Current plugin-created toolbar:    $current"
 Write-Host "Pre-plugin toolbar reference:     $original"
 Write-Host 'ONLY the [Buttonbar] Buttonbar value will be restored.'
 Write-Host 'All panel views, other INI preferences, usercmd.ini, and .bar files remain unchanged.'

@@ -1,3 +1,34 @@
+# Required manual acceptance for 0.2.5 before stable release
+
+On a real Total Commander 11.58 x64 machine with existing personal toolbar:
+
+1. Back up the exact `wincmd.ini` path shown in Help > About, plus the active
+   `.bar` and `usercmd.ini`. Do NOT test on your only unbacked-up profile.
+2. If using the 0.2.1 or 0.2.4 shadow bar, close TC and run the surgical
+   recovery helper first. Check all original icons are visible again.
+3. Install the new WDX in Total Commander. Confirm no extra EXE is installed.
+4. In a profile with an explicit writable `.bar`, approve first-load setup:
+   the `Buttonbar=` key must be identical before/after, all old buttons/icons
+   must still be visible, and exactly ONE Create Links button must be added.
+5. In a profile without `Buttonbar=`, test a **read-only** DEFAULT.BAR first:
+   the plugin must refuse and preserve every setting, never activate a clone.
+   Test separately with a writable DEFAULT.BAR and verify in-place append.
+6. Click Create Links while selecting a real source path in TC (e.g.
+   `Inspect-ISOReadOnly.ps1` as seen in the report). No RunDLL module path may
+   contain that selected file name. The link maker must open.
+7. With disposable files and folders and both panels visible, test symlink,
+   junction and hardlink creation, Hebrew/niqqud names, and paths with spaces.
+8. Verify all four WDX custom fields display in left and right panels.
+9. Restart TC twice, confirm stable toolbar/icons, no duplicate Create Links
+   button, no unwanted .bar or usercmd.ini replacement, and no lost columns.
+10. If any step fails, do not retry the automatic installer on the same
+    unverified profile. Preserve the backup and report the exact error and
+    relevant `Buttonbar=` value for diagnosis.
+
+**Do not merge or tag stable until steps 4–9 are observed on a real TC GUI.**
+
+---
+
 # Windows / Total Commander acceptance (0.2.1 Preview)
 
 Use a clean Total Commander 11.58 x64 profile, plus a second existing profile with real buttons and custom columns. Save a separate external copy of the profile before the test.

@@ -45,7 +45,29 @@ DoNotTouch=YES
     if ([Convert]::ToBase64String($barBefore) -cne [Convert]::ToBase64String([IO.File]::ReadAllBytes($bar))) {
         throw 'Custom .bar was altered'
     }
-    Write-Host 'PASS: toolbar-only restore preserved existing buttons, usercmd and other settings'
+    # Repeat recovery with the 0.2.4 shadow startup bar. It must restore the
+    # original user's explicitly selected toolbar, not switch to DEFAULT.BAR.
+    Set-Content -LiteralPath $ini -Value ($broken.Replace('TCSymbolicLinks.bar',
+        'TC-Symbolic-Links-Default.bar')) -Encoding Ascii
+    & (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts/Restore-TC-Toolbar-Only.ps1') -IniPath $ini -Force
+    $restoredAgain = Get-Content -LiteralPath $ini -Raw
+    if ($restoredAgain -notmatch '(?m)^Buttonbar=%COMMANDER_INI_PATH%\\CustomToolbar\.bar\s*$') {
+        throw '0.2.4 clone recovery failed to restore the old custom toolbar'
+    }
+    if ($restoredAgain -notmatch 'SpecialView=11' -or $restoredAgain -notmatch 'DoNotTouch=YES') {
+        throw '0.2.4 clone recovery modified unrelated TC configuration'
+    }
+    # When the original INI had no explicit Buttonbar= setting, recovery
+    # removes only the plugin-added key and preserves unrelated settings.
+    $preImplicit = "[Configuration]`r`nKeepThis=YES`r`n"
+    Set-Content -LiteralPath ($ini + '.tcslinks.bak') -Value $preImplicit -Encoding Ascii
+    Set-Content -LiteralPath $ini -Value ($broken.Replace('TCSymbolicLinks.bar',
+        'TC-Symbolic-Links-Default.bar')) -Encoding Ascii
+    & (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts/Restore-TC-Toolbar-Only.ps1') -IniPath $ini -Force
+    $afterImplicit = Get-Content -LiteralPath $ini -Raw
+    if ($afterImplicit -match '(?m)^Buttonbar=') { throw 'Recovery failed to remove plugin-added Buttonbar key' }
+    if ($afterImplicit -notmatch 'DoNotTouch=YES') { throw 'Implicit startup recovery changed unrelated settings' }
+    Write-Host 'PASS: 0.2.1 and 0.2.4 shadow-toolbar recovery; implicit default; all other TC settings retained' 
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.4 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -96,6 +96,9 @@ int wmain(int argc, wchar_t** argv) {
                 "regression: INI reader stripped critical surrounding argument quotes");
         Require(buttonParams.find(L"SymlinkInspector.wdx64") != std::wstring::npos,
                 "button missing WDX module");
+        Require(buttonParams.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
+                buttonParams.find(L"%COMMANDER_INI_PATH%") == std::wstring::npos,
+                "TC expands %C in environment-like names inside toolbar arguments");
         Require(buttonParams.find(L",TCLinkCreate --list") != std::wstring::npos,
                 "incorrect rundll32 Unicode export invocation");
         Require(buttonParams.find(L"%WL") != std::wstring::npos &&
@@ -120,8 +123,10 @@ int wmain(int argc, wchar_t** argv) {
         Require(Ini(ini, L"Buttonbar", L"Buttonbar") == selectedPath,
                 "second invocation replaced buttonbar");
         Require(ReadText(usercmd) == originalUserCommands, "usercmd changed on re-run");
-        // Upgrade from 0.2.2: the INI reader stripped the outer quotes.
-        // Reconfiguration must repair this same button, never duplicate it.
+        // Upgrade from 0.2.2: an existing button can have a malformed
+        // parameters value with its outer quotes removed by the INI API.
+        // Reconfiguration must repair that button in place, not create a
+        // duplicate or swap out the user's active toolbar.
         const auto fixedParam = Ini(bar, L"Buttonbar", L"param4");
         const auto markerPos = fixedParam.rfind(L" --tc-launch");
         Require(markerPos != std::wstring::npos, "missing repaired marker");
