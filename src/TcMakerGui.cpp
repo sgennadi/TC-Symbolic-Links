@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <commctrl.h>
+#include <richedit.h>
 #include <algorithm>
 #include <cstddef>
 #include <exception>
@@ -26,10 +27,24 @@ constexpr int ID_MODE_HINT = 108;
 constexpr int ID_RELATIVE_HINT = 109;
 constexpr int ID_PREVIEW = 110;
 constexpr int ID_SOURCE_PATH = 111;
+constexpr int ID_SOURCE_GLYPH = 112;
+constexpr int ID_TARGET_GLYPH = 113;
+constexpr int ID_STATUS_GLYPH = 114;
+constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
 // Respect the Windows/Total Commander classic colours and user's OS theme.
-constexpr COLORREF kSecondary = RGB(85, 85, 85);
+constexpr COLORREF kCanvas = RGB(246, 248, 253);
+constexpr COLORREF kSurface = RGB(255, 255, 255);
+constexpr COLORREF kLine = RGB(221, 228, 238);
+constexpr COLORREF kInk = RGB(31, 41, 55);
+constexpr COLORREF kSecondary = RGB(100, 116, 139);
+constexpr COLORREF kAccent = RGB(37, 99, 235);
+constexpr COLORREF kAccentHover = RGB(29, 78, 216);
+constexpr COLORREF kPositive = RGB(22, 163, 74);
+constexpr COLORREF kDanger = RGB(220, 38, 38);
+constexpr COLORREF kWarning = RGB(217, 119, 6);
+constexpr COLORREF kSoftButton = RGB(235, 240, 248);
 
 struct Ui {
     bool ru = false;
@@ -39,10 +54,18 @@ struct Ui {
     HFONT fontTitle = nullptr;
     HFONT fontLabel = nullptr;
     HFONT fontSmall = nullptr;
+    HFONT fontIcon = nullptr;
+    HMODULE richEditModule = nullptr;
+    bool hoveringCreate = false;
+    bool hoveringClose = false;
+    unsigned animationFrame = 0;
     HBRUSH backgroundBrush = nullptr;
     HWND title = nullptr;
     HWND subtitle = nullptr;
     HWND labelSources = nullptr;
+    HWND sourceGlyph = nullptr;
+    HWND targetGlyph = nullptr;
+    HWND statusGlyph = nullptr;
     HWND sources = nullptr;
     HWND sourcePath = nullptr;
     HWND labelDestination = nullptr;
@@ -72,8 +95,9 @@ struct Ui {
     bool batchRelative = false;
     std::wstring batchDestination;
     ~Ui() {
-        for (HFONT f : {font, fontTitle, fontLabel, fontSmall}) if (f) DeleteObject(f);
+        for (HFONT f : {font, fontTitle, fontLabel, fontSmall, fontIcon}) if (f) DeleteObject(f);
         if (backgroundBrush) DeleteObject(backgroundBrush);
+        if (richEditModule) FreeLibrary(richEditModule);
     }
     const wchar_t* Choose(const wchar_t* english, const wchar_t* russian,
                           const wchar_t* hebrew = nullptr) const {
@@ -93,10 +117,32 @@ std::wstring GetText(HWND control) {
     return s;
 }
 
+void SetRichTextColor(HWND edit, COLORREF color, bool all = false) {
+    if (!edit) return;
+    wchar_t cls[48]{};
+    GetClassNameW(edit, cls, 48);
+    if (_wcsicmp(cls, L"RICHEDIT50W") != 0) return;
+    CHARFORMAT2W format{};
+    format.cbSize = sizeof(format);
+    format.dwMask = CFM_COLOR;
+    format.crTextColor = color;
+    SendMessageW(edit, EM_SETCHARFORMAT, all ? SCF_ALL : SCF_SELECTION,
+                 reinterpret_cast<LPARAM>(&format));
+}
 void AppendLine(HWND edit, const std::wstring& line) {
+    if (!edit) return;
     SendMessageW(edit, EM_SETSEL, static_cast<WPARAM>(-1), static_cast<LPARAM>(-1));
-    std::wstring text = line + L"\r\n";
-    SendMessageW(edit, EM_REPLACESEL, FALSE, reinterpret_cast<LPARAM>(text.c_str()));
+    COLORREF tint = kInk;
+    if (line.rfind(L"OK ", 0) == 0) tint = kPositive;
+    else if (line.rfind(L"ERR ", 0) == 0) tint = kDanger;
+    else if (line.rfind(L"Created:", 0) == 0 ||
+             line.rfind(L"Создано:", 0) == 0) tint = kAccent;
+    else if (line.find(L"Stopped") != std::wstring::npos ||
+             line.find(L"Остановлено") != std::wstring::npos) tint = kWarning;
+    SetRichTextColor(edit, tint);
+    const std::wstring text = line + L"\r\n";
+    SendMessageW(edit, EM_REPLACESEL, FALSE,
+                 reinterpret_cast<LPARAM>(text.c_str()));
     SendMessageW(edit, EM_SCROLLCARET, 0, 0);
 }
 
@@ -111,14 +157,20 @@ void RecreateFont(Ui& state) {
     const auto oldTitle = state.fontTitle;
     const auto oldLabel = state.fontLabel;
     const auto oldSmall = state.fontSmall;
+    const auto oldIcon = state.fontIcon;
     state.font = MakeFont(state.dpi, 9, FW_NORMAL);
     state.fontTitle = MakeFont(state.dpi, 10, FW_SEMIBOLD);
     state.fontLabel = MakeFont(state.dpi, 9, FW_SEMIBOLD);
     state.fontSmall = MakeFont(state.dpi, 9, FW_NORMAL);
+    state.fontIcon = CreateFontW(-MulDiv(16, static_cast<int>(state.dpi), 72),
+        0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+        DEFAULT_PITCH | FF_SWISS, L"Segoe MDL2 Assets");
     if (!state.font) state.font = oldFont;
     if (!state.fontTitle) state.fontTitle = oldTitle;
     if (!state.fontLabel) state.fontLabel = oldLabel;
     if (!state.fontSmall) state.fontSmall = oldSmall;
+    if (!state.fontIcon) state.fontIcon = oldIcon;
     for (HWND item : {state.sources, state.sourcePath, state.destination, state.kind,
                       state.relative, state.results, state.create, state.close}) {
         if (item && state.font) SendMessageW(item, WM_SETFONT,
@@ -140,6 +192,7 @@ void RecreateFont(Ui& state) {
     if (oldTitle && oldTitle != state.fontTitle) DeleteObject(oldTitle);
     if (oldLabel && oldLabel != state.fontLabel) DeleteObject(oldLabel);
     if (oldSmall && oldSmall != state.fontSmall) DeleteObject(oldSmall);
+    if (oldIcon && oldIcon != state.fontIcon) DeleteObject(oldIcon);
 }
 
 HWND AddControl(HWND parent, const wchar_t* cls, const wchar_t* title,
@@ -228,6 +281,7 @@ void UpdatePlannedOutput(Ui& s) {
     const std::wstring dir = tcs::FullPath(GetText(s.destination));
     if (s.unsafeDestination) {
         SetWindowTextW(s.results, (std::wstring(L"  !  ") + s.unsafeReason).c_str());
+        SetRichTextColor(s.results, kDanger, true);
         return;
     }
     std::wstring lines;
@@ -239,6 +293,7 @@ void UpdatePlannedOutput(Ui& s) {
     if (count < s.selected.size()) lines += s.Choose(
         L"...more selected items", L"...остальные выделенные элементы", L"...פריטים נוספים");
     SetWindowTextW(s.results, lines.c_str());
+    SetRichTextColor(s.results, kInk, true);
 }
 
 void UpdatePreview(Ui& s) {
@@ -499,9 +554,20 @@ void CreateControls(HWND hwnd, Ui& s) {
         ListView_SetItemState(s.sources, 0, LVIS_SELECTED | LVIS_FOCUSED,
                              LVIS_SELECTED | LVIS_FOCUSED);
 
-    s.results = AddControl(hwnd, L"EDIT", L"",
+    // Microsoft's built-in RichEdit offers coloured per-link success/error
+    // rows; the standard EDIT control remains a compatible fallback.
+    s.richEditModule = LoadLibraryW(L"Msftedit.dll");
+    if (s.richEditModule) {
+        s.results = AddControl(hwnd, L"RICHEDIT50W", L"",
+            WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_READONLY |
+            ES_AUTOVSCROLL | WS_BORDER, ID_RESULTS, WS_EX_CLIENTEDGE);
+    }
+    if (!s.results) s.results = AddControl(hwnd, L"EDIT", L"",
         WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_READONLY |
         ES_AUTOVSCROLL | WS_BORDER, ID_RESULTS, WS_EX_CLIENTEDGE);
+    if (s.results && s.richEditModule)
+        SendMessageW(s.results, EM_SETBKGNDCOLOR, 0,
+            static_cast<LPARAM>(kSurface));
     s.modeHint = AddControl(hwnd, L"STATIC", L"",
         SS_EDITCONTROL | alignCaption, ID_MODE_HINT, captionEx);
     s.relativeHint = AddControl(hwnd, L"STATIC", L"",
@@ -513,10 +579,10 @@ void CreateControls(HWND hwnd, Ui& s) {
         captionEx);
     s.create = AddControl(hwnd, L"BUTTON", s.Choose(
         L"F5  Create", L"F5  Создать", L"F5  צור"),
-        WS_TABSTOP | BS_DEFPUSHBUTTON, ID_CREATE);
+        WS_TABSTOP | BS_OWNERDRAW, ID_CREATE);
     s.close = AddControl(hwnd, L"BUTTON", s.Choose(
         L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"),
-        WS_TABSTOP, ID_CLOSE);
+        WS_TABSTOP | BS_OWNERDRAW, ID_CLOSE);
 
     for (const wchar_t* label : {
         s.Choose(L"Automatic (file / folder)", L"Автоматически (файл / папка)",
@@ -643,7 +709,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_CREATE:
             if (state) {
                 state->dpi = GetDpiForWindow(hwnd);
-                state->backgroundBrush = CreateSolidBrush(GetSysColor(COLOR_BTNFACE));
+                state->backgroundBrush = CreateSolidBrush(kCanvas);
                 CreateControls(hwnd, *state);
             }
             return 0;
