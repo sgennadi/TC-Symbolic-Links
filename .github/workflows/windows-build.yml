@@ -36,11 +36,40 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed' }
-      - name: Launch actual Total Commander and exercise Hebrew GUI
+      - name: Attempt strict real Total Commander WDX and Hebrew GUI acceptance
         continue-on-error: true
         shell: pwsh
         run: |
-          ./scripts/windows-tc-smoke.ps1 -WdxPath build/Release/SymlinkInspector.wdx64 -MakerPath build/Release/TCSymlinkMaker.exe -OutputPath tc-smoke-results
+          ./scripts/windows-tc-smoke.ps1 -WdxPath build/Release/SymlinkInspector.wdx64 -MakerPath build/Release/TCSymlinkMaker.exe -OutputPath tc-smoke-results -RequireFullGui
+      - name: Report verified and unverified Total Commander checks
+        if: always()
+        shell: pwsh
+        run: |
+          $file = 'tc-smoke-results/tc-smoke.json'
+          if (-not (Test-Path -LiteralPath $file)) {
+            "## Total Commander smoke test" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "No smoke report available. GUI acceptance was not verified." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+          $rows = @(
+            "## Real Total Commander 11.58 smoke test"
+            ""
+            "| Check | Result |"
+            "|---|---|"
+            "| Total Commander process launched | $($report.tc_process_started) |"
+            "| TC main GUI window found | $($report.tc_window_found) |"
+            "| WDX DLL loaded by TC process | $($report.tc_wdx_loaded_in_process) |"
+            "| Link Maker GUI found | $($report.maker_window_found) |"
+            "| Hebrew / niqqud GUI hardlink created | $($report.maker_hebrew_hardlink_created) |"
+            "| **Full GUI acceptance** | **$($report.interactive_gui_verified)** |"
+            ""
+            "Process launch and direct WDX API tests are not proof of WDX custom-column rendering inside Total Commander."
+          )
+          $rows | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          if (-not $report.interactive_gui_verified) {
+            Write-Warning 'Full TC WDX GUI acceptance is still unverified; Windows binary/API test results are separate.'
+          }
       - name: Upload Total Commander evidence
         if: always()
         uses: actions/upload-artifact@v4
