@@ -13,3 +13,15 @@ Use a clean Total Commander 11.58 x64 profile, plus a second existing profile wi
 9. Verify `.tcslinks.bak` files exist and verify manual uninstall instructions before rolling out broadly.
 
 The standard TC installer **cannot** itself execute WDX setup code. If the initial prompt never occurs, load the WDX plugin explicitly and observe whether `ContentSetDefaultParams` fires. Do not mark first-load automation as verified without actual Total Commander evidence.
+
+## Mandatory 0.2.2 real-user regression
+
+**DO NOT install 0.2.1 on an existing customized Total Commander profile.**
+
+1. Before configuring 0.2.2, save your actual `wincmd.ini`, active `.bar` and `usercmd.ini`; note the number and identity of all existing buttons.
+2. Install `SymlinkInspector.wdx64` using TC's built-in plugin installer and accept the plugin's one-time configuration. Close and restart all TC windows.
+3. Verify the original toolbar is still selected, every prior icon/subbar works, and exactly one additional **Create Links** button appears.
+4. With source files selected, press the new button: it must launch a **visible Win32 GUI**, not silently exit. Create file symlink, directory symlink, junction and hardlink with Russian and Hebrew file names. Verify both paths and hardlink count.
+5. Check both panel column presets display `Link type`, `Link target`, `Target exists`, `Hardlink count`, and previous custom views remain selectable.
+6. Re-run integration explicitly and restart; verify no duplicate button and no unrelated usercmd.ini changes.
+7. If a previous 0.2.1 install hid toolbar buttons, recover from `wincmd.ini.tcslinks.bak` first (see README and scripts/Restore-TC-Buttons-0.2.1.cmd).

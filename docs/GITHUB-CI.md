@@ -1,37 +1,27 @@
-# GitHub Actions CI for 0.2.1 Preview
+# TC Symbolic Links 0.2.2: GitHub CI and recovery
 
 Repository: https://github.com/sgennadi/TC-Symbolic-Links
 
-## Verified results
+0.2.1 had a real-user regression: it replaced the active button bar and could
+break custom toolbar commands. Do not deploy 0.2.1. Restore the original
+wincmd.ini and usercmd.ini backups using scripts/Restore-TC-Buttons-0.2.1.cmd.
 
-[Full VS2026, Linux WDX, and ASan/UBSan run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503):
-all three required jobs **passed** on October 25, 2026.
+## 0.2.2 Windows CI must verify
 
-- `windows-vs2026` compiled **SymlinkInspector.wdx64 only** (no
-  `TCSymlinkMaker.exe`) using VS2026/MSVC v145 and passed all **six CTest
-  suites**, including the real Windows rundll32 Unicode entrypoint test.
-- `linux-wdx-unicode` passed all **four CTest suites** and checked WDX exports.
-- `linux-sanitizers` passed all **four CTest suites** with ASan and UBSan.
-- Total Commander 11.58 ran, and the embedded maker window created a
-  Hebrew/niqqud hardlink through `rundll32.exe`.
-- The TC main GUI window was not found in GitHub-hosted CI. WDX custom-column
-  rendering **inside TC** is unverified, not silently counted as passing.
+- Visual Studio 2026 MSVC v145 x64 builds only SymlinkInspector.wdx64.
+- All WDX ABI, Hebrew and reparse parser tests pass.
+- Native `tc_one_dll_installer_and_rundll32` test verifies the original active
+  `.bar` reference remains **unchanged**, every prior button stays, and the
+  Create Links button uses a direct trusted system rundll32 command.
+- `usercmd.ini` is not changed byte-for-byte; backed-up `.bar` and wincmd.ini
+  equal the original pre-install bytes; repeated configuration is idempotent.
+- Unsafe legacy shadow bar and ambiguous bar profiles fail without touching
+  the user's data.
+- GitHub Actions real TC smoke attempts launch and Hebrew GUI hardlink
+  creation, and explicitly records missing visual custom-column acceptance.
 
-## Download
+Linux builds/UTF-16 tests and sanitizer jobs must also pass. Keep PR in draft
+until Windows CI is green; do not call it stable until interactive TC button
+and both column panes are confirmed on real customized Windows profiles.
 
-- [Windows x64 one-WDX installer package](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12599843692)
-- [Linux x64 WDX](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600028345)
-- [Real Total Commander smoke-test evidence](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600063342)
-
-The Windows artifact contains an outer Actions ZIP and an inner
-`TC-Symbolic-Links-win64.zip` installable by Total Commander. The inner ZIP
-includes `pluginst.inf`, `SymlinkInspector.wdx64`, and documentation only.
-
-## Important installer limitation
-
-The `pluginst.inf` installer only registers the WDX; it cannot directly create
-button-bar buttons or edit custom columns. A first-load WDX initialization
-prompt requests consent, then clones the toolbar and creates a dedicated custom
-column preset for both panels. The plugin may not be loaded immediately when
-installed. An interactive Total Commander test with restart is required before
-promoting the Preview build to stable. See [manual tests](MANUAL-TESTS.md).
+See REGRESSION-0.2.1.md for cause and recovery.

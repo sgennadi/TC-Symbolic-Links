@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.1 Preview — One DLL
+# TC Symbolic Links 0.2.2 Preview — Toolbar Safety Fix (One DLL)
 
 One Unicode-aware `.wdx64` module for **Total Commander x64**. It both inspects links in WDX custom columns and creates Windows symbolic links, NTFS junctions, and hardlinks using an integrated Win32 dialog.
 
@@ -10,7 +10,7 @@ The Linux build is a native ELF `.wdx` for Double Commander. It provides inspect
 
 1. Open the **installer ZIP** in Total Commander by double-clicking or pressing Enter (do not use Ctrl+PgDn). `pluginst.inf` offers installation and registers `SymlinkInspector.wdx64` as a content plugin.
 2. **When TC first loads the WDX**, the plugin offers one-time configuration (English, Russian, Hebrew). Choose **Yes** to have it create a toolbar button and custom-column preset, then activate the preset for **both panels**. Restart Total Commander so its toolbar and panel layouts reload.
-3. Existing column presets are retained, and the existing toolbar is **cloned**, not overwritten. Changed INI files have `.tcslinks.bak` backup copies. Repeated configuration does not duplicate the button or columns. No hidden modifications occur after choosing No.
+3. **The existing toolbar remains active and is never replaced.** The plugin appends its button directly to the explicitly configured active `.bar` and makes a `.tcslinks.bak` copy first. Existing column presets and `usercmd.ini` are left intact; columns are configured in both panels. Repeated configuration does not duplicate the button or columns. If TC uses an unknown/redirected bar, the installer refuses to guess instead of altering another toolbar.
 
 **Important Total Commander limitation:** the built-in `pluginst.inf` installer registers WDX plugins only; it does **not** offer a supported post-install hook for button bars and custom-column presets. The optional setup runs from the WDX when TC loads it, not from the installer itself. WDX loading can be deferred until the plugin's fields are requested. This means we **cannot guarantee** that the button and columns appear immediately after installing the ZIP. The automatic first-load setup and real TC GUI still require final Windows acceptance testing. We do not modify settings during `DllMain` or silently insert code into the running TC window.
 
@@ -20,9 +20,20 @@ For an explicit setup call if the first-load prompt has not appeared, use the sa
 
 Close TC before executing that command to avoid its shutdown overwriting INI changes. The setup reports any unsupported profile redirects, never knowingly overwrites existing user commands, and backs up settings.
 
+## Recover your original buttons after the 0.2.1 defect
+
+Version 0.2.1 could replace the active button bar with `TCSymbolicLinks.bar` and convert an existing `usercmd.ini` into UTF-16LE. If custom buttons disappeared or the created button did nothing, **stop using 0.2.1 and restore the backups first**:
+
+1. In Total Commander, select **Help > About Total Commander** and note the exact active `wincmd.ini` path. Close all Total Commander instances.
+2. Run `scripts/Restore-TC-Buttons-0.2.1.cmd` and choose that `wincmd.ini` in the file picker. Confirm `RESTORE`. The script saves the current INIs to timestamped files and restores any available `wincmd.ini.tcslinks.bak` and `usercmd.ini.tcslinks.bak`.
+3. Reopen TC. Your original button bar reference and user commands should be back. Do not delete existing `.bar` files.
+4. Version 0.2.2 offers safe integration again. It refuses to touch a legacy `TCSymbolicLinks.bar` shadow; **restore first**. A TC restart is required before the new button is usable.
+
+**Important:** restoring the full pre-0.2.1 `wincmd.ini` also reverses other configuration edits made after that backup. The recovery script saves your current INIs first.
+
 ## Button and columns
 
-After successful setup, a **Create Links** button is added via `em_TCSymbolicLinks_Create` in `usercmd.ini`. It calls:
+After successful setup, a **Create Links** button is appended directly to the active `.bar`, keeping its original path unchanged. **`usercmd.ini` is never modified, re-encoded or required.** The button calls:
 
 - Command: full absolute path to Windows system `rundll32.exe` (built into Windows, not found by searching the current directory).
 - Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreate --list "%WL" --dest "%T."`
@@ -53,34 +64,25 @@ The GitHub Actions workflow also attempts the real Total Commander 11.58 x64 smo
 
 Linux `.wdx` is compatible with the Double Commander WDX ABI, including its 16-bit UTF-16 `WCHAR` representation. Linux tests cover real POSIX links, Unicode files and malformed NTFS reparse data. This does not replace Windows GUI acceptance.
 
-## Verified Preview status — October 25, 2026
+## CI status and outstanding acceptance — October 25, 2026
 
-**0.2.1 Preview is available as a single Windows `.wdx64` file.** The
-[GitHub Actions VS2026 / Linux / sanitizer run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503)
-passed all three required jobs:
+**0.2.2 is a safety fix awaiting Windows CI and interactive user acceptance.**
+The previous [0.2.1 GitHub Actions run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503)
+passed Windows unit tests, and the real WDX maker GUI created a Hebrew hardlink.
+However, these tests missed a live-user regression: 0.2.1 overwrote the active toolbar
+reference, hid custom buttons, and routed its own button through `usercmd.ini`.
 
-- Windows Server 2025 + VS2026 (MSVC v145): **6/6 tests passed**, including
-  real Win32 hardlinks, WDX UTF-16 exports, configuration of the TC toolbar
-  and both custom-column presets with backups, and Unicode entrypoints called
-  through the actual Windows `rundll32.exe`.
-- Linux WDX build and Unicode/reparse tests: **4/4 passed**.
-- Linux AddressSanitizer + UndefinedBehaviorSanitizer: **4/4 passed**.
-- Real Total Commander 11.58 launched in CI. The one-DLL creator window
-  successfully created a hardlink for a Hebrew file with niqqud.
+The new Windows integration regression explicitly requires:
 
-**Full TC GUI integration is not yet verified.** GitHub-hosted CI reported
-`tc_window_found=false`, `tc_wdx_loaded_in_process=false`, and
-`interactive_gui_verified=false`: the TC main window could not be found in
-its non-interactive desktop. This does *not* prove the WDX integration is broken,
-but it also does *not* prove that the installed columns or button appeared in
-Total Commander's real GUI. The first-load setup prompt is not a post-install
-hook of `pluginst.inf`; manual interactive confirmation is required for stable.
+- The original `Buttonbar` path never changes and every existing bar button remains.
+- A new button is appended **directly** with a system `rundll32.exe` command and a valid `TCLinkCreate` Unicode parameter.
+- `usercmd.ini` remains **byte-for-byte identical** (including unrelated `em_` entries).
+- Original `.bar` and INI files are backed up, configuration remains repeatable, and unrelated buttons are never modified.
+- Both panels use the intended WDX preset while existing presets are preserved.
+- Unsafe ambiguous configurations and legacy broken shadow bars fail without modification.
 
-Download verified CI artifacts:
+**Full live TC button clicks and WDX column rendering still need interactive testing.**
 
-- [Windows plugin installer ZIP (one WDX DLL, no separate EXE)](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12599843692)
-- [Linux native WDX](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600028345)
-- [Real TC smoke-test JSON and screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40197680503/artifacts/12600063342)
-- [Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
+[Preview PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1)
 
 No open-source license has yet been selected.

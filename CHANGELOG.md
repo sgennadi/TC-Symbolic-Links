@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.2 (preview: regression fix, Windows CI pending)
+
+- **Critical restore**: 0.2.1 could hide all custom TC toolbar buttons by replacing the active `.bar` reference. Never switch `wincmd.ini [Buttonbar] Buttonbar` again.
+- Append one button to the **explicit active `.bar` in place**, after backing up both the bar and INI. Existing buttons, menus and subbars are retained.
+- Remove reliance on `em_TCSymbolicLinks_Create`: direct button calls system `rundll32.exe` with the Unicode WDX `TCLinkCreate` entry. Stop converting or editing `usercmd.ini` entirely.
+- Reject unsafe/ambiguous toolbar configurations and legacy 0.2.1 shadow-bar profiles until user restores their backup.
+- Add a safe recovery script for backed-up `wincmd.ini` and `usercmd.ini` with timestamped copies.
+- Add comprehensive regression tests: untouched original toolbar selection, three existing buttons, direct command, unmodified custom commands, redirected/unknown refusal, backup fidelity, idempotence and native Unicode `rundll32` invocation.
+- Keep the single WDX DLL approach; no maker EXE. Automatic columns for both panels remain opt-in at first WDX initialization.
+
+
 ## 0.2.1 (preview)
 
 - Fix Windows VS2026 integration test failure: call the base export name in
