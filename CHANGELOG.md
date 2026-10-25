@@ -2,6 +2,8 @@
 
 ## 0.2.3 (preview)
 
+- Upgrade completed 0.2.2 setup markers to version 203, allowing a broken existing button to be repaired in place without adding another one.
+
 - Fix **critical root cause of no-op toolbar button**: Win32 INI readers strip the first and last double quotes when an entire `paramN` value begins and ends in quotes. Add harmless trailing `--tc-launch` (ignored by DLL GUI) to preserve DLL/target quoting, verify exact readback before committing and roll back on mismatch.
 
 - Add an end-to-end Windows regression that launches the **exact command installed in the user's active .bar**, replaces TC `%WL` / `%T` placeholders, opens the one-DLL maker GUI and creates an actual Hebrew hardlink. Previous CI launched a hand-written command instead of the button's persisted settings.

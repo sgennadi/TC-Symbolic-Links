@@ -120,6 +120,22 @@ int wmain(int argc, wchar_t** argv) {
         Require(Ini(ini, L"Buttonbar", L"Buttonbar") == selectedPath,
                 "second invocation replaced buttonbar");
         Require(ReadText(usercmd) == originalUserCommands, "usercmd changed on re-run");
+        // Upgrade from 0.2.2: the INI reader stripped the outer quotes.
+        // Reconfiguration must repair this same button, never duplicate it.
+        const auto fixedParam = Ini(bar, L"Buttonbar", L"param4");
+        const auto markerPos = fixedParam.rfind(L" --tc-launch");
+        Require(markerPos != std::wstring::npos, "missing repaired marker");
+        const auto oldParam = fixedParam.substr(0, markerPos);
+        Require(WritePrivateProfileStringW(L"Buttonbar", L"param4",
+                    oldParam.c_str(), bar.wstring().c_str()) != FALSE,
+                "cannot reproduce historical 0.2.2 button quoting bug");
+        Require(tcs::ConfigureForTotalCommander(ini.wstring(), module.wstring(), status),
+                "in-place 0.2.2 button repair failed");
+        Require(Ini(bar, L"Buttonbar", L"param4") == fixedParam,
+                "old broken button parameters were not repaired");
+        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4" &&
+                Ini(ini, L"Buttonbar", L"Buttonbar") == selectedPath,
+                "upgrading broken button changed user's toolbar structure");
 
         // Another user's button named the same must not be overwritten.
         const auto conflict = temp.path / L"conflict";
