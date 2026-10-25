@@ -81,9 +81,9 @@ int wmain(int argc, wchar_t** argv) {
         Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4", "did not append one button");
         for (int n = 1; n <= 3; ++n) {
             const auto num = std::to_wstring(n);
-            if (n == 1) Require(Ini(bar, L"Buttonbar", L"cmd"+num) == L"cm_Copy", "Copy changed");
-            if (n == 2) Require(Ini(bar, L"Buttonbar", L"cmd"+num) == L"cm_Delete", "Delete changed");
-            if (n == 3) Require(Ini(bar, L"Buttonbar", L"menu"+num) == L"Custom submenu", "custom submenu lost");
+            if (n == 1) Require(Ini(bar, L"Buttonbar", (L"cmd"+num).c_str()) == L"cm_Copy", "Copy changed");
+            if (n == 2) Require(Ini(bar, L"Buttonbar", (L"cmd"+num).c_str()) == L"cm_Delete", "Delete changed");
+            if (n == 3) Require(Ini(bar, L"Buttonbar", (L"menu"+num).c_str()) == L"Custom submenu", "custom submenu lost");
         }
         Require(Ini(bar, L"MyUnrelatedSection", L"keep") == L"this value", "other section lost");
         Require(Ini(bar, L"Buttonbar", L"cmd4").find(L"\\rundll32.exe") != std::wstring::npos,
