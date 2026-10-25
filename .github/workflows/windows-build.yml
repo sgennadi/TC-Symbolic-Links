@@ -1,16 +1,9 @@
-name: TC Symbolic Links - Visual Studio 2026 x64 and Unicode tests
+name: TC Symbolic Links - VS2026, real TC GUI smoke and Linux Unicode
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ["v*"]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "scripts/**"
-      - "CMakeLists.txt"
-      - "pluginst.inf"
-      - ".github/workflows/windows-build.yml"
   pull_request:
   workflow_dispatch:
 
@@ -22,67 +15,61 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
-      - name: Configure and build VS 2026 x64 (MSVC v145)
+      - name: Configure and build VS 2026 x64 (v145)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --version
+          $versionText = (cmake --version | Select-Object -First 1)
+          $match = [regex]::Match($versionText, '\d+\.\d+\.\d+')
+          if (-not $match.Success -or [version]$match.Value -lt [version]'4.2.0') {
+            throw "CMake 4.2+ is required by the VS 2026 generator. Found: $versionText"
+          }
+          Write-Host $versionText
           cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
           if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
           cmake --build build --config Release --parallel
-          if ($LASTEXITCODE -ne 0) { throw 'Visual Studio 2026 compilation failed' }
-      - name: NTFS, Hebrew UTF-16, Win32 links and real WDX ABI tests
+          if ($LASTEXITCODE -ne 0) { throw 'VS 2026 build failed' }
+      - name: Run UTF-16, NTFS reparse, Win32 links and WDX ABI tests
         shell: pwsh
         run: |
           ctest --test-dir build -C Release --output-on-failure
-          if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed' }
-      - name: Attempt strict real Total Commander WDX and Hebrew GUI acceptance
+          if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
+      - name: Launch actual Total Commander 11.58 x64 and test single-WDX Hebrew maker GUI
         continue-on-error: true
         shell: pwsh
         run: |
-          ./scripts/windows-tc-smoke.ps1 -WdxPath build/Release/SymlinkInspector.wdx64 -MakerPath build/Release/TCSymlinkMaker.exe -OutputPath tc-smoke-results -RequireFullGui
-      - name: Report verified and unverified Total Commander checks
+          ./scripts/windows-tc-smoke.ps1 `
+            -WdxPath build/Release/SymlinkInspector.wdx64 `
+            -OutputPath tc-smoke-results
+      - name: Report native versus full Total Commander UI results
         if: always()
         shell: pwsh
         run: |
           $file = 'tc-smoke-results/tc-smoke.json'
-          if (-not (Test-Path -LiteralPath $file)) {
-            "## Total Commander smoke test" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-            "No smoke report available. GUI acceptance was not verified." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-            exit 0
+          if (Test-Path -LiteralPath $file) {
+            $r = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+            "## Real Total Commander x64 smoke" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "TC process started: $($r.tc_process_started)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "One-DLL creator GUI hardlink: $($r.maker_hebrew_hardlink_created)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "WDX loaded by TC: $($r.tc_wdx_loaded_in_process)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "Full TC GUI verified: $($r.interactive_gui_verified)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           }
-          $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
-          $rows = @(
-            "## Real Total Commander 11.58 smoke test"
-            ""
-            "| Check | Result |"
-            "|---|---|"
-            "| Total Commander process launched | $($report.tc_process_started) |"
-            "| TC main GUI window found | $($report.tc_window_found) |"
-            "| WDX DLL loaded by TC process | $($report.tc_wdx_loaded_in_process) |"
-            "| Link Maker GUI found | $($report.maker_window_found) |"
-            "| Hebrew / niqqud GUI hardlink created | $($report.maker_hebrew_hardlink_created) |"
-            "| **Full GUI acceptance** | **$($report.interactive_gui_verified)** |"
-            ""
-            "Process launch and direct WDX API tests are not proof of WDX custom-column rendering inside Total Commander."
-          )
-          $rows | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-          if (-not $report.interactive_gui_verified) {
-            Write-Warning 'Full TC WDX GUI acceptance is still unverified; Windows binary/API test results are separate.'
-          }
-      - name: Upload Total Commander evidence
+      - name: Upload real Total Commander smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: TC-RealApp-Smoke-Windows
           path: tc-smoke-results/
           if-no-files-found: warn
-      - name: Package Total Commander WDX and link maker
+      - name: Package Total Commander x64 plugin
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item build/Release/TCSymlinkMaker.exe,build/Release/SymlinkInspector.wdx64,pluginst.inf,README.md -Destination dist
+          Copy-Item build/Release/SymlinkInspector.wdx64 dist/
+          Copy-Item pluginst.inf dist/
+          Copy-Item README.md dist/
+          Copy-Item docs/MANUAL-TESTS.md dist/
           Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win64.zip -Force
           $hash = (Get-FileHash TC-Symbolic-Links-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  TC-Symbolic-Links-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win64.zip.sha256
@@ -101,11 +88,13 @@ jobs:
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
-      - name: Check Linux WDX exports
+      - name: Verify Linux WDX binary exports
         run: |
-          nm -D --defined-only build/SymlinkInspector.wdx | grep ContentGetSupportedField
-          nm -D --defined-only build/SymlinkInspector.wdx | grep ContentGetValueW
-      - name: Package native Linux WDX
+          file build/SymlinkInspector.wdx
+          nm -D --defined-only build/SymlinkInspector.wdx | grep 'ContentGetSupportedField'
+          nm -D --defined-only build/SymlinkInspector.wdx | grep 'ContentGetValueW'
+          nm -D --defined-only build/SymlinkInspector.wdx | grep 'ContentGetValue$'
+      - name: Package native Linux Double Commander WDX
         run: |
           mkdir -p dist-linux
           cp build/SymlinkInspector.wdx README-LINUX.md dist-linux/
@@ -117,19 +106,23 @@ jobs:
           path: |
             TC-Symbolic-Links-Linux-WDX-x64.zip
             TC-Symbolic-Links-Linux-WDX-x64.zip.sha256
+          if-no-files-found: error
 
   linux-sanitizers:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: ASan and UBSan
+      - name: Build with ASan and UBSan
         run: |
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
             -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
             -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=address,undefined'
           cmake --build build-asan --parallel
-          ctest --test-dir build-asan --output-on-failure
+      - name: Run all three suites under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: ctest --test-dir build-asan --output-on-failure
 
   prerelease:
     if: startsWith(github.ref, 'refs/tags/v')

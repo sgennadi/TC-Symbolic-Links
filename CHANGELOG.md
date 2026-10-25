@@ -1,36 +1,29 @@
 # Changelog
 
-## 0.1.5 (preview)
+## 0.2.1 (preview)
 
-- Publish complete source on GitHub under `sgennadi/TC-Symbolic-Links`.
-- Confirm GitHub Actions on Windows Server 2025 + VS2026:
-  all four native Windows tests pass; WDX64 and GUI EXE build successfully.
-- Launch real Total Commander 11.58, and create a Hebrew/niqqud hardlink
-  through the link-maker window. TC's internal WDX column GUI remains
-  unverified in the headless runner.
-- Add GitHub Actions report separating full GUI verification from binary/API
-  tests and provide build/test artifacts.
+- Correct Total Commander `SpecialView` offset: custom view #N must be N+2;
+  add a portable regression test covering all 90 supported view numbers;
+  ensure both panels show details and test the selected third custom preset.
+- Use the trusted system directory for `rundll32.exe`, avoiding executable
+  search-path ambiguity when a selected folder contains an EXE named rundll32.
+- Prevent overwriting an unrelated `em_TCSymbolicLinks_Create` user command;
+  accept only upgrades of the plugin-owned entry.
+- Add Windows integration regressions for both the view offset and a colliding
+  custom command. Still pending a native Windows CI build and visual TC test.
 
-- Add a GitHub Actions stage that downloads **official** Total Commander
-  11.58 x64, pins its installer SHA256, validates Authenticode and extracts
-  the real `TOTALCMD64.EXE` to a disposable test environment.
-- Launch Total Commander with Hebrew paths in both panels and a WDX plugin
-  configured in a private TC INI, and attempt to load custom WDX columns.
-- Add an optional genuine GUI test of `TCSymlinkMaker.exe` that feeds a TC
-  UTF-16LE selection list and requests a hardlink via the window's controls.
-- Upload a machine-readable smoke-test report and optional screenshots as
-  the `TC-RealApp-Smoke-Windows` GitHub Actions artifact.
-- Pin Windows CI runner to `windows-2025` (with VS2026), check CMake 4.2+ before
-  trying the Visual Studio 18 2026/v145 generator.
-- Keep process-start, WDX-load and full GUI test results separate; don't
-  claim GUI integration is verified when a non-interactive runner blocks it.
+## 0.2.0 (Preview — pending Windows acceptance)
 
-## 0.1.4 (preview)
+- Single Windows plugin binary `SymlinkInspector.wdx64`; delete obsolete `TCSymlinkMaker.exe` and its build target.
+- Embed Win32 link maker UI and add `TCLinkCreateW`, `TCLinkSetupW`, `TCLinkProbeW` exports for `rundll32.exe`.
+- Optional first-load TC integration adds one toolbar button and a custom-column preset to both panels, retaining previous settings and writing backups.
+- Preserve Unicode path names in `usercmd.ini` using UTF-16LE; use `%COMMANDER_INI_PATH%` to keep ASCII `wincmd.ini` safe when a profile folder contains Hebrew characters.
+- Fix quoted `%T` trailing-backslash issue with `%T.`.
+- Extend native Windows tests with one-module installer INI configuration, idempotence and `rundll32` Unicode export checks.
+- Update Windows CI packaging and GUI test to run only through the WDX (no separate application).
+- 3/3 local Linux tests passed; new Windows CI execution is still pending.
 
-- Add chunked non-blocking GUI link creation, progress and Stop.
-- Adopt the Visual Studio 2026 generator and MSVC v145 in Windows CI.
+## 0.1.5 (Preview)
 
-## 0.1.3 (preview)
-
-- Portable bounded NTFS reparse point parsing, Windows integration and Linux
-  tests for Hebrew/niqqud, malformed inputs, and real file system links.
+- Initial verified GitHub Actions build of WDX and external GUI executable on VS2026; all four Windows tests passed.
+- Attempt actual Total Commander 11.58 process launch and Hebrew/niqqud GUI link creation. WDX column rendering inside TC not confirmed.

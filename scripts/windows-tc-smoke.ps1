@@ -5,7 +5,6 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)] [string]$WdxPath,
-    [Parameter(Mandatory = $true)] [string]$MakerPath,
     [string]$OutputPath = 'tc-smoke-results',
     [switch]$RequireFullGui
 )
@@ -14,7 +13,6 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $wdx = (Resolve-Path -LiteralPath $WdxPath).Path
-$maker = (Resolve-Path -LiteralPath $MakerPath).Path
 if (-not $env:RUNNER_TEMP) { throw 'RUNNER_TEMP is required: this script must run on a disposable Windows CI runner.' }
 $work = Join-Path $env:RUNNER_TEMP 'TC-Symbolic-Links-1158-Smoke'
 $package = Join-Path $work 'tcmd1158x64.exe'
@@ -33,6 +31,7 @@ $report = [ordered]@{
     tc_wdx_loaded_in_process = $false
     tc_custom_columns_requested = $false
     maker_process_started = $false
+    maker_host = "rundll32.exe"
     maker_window_found = $false
     maker_hebrew_hardlink_created = $false
     interactive_gui_verified = $false
@@ -234,17 +233,19 @@ Options1=-1|1
         $report.notes += 'No TTOTAL_CMD main window found. A shareware prompt or non-interactive Windows runner may block the GUI.'
     }
 
-    # Start the actual Win32 GUI companion with the same BOM-bearing %WL data
-    # that Total Commander passes. Then ask its own button to create a hardlink.
+    # Launch the Win32 maker GUI INSIDE the WDX module, using only Windows rundll32.exe.
+    # TC selection list is UTF-16LE+BOM, just like the real %WL output.
     $listFile = Join-Path $work 'selection-עברית.wl'
     $utf16le = [Text.UnicodeEncoding]::new($false, $true, $true)
     [IO.File]::WriteAllBytes($listFile,
         [byte[]]($utf16le.GetPreamble() + $utf16le.GetBytes($hebrewFile + "`r`n")))
-    $makerArgs = @('--list', ('"' + $listFile + '"'), '--dest', ('"' + $dest + '"'))
-    $makerProcess = Start-Process -FilePath $maker -ArgumentList $makerArgs -PassThru
+    $rundll32 = Join-Path $env:WINDIR 'System32\rundll32.exe'
+    if (-not (Test-Path -LiteralPath $rundll32)) { throw 'Native x64 rundll32.exe missing' }
+    $makerArgs = '"' + $wdx + '",TCLinkCreateW --list "' + $listFile + '" --dest "' + $dest + '"'
+    $makerProcess = Start-Process -FilePath $rundll32 -ArgumentList $makerArgs -PassThru
     Start-Sleep -Seconds 2
     $makerProcess.Refresh()
-    if ($makerProcess.HasExited) { throw "TCSymlinkMaker.exe exited early (code $($makerProcess.ExitCode))" }
+    if ($makerProcess.HasExited) { throw "rundll32 WDX creator exited early (code $($makerProcess.ExitCode))" }
     $report.maker_process_started = $true
 
     $makerWnd = Wait-ForWindow 'TCSymbolicLinksMakerWindow' $makerProcess.Id 8
@@ -270,7 +271,7 @@ Options1=-1|1
             throw 'Maker GUI hardlink contents mismatch'
         }
         $report.maker_hebrew_hardlink_created = $true
-        Write-Host 'PASS: actual Maker window created a link for a Hebrew/niqqud file'
+        Write-Host 'PASS: single-WDX Maker window via rundll32 created a Hebrew/niqqud hardlink'
         Write-Screenshot (Join-Path $output 'maker.png')
     } else {
         $report.notes += 'Maker process started; GUI HWND unavailable, so no GUI creation test was claimed.'

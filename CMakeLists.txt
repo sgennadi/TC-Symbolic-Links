@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.1.5 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +10,14 @@ if(MSVC)
 endif()
 
 include(CTest)
+
+# Cross-platform regression: TC custom column sets have SpecialView=index+2.
+# Also run on Linux to catch regressions before the first Windows CI build.
+if(BUILD_TESTING)
+  add_executable(tc_custom_view_tests tests/tc_custom_view_tests.cpp)
+  target_include_directories(tc_custom_view_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME tc_custom_view_indices COMMAND tc_custom_view_tests)
+endif()
 
 # Portable, bounded parser of raw FSCTL_GET_REPARSE_POINT data.
 # Tested on Linux with crafted NTFS symlinks and junctions before the
@@ -64,8 +72,10 @@ if(WIN32)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse)
 
-  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp)
-  target_link_libraries(SymlinkInspector PRIVATE tc_link_core)
+  add_library(tc_integration STATIC src/TcIntegration.cpp)
+  target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp)
+  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 comctl32 shell32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
 
   if(BUILD_TESTING)
@@ -83,19 +93,17 @@ if(WIN32)
     endif()
   endif()
 
-  # MSVC's auto-generated manifest must be disabled because maker.rc embeds
-  # an RT_MANIFEST resource with per-monitor-v2 DPI and long-path awareness.
-  configure_file(src/maker.manifest "${CMAKE_CURRENT_BINARY_DIR}/maker.manifest" COPYONLY)
-  add_executable(TCSymlinkMaker WIN32 src/TCSymlinkMaker.cpp src/maker.rc)
-  set_source_files_properties(src/maker.rc PROPERTIES
-    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/maker.manifest")
-  target_include_directories(TCSymlinkMaker PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(TCSymlinkMaker PRIVATE tc_link_core tc_list user32 gdi32 comctl32 shell32)
-  if(MSVC)
-    target_link_options(TCSymlinkMaker PRIVATE "/MANIFEST:NO")
+  if(BUILD_TESTING)
+    add_executable(windows_integration_tests tests/windows_integration_tests.cpp)
+    target_link_libraries(windows_integration_tests PRIVATE tc_integration)
+    add_test(NAME tc_one_dll_installer_and_rundll32
+      COMMAND windows_integration_tests $<TARGET_FILE:SymlinkInspector>)
+    if(MSVC)
+      target_compile_options(windows_integration_tests PRIVATE /W4 /utf-8)
+    endif()
   endif()
 
-  foreach(t tc_link_core SymlinkInspector TCSymlinkMaker tc_list)
+  foreach(t tc_link_core SymlinkInspector tc_list tc_integration)
     target_compile_definitions(${t} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
     if(MSVC)
       target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8 /std:c++latest)

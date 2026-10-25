@@ -1,7 +1,8 @@
-// Small Unicode / High-DPI Win32 companion for Total Commander WDX plugin.
+// Win32 Unicode / HiDPI creation UI now compiled directly into the WDX DLL.
 // Uses %WL (UTF-16 list) and %T (destination panel) without cmd.exe.
 #include "LinkCore.h"
 #include "ListParser.h"
+#include "TcMakerGui.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <algorithm>
@@ -333,11 +334,15 @@ std::vector<std::wstring> ReadSelectedList(const std::wstring& fileName) {
 }
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, int show) {
     std::wstring listFile;
     std::wstring destination;
     int count = 0;
-    LPWSTR* commandLine = CommandLineToArgvW(GetCommandLineW(), &count);
+    // rundll32 passes only arguments after the exported entry point, not an EXE path.
+    // Add a synthetic argv[0] so CommandLineToArgvW can safely process quoting.
+    std::wstring withProgram = L"tcsplugin.exe ";
+    withProgram.append(arguments);
+    LPWSTR* commandLine = CommandLineToArgvW(withProgram.c_str(), &count);
     if (commandLine) {
         for (int i = 1; i < count; ++i) {
             const std::wstring_view argument = commandLine[i];
@@ -348,9 +353,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     if (listFile.empty() || destination.empty()) {
         MessageBoxW(nullptr,
-            L"Use this program from a Total Commander button:\n\n"
-            L"Command: <path>\\TCSymlinkMaker.exe\n"
-            L"Parameters: --list \"%WL\" --dest \"%T\"",
+            L"Use the installed TC Symbolic Links button in Total Commander.\n"
+            L"The button calls this WDX through Windows rundll32.exe.",
             L"TC Symbolic Links", MB_ICONINFORMATION);
         return 2;
     }

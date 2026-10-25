@@ -4,6 +4,7 @@
 // WDX API uses UTF-16 code units on BOTH systems: Linux wchar_t is not WCHAR.
 #ifdef _WIN32
 #include "LinkCore.h"
+#include "TcIntegration.h"
 #include <windows.h>
 #else
 #include <cerrno>
@@ -244,6 +245,21 @@ int GetContent(const std::u16string& path, int index, void* output, int maxBytes
     return ft_string;
 }
 } // namespace
+
+#ifdef _WIN32
+// Total Commander invokes this after loading the WDX. Its suggested INI lives
+// alongside wincmd.ini, but COMMANDER_INI (when present) is preferred.
+struct ContentDefaultParamStruct {
+    int size;
+    DWORD interfaceLow;
+    DWORD interfaceHigh;
+    char defaultIniName[MAX_PATH];
+};
+WDX_EXPORT void WDX_CALL ContentSetDefaultParams(ContentDefaultParamStruct* params) {
+    tcs::AutoConfigureOnFirstLoad(params && params->size >= sizeof(ContentDefaultParamStruct)
+                                 ? params->defaultIniName : nullptr);
+}
+#endif
 
 WDX_EXPORT int WDX_CALL ContentGetSupportedField(int index, char* name, char* units, int maxlen) {
     if (index < 0 || index >= 4) return ft_nomorefields;

@@ -1,86 +1,60 @@
-# TC Symbolic Links
+# TC Symbolic Links 0.2.1 Preview — One DLL
 
-[![Windows VS2026 + Linux WDX + Sanitizers](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml/badge.svg)](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml)
+One Unicode-aware `.wdx64` module for **Total Commander x64**. It both inspects links in WDX custom columns and creates Windows symbolic links, NTFS junctions, and hardlinks using an integrated Win32 dialog.
 
-**Native Total Commander x64 utilities for symbolic links, directory junctions and hardlinks.**
+**No `TCSymlinkMaker.exe` and no extra runtime dependencies.** The Create Links button uses the standard Windows `rundll32.exe` to load an exported function from the **same** `SymlinkInspector.wdx64` module. Requires Windows 10/11 x64 and Total Commander x64.
 
-[Windows x64 build / tested artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) · [CI run and test logs](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) · [Manual acceptance checklist](docs/MANUAL-TESTS.md)
+The Linux build is a native ELF `.wdx` for Double Commander. It provides inspection only, using the same field names; Windows link creation is unavailable on Linux.
 
-> **Preview 0.1.5**. Full GitHub Actions matrix passed: Windows Server 2025 / Visual Studio 2026 compilation, all four native Windows tests, Linux WDX build/tests and ASan/UBSan. The *real* Total Commander 11.58 executable started, and the GUI companion created a Hebrew/niqqud hardlink. Loading the WDX into TC's own window and rendering its custom columns remain **unverified**, because the main TC window was not available to the headless runner.
+## Installation and automatic configuration
 
-## What it does
+1. Open the **installer ZIP** in Total Commander by double-clicking or pressing Enter (do not use Ctrl+PgDn). `pluginst.inf` offers installation and registers `SymlinkInspector.wdx64` as a content plugin.
+2. **When TC first loads the WDX**, the plugin offers one-time configuration (English, Russian, Hebrew). Choose **Yes** to have it create a toolbar button and custom-column preset, then activate the preset for **both panels**. Restart Total Commander so its toolbar and panel layouts reload.
+3. Existing column presets are retained, and the existing toolbar is **cloned**, not overwritten. Changed INI files have `.tcslinks.bak` backup copies. Repeated configuration does not duplicate the button or columns. No hidden modifications occur after choosing No.
 
-- **Create links:** `TCSymlinkMaker.exe` makes file symlinks, directory symlinks, NTFS directory junctions and file hardlinks using native Unicode Win32 APIs — no shell, `cmd.exe` or extra runtime DLLs.
-- **Inspect links:** `SymlinkInspector.wdx64` adds content fields `Link type`, `Link target`, `Target exists` and `Hardlink count` to Total Commander custom columns.
-- **Bulk operation:** accepts files selected in one TC panel, creates links in the other panel, shows progress and offers Stop.
-- **Languages:** English, Russian and Hebrew UI; UTF-16 filenames with Hebrew niqqud, mixed RTL/LTR, Cyrillic, spaces, emoji and long paths.
-- **Double Commander on Linux:** build the same WDX source as a native ELF `SymlinkInspector.wdx` with a POSIX backend; it inspects Linux symlinks and hardlinks.
+**Important Total Commander limitation:** the built-in `pluginst.inf` installer registers WDX plugins only; it does **not** offer a supported post-install hook for button bars and custom-column presets. The optional setup runs from the WDX when TC loads it, not from the installer itself. WDX loading can be deferred until the plugin's fields are requested. This means we **cannot guarantee** that the button and columns appear immediately after installing the ZIP. The automatic first-load setup and real TC GUI still require final Windows acceptance testing. We do not modify settings during `DllMain` or silently insert code into the running TC window.
 
-The WDX is an inspector, **not** a context-menu plugin. Link creation is provided by a separate TC button-bar application.
+For an explicit setup call if the first-load prompt has not appeared, use the same installed WDX with the Windows built-in rundll32 (there is still no separate application):
 
-## Install in Total Commander (Windows x64)
+`rundll32.exe "C:\Path\To\SymlinkInspector.wdx64",TCLinkSetupW "C:\Path\To\wincmd.ini"`
 
-1. Download [TC-Symbolic-Links-win64-VS2026](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) from the successful Windows Actions run. Extract `TC-Symbolic-Links-win64.zip` from the downloaded artifact.
-2. Open the inner ZIP in Total Commander x64; use its plugin installer for `SymlinkInspector.wdx64`. Ensure `TCSymlinkMaker.exe` is alongside the installed WDX.
-3. Add a new button to Total Commander's button bar with these settings:
+Close TC before executing that command to avoid its shutdown overwriting INI changes. The setup reports any unsupported profile redirects, never knowingly overwrites existing user commands, and backs up settings.
 
-   | TC button field | Value |
-   |---|---|
-   | **Command** | Full path to installed `TCSymlinkMaker.exe` |
-   | **Parameters** | `--list "%WL" --dest "%T"` |
-   | **Start path** | `%P` |
+## Button and columns
 
-4. Select files and/or folders in the source panel and navigate to an existing destination directory in the opposite panel. Click the button, choose the link type and create links.
-5. In **Configuration → Options → Custom columns**, add fields from the WDX plugin to display link metadata.
+After successful setup, a **Create Links** button is added via `em_TCSymbolicLinks_Create` in `usercmd.ini`. It calls:
 
-The tool does not overwrite existing destinations. Windows symbolic links need appropriate privileges or Developer Mode; junction targets must be local directories; hardlinks must be files on the same volume.
+- Command: full absolute path to Windows system `rundll32.exe` (built into Windows, not found by searching the current directory).
+- Parameters: `"<installed-plugin-path>\SymlinkInspector.wdx64",TCLinkCreateW --list "%WL" --dest "%T."`
 
-## Build and test
+The `%T.` form is intentional: TC's destination placeholder has a trailing backslash; appending a dot prevents Windows command-line parsing from escaping the closing quote. The plugin normalizes the target path before creating links.
 
-**Windows:** Visual Studio 2026, MSVC v145, CMake 4.2+, Windows SDK, x64.
+The WDX columns added automatically are **Link type**, **Link target**, **Target exists**, and **Hardlink count**. Column view `TC Symbolic Links` is appended to existing custom views and activated in both panels, rather than replacing another view definition. The correct TC `SpecialView` value is preset number + 2 (the first custom preset is `SpecialView=3`).
 
-```powershell
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
-```
+The integrated dialog supports English, Russian, and Hebrew, Unicode filenames (including Hebrew niqqud), multiple selection, HiDPI, relative symbolic targets, progress, and Stop. An existing destination is never silently overwritten.
 
-Or run `build-windows.cmd`.
+## Windows build and tests
 
-**Linux:**
+Use **Visual Studio 2026**, MSVC v145, and CMake 4.2 or newer:
 
-```bash
-cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
-cmake --build build-linux --parallel
-ctest --test-dir build-linux --output-on-failure
-```
+    cmake -S . -B build-win -G "Visual Studio 18 2026" -A x64 -T v145
+    cmake --build build-win --config Release --parallel
+    ctest --test-dir build-win -C Release --output-on-failure
 
-## Verification (Preview 0.1.5)
+Or run `build-windows.cmd`. This builds only **one** plugin binary `SymlinkInspector.wdx64`, creates the installer ZIP, and runs: NTFS reparse tests, UTF-16 selection parsing, native hardlink/junction/symlink tests, WDX ABI tests, and the single-DLL INI integration and `rundll32` export test.
 
-| Test | Status |
-|---|---|
-| VS 2026 Windows x64 build: EXE and WDX64 | **Passed** |
-| Win32 symlinks, junctions, hardlinks with Hebrew paths | **Passed** |
-| WDX64 API exports and UTF-16 fields via direct Windows loader | **Passed** |
-| Unicode file-selection parsing, including niqqud | **Passed** |
-| NTFS reparse decoder, malformed buffers and UTF-16 validation | **Passed** |
-| Native Linux WDX tests (including real POSIX links) | **Passed** |
-| Linux ASan + UBSan | **Passed** |
-| Total Commander 11.58 x64 process launch | **Passed** |
-| GUI companion creates Hebrew hardlink | **Passed** |
-| WDX loaded and custom columns displayed **inside Total Commander** | **Not yet verified** |
+The GitHub Actions workflow also attempts the real Total Commander 11.58 x64 smoke test and records whether its window loaded WDX custom columns. A passing DLL/API test **does not** mean custom columns were visually verified inside TC.
 
-Full evidence: [GitHub Actions verified VS2026/Linux/sanitizer run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) and [TC smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598288654). The smoke-test job records this limitation explicitly rather than treating process startup as a complete GUI pass.
+## Linux WDX build
 
-## Documentation
+    cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+    cmake --build build-linux --parallel
+    ctest --test-dir build-linux --output-on-failure
 
-- [Windows GitHub Actions and build](docs/GITHUB-CI.md)
-- [Real Total Commander CI test](docs/REAL-TC-CI.md)
-- [Manual Windows / Hebrew acceptance tests](docs/MANUAL-TESTS.md)
-- [Native Linux WDX](README-LINUX.md)
-- [Changelog](CHANGELOG.md)
-- [GitHub repository About description and topic suggestions](docs/ABOUT.md)
+Linux `.wdx` is compatible with the Double Commander WDX ABI, including its 16-bit UTF-16 `WCHAR` representation. Linux tests cover real POSIX links, Unicode files and malformed NTFS reparse data. This does not replace Windows GUI acceptance.
 
-## License
+## Current status
 
-No open-source license has been selected. All rights reserved unless an explicit license is later added.
+**0.2.1 Preview, not released as stable.** Local Linux CTest: includes portable custom-column index regression. The new single-DLL Windows implementation, toolbar and column setup, Unicode profile handling and `rundll32` integration are pending their first Visual Studio 2026 GitHub CI run and real Total Commander tests. The earlier **0.1.5** separate-EXE preview passed VS2026 Windows ABI and link tests, but that result must not be attributed to the new 0.2.0 code.
+
+No open-source license has yet been selected.
