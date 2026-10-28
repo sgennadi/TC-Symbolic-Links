@@ -887,14 +887,34 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         }
         const auto link = tcs::Join(state.batchDestination, filename);
         const DWORD error = tcs::CreateLink(source, link, state.batchKind, state.batchRelative);
+        const DWORD sourceAttrs = GetFileAttributesW(source.c_str());
+        const bool sourceDirectory = sourceAttrs != INVALID_FILE_ATTRIBUTES &&
+            (sourceAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        const auto diagnostic = tcs::DiagnoseLinkOutcome(source, link,
+            state.batchKind, sourceDirectory, error);
         if (error == ERROR_SUCCESS) {
             ++state.completed;
             AppendLine(state.results, L"OK   " + link + L"  ->  " + tcs::FullPath(source));
+            if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated)
+                AppendLine(state.results, state.Choose(
+                    L"NOTE: SMB symlink points to this PC. Verify that it opens: remote-to-local traversal can be blocked and other PCs may not have this C: path.",
+                    L"ВНИМАНИЕ: ссылка SMB указывает на этот ПК. Проверьте открытие: переход с сервера на локальный диск может быть запрещён; на других ПК путь C: может отсутствовать.",
+                    L"שים לב: קישור SMB מצביע למחשב המקומי. יש לבדוק גישה גם ממחשבים אחרים."));
         } else {
             ++state.failed;
             if (error == ERROR_PRIVILEGE_NOT_HELD) state.privilegeError = true;
             AppendLine(state.results, L"ERR  " + link + L": " +
                 tcs::WindowsErrorMessage(error) + L" (" + std::to_wstring(error) + L")");
+            if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied)
+                AppendLine(state.results, state.Choose(
+                    L"HINT: The SMB server rejected a directory symlink. Check Samba symlink support, share permissions and server policy. Run a local NTFS test to distinguish server refusal from a Windows privilege issue.",
+                    L"ПОДСКАЗКА: SMB-сервер отклонил ссылку на папку. Проверьте поддержку symlink в Samba, права на ресурс и настройки сервера. Сравните с созданием на локальном NTFS.",
+                    L"רמז: שרת SMB סירב לקישור לתיקייה. בדוק הרשאות ותמיכת Samba."));
+            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteFileAccessDenied)
+                AppendLine(state.results, state.Choose(
+                    L"HINT: The SMB server denied the file-link operation. Check share permissions and server policy.",
+                    L"ПОДСКАЗКА: SMB-сервер запретил файловую ссылку. Проверьте права и политику ресурса.",
+                    L"רמז: שרת SMB דחה קישור לקובץ."));
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
