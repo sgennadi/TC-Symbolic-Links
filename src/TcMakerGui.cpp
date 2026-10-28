@@ -476,30 +476,36 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     DeleteObject(canvas);
     tcs::visual::RoundedButton(dc, r, fill, border, Dp(state, 9));
 
-    RECT icon = browse ? r : RECT{r.left + Dp(state, 9), r.top,
-              r.left + Dp(state, 38), r.bottom};
-    if (!(browse && PaintFolderIcon(dc, state, icon)))
-    PaintSymbol(dc, state, icon,
-                create ? static_cast<wchar_t>(0xE71B) :
-                browse ? static_cast<wchar_t>(0xE8B7) :
-                state.creating ? static_cast<wchar_t>(0xE71A) :
-                                 static_cast<wchar_t>(0xE8BB), ink);
+    // Native vector icons and readable text for every button, following
+    // NipkgCreator.ModernButton instead of depending on MDL2 font glyphs.
+    const int iconSize = Dp(state, 20);
+    const int iconY = r.top + ((r.bottom - r.top) - iconSize) / 2;
+    const int iconX = state.he ? r.right - Dp(state, 15) - iconSize :
+                                 r.left + Dp(state, 14);
+    const RECT icon{iconX, iconY, iconX + iconSize, iconY + iconSize};
+    const auto glyph = browse ? tcs::visual::ButtonGlyph::Folder :
+                       create ? tcs::visual::ButtonGlyph::Create :
+                       state.creating ? tcs::visual::ButtonGlyph::Stop :
+                                        tcs::visual::ButtonGlyph::Close;
+    tcs::visual::Glyph(dc, icon, glyph, ink, state.dpi);
     std::wstring label = GetText(item.hwndItem);
-    RECT labelRect{r.left + Dp(state, 35), r.top, r.right - Dp(state, 5), r.bottom};
+    RECT labelRect = state.he ?
+        RECT{r.left + Dp(state, 8), r.top,
+             r.right - Dp(state, 42), r.bottom} :
+        RECT{r.left + Dp(state, 43), r.top,
+             r.right - Dp(state, 8), r.bottom};
     const HGDIOBJ oldFont = state.fontLabel ?
         SelectObject(dc, state.fontLabel) : nullptr;
     const int oldMode = SetBkMode(dc, TRANSPARENT);
     const COLORREF oldText = SetTextColor(dc, ink);
-    if (!browse) DrawTextW(dc, label.c_str(), -1, &labelRect,
-              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+    DrawTextW(dc, label.c_str(), -1, &labelRect,
+              (state.he ? (DT_RIGHT | DT_RTLREADING) : DT_LEFT) |
+              DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SetTextColor(dc, oldText);
     SetBkMode(dc, oldMode);
     if (oldFont) SelectObject(dc, oldFont);
-    if (item.itemState & ODS_FOCUS) {
-        RECT focus{r.left + Dp(state, 5), r.top + Dp(state, 4),
-                   r.right - Dp(state, 5), r.bottom - Dp(state, 4)};
-        DrawFocusRect(dc, &focus);
-    }
+    if (item.itemState & ODS_FOCUS)
+        tcs::visual::FocusRing(dc, r, state.dpi, create);
     if (dc == memory) BitBlt(item.hDC, item.rcItem.left, item.rcItem.top,
                             w, h, memory, 0, 0, SRCCOPY);
     if (originalBitmap) SelectObject(memory, originalBitmap);
@@ -530,9 +536,16 @@ void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
                 state.creating ? kAccent :
                 state.hasRun ? kPositive : kSecondary;
     }
-    if (!(item.CtlID == ID_SOURCE_GLYPH &&
-          PaintFolderIcon(item.hDC, state, region)))
+    if (item.CtlID == ID_SOURCE_GLYPH) {
+        if (!PaintFolderIcon(item.hDC, state, region))
+            tcs::visual::Glyph(item.hDC, region,
+                tcs::visual::ButtonGlyph::Folder, color, state.dpi);
+    } else if (item.CtlID == ID_TARGET_GLYPH) {
+        tcs::visual::Glyph(item.hDC, region,
+            tcs::visual::ButtonGlyph::Link, color, state.dpi);
+    } else {
         PaintSymbol(item.hDC, state, region, glyph, color);
+    }
 }
 void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
     if (!control || !help) return;
