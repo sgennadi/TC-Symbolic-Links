@@ -129,6 +129,21 @@ int main() {
             Require(dirInfo.relative, "Directory symlink did not retain relative path");
             Require(dirInfo.targetExists, "Directory symlink target does not resolve");
         }
+        // From the user's v10 preflight: reject unavailable inputs before
+        // a batch and detect file/directory combinations. Automatic remains mixed.
+        const auto missingSource = cleanup.path / L"not-installed-file.txt";
+        const std::vector<std::wstring> mixedSources{
+            sourceFolder.wstring(), original.wstring(), missingSource.wstring()};
+        const auto scan = tcs::InspectSelection(mixedSources);
+        Require(scan.folders == 1 && scan.files == 1 && scan.unavailable == 1,
+                "Preflight did not classify mixed and inaccessible items");
+        Require(scan.firstUnavailable == missingSource.wstring(),
+                "Preflight did not retain first unavailable source");
+        const auto ready = tcs::InspectSelection(
+            std::vector<std::wstring>{sourceFolder.wstring(), original.wstring()});
+        Require(ready.unavailable == 0 && ready.folders == 1 && ready.files == 1,
+                "Preflight rejected valid Automatic selection");
+
         // SMB error diagnostics are pure classification: no network server
         // is required and no permissions or symlink policies are changed.
         Require(tcs::IsRemoteSmbPath(L"\\\\fedora\\Programs\\ScientificTools\\NI"),
