@@ -593,6 +593,23 @@ void ChooseDestination(HWND owner, Ui& state) {
     if (ownApartment) CoUninitialize();
 }
 
+int MeasuredButtonWidth(const Ui& state, HWND button, int baseDp) {
+    const int minimum = Dp(state, baseDp);
+    if (!button) return minimum;
+    HDC dc = GetDC(button);
+    if (!dc) return minimum;
+    const HFONT font = state.fontLabel ? state.fontLabel : state.font;
+    const HGDIOBJ previous = font ? SelectObject(dc, font) : nullptr;
+    const std::wstring caption = GetText(button);
+    SIZE measured{};
+    const BOOL ok = GetTextExtentPoint32W(dc, caption.c_str(),
+        static_cast<int>(caption.size()), &measured);
+    if (previous) SelectObject(dc, previous);
+    ReleaseDC(button, dc);
+    // Mimic NipkgCreator's measured text + icon + generous right padding.
+    return ok ? (std::max)(minimum, measured.cx + Dp(state, 68)) : minimum;
+}
+
 void Layout(HWND hwnd, Ui& s) {
     RECT rc{};
     GetClientRect(hwnd, &rc);
@@ -633,12 +650,20 @@ void Layout(HWND hwnd, Ui& s) {
     place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
     place(s.labelResults, rightX + Dp(s, 29), headingY,
           rightWidth - Dp(s, 29), Dp(s, 22));
-    const int pathY = Dp(s, 218);
-    const int pathH = Dp(s, 29);
-    place(s.sourcePath, leftX, pathY, leftWidth, pathH);
-    place(s.destination, rightX, pathY, rightWidth - Dp(s, 46), pathH);
-    place(s.browse, rightX + rightWidth - Dp(s, 39), pathY,
-          Dp(s, 39), pathH);
+    const int pathY = Dp(s, 220);
+    const int pathH = Dp(s, 40);
+    const int fieldPad = Dp(s, 10);
+    const int browseGap = Dp(s, 9);
+    const int browseWidth = (std::min)(
+        MeasuredButtonWidth(s, s.browse, 126), rightWidth - Dp(s, 135));
+    const int targetFieldWidth = rightWidth - browseWidth - browseGap;
+    // The edit controls are inset into anti-aliased rounded frames.
+    place(s.sourcePath, leftX + fieldPad, pathY + Dp(s, 6),
+          leftWidth - 2 * fieldPad, pathH - Dp(s, 12));
+    place(s.destination, rightX + fieldPad, pathY + Dp(s, 6),
+          targetFieldWidth - 2 * fieldPad, pathH - Dp(s, 12));
+    place(s.browse, rightX + targetFieldWidth + browseGap, pathY,
+          browseWidth, pathH);
 
     const int paneY = pathY + pathH + Dp(s, 9);
     const int paneBottom = height - Dp(s, 174);
@@ -665,8 +690,8 @@ void Layout(HWND hwnd, Ui& s) {
     // Buttons sit inside an adaptive soft-green/blue/red status card.
     const int buttonY = height - Dp(s, 61);
     const int actionH = Dp(s, 40);
-    const int createWidth = Dp(s, 148);
-    const int closeWidth = Dp(s, 126);
+    const int createWidth = MeasuredButtonWidth(s, s.create, 148);
+    const int closeWidth = MeasuredButtonWidth(s, s.close, 126);
     place(s.create, width - margin - Dp(s, 10) - closeWidth - Dp(s, 10) - createWidth,
           buttonY, createWidth, actionH);
     place(s.close, width - margin - Dp(s, 10) - closeWidth,
@@ -674,7 +699,7 @@ void Layout(HWND hwnd, Ui& s) {
     // Hidden accessibility/status controls retain their text and Win32 IDs.
     place(s.statusGlyph, leftX, buttonY + Dp(s, 7), Dp(s, 24), Dp(s, 24));
     place(s.status, leftX + Dp(s, 29), buttonY + Dp(s, 5),
-          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - Dp(s, 100)),
+          (std::max)(Dp(s, 60), usable - createWidth - closeWidth - Dp(s, 116)),
           Dp(s, 28));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
