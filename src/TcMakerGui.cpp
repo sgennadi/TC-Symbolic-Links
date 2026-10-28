@@ -306,7 +306,7 @@ void RefreshCreateSafety(Ui& s) {
     if (HWND owner = GetParent(s.destination)) {
         RECT bottom{};
         GetClientRect(owner, &bottom);
-        bottom.top = (std::max)(0, bottom.bottom - Dp(s, 74));
+        bottom.top = (std::max)(LONG{0}, bottom.bottom - static_cast<LONG>(Dp(s, 74)));
         InvalidateRect(owner, &bottom, FALSE);
     }
 }
