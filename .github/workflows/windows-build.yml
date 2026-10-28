@@ -39,6 +39,11 @@ jobs:
         run: |
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test_usercmd_recovery.ps1
           if ($LASTEXITCODE -ne 0) { throw 'usercmd.ini surgical recovery regression failed' }
+      - name: Verify lost toolbar icons are restored without touching user commands
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test_icon_recovery.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Toolbar icon restore regression failed' }
       - name: Launch actual Total Commander 11.58 x64 and test single-WDX Hebrew maker GUI
         continue-on-error: true
         shell: pwsh
@@ -71,7 +76,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path toolbar-recovery | Out-Null
-          Copy-Item scripts/Restore-TC-Toolbar-Only.cmd, scripts/Restore-TC-Toolbar-Only.ps1, scripts/Inspect-TC-Toolbars.cmd, scripts/Inspect-TC-Toolbars.ps1, scripts/Restore-TC-Missing-Commands.cmd, scripts/Restore-TC-Missing-Commands.ps1 -Destination toolbar-recovery
+          Copy-Item scripts/Restore-TC-Toolbar-Only.cmd, scripts/Restore-TC-Toolbar-Only.ps1, scripts/Inspect-TC-Toolbars.cmd, scripts/Inspect-TC-Toolbars.ps1, scripts/Restore-TC-Missing-Commands.cmd, scripts/Restore-TC-Missing-Commands.ps1, scripts/Restore-TC-Toolbar-Icons.cmd, scripts/Restore-TC-Toolbar-Icons.ps1 -Destination toolbar-recovery
           Copy-Item docs/REGRESSION-0.2.1.md -Destination toolbar-recovery
           Compress-Archive -Path toolbar-recovery/* -DestinationPath TC-Symbolic-Links-Toolbar-Recovery.zip -Force
       - uses: actions/upload-artifact@v7
