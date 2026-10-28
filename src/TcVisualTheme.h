@@ -74,6 +74,23 @@ inline void RoundedButton(HDC dc, const RECT& bounds,
          static_cast<float>(bounds.top) + 1.f, width - 2.f, height - 2.f),
          static_cast<float>(radius), fill, outline);
 }
+inline void FocusRing(HDC dc, const RECT& bounds, UINT dpi, bool filled) {
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    const float inset = static_cast<float>(Px(4, dpi));
+    const float width = static_cast<float>(bounds.right - bounds.left) - inset * 2.f;
+    const float height = static_cast<float>(bounds.bottom - bounds.top) - inset * 2.f;
+    if (width < 4.f || height < 4.f) return;
+    Gdiplus::GraphicsPath path;
+    AddRoundRect(path, Gdiplus::RectF(
+        static_cast<float>(bounds.left) + inset,
+        static_cast<float>(bounds.top) + inset,
+        width, height), static_cast<float>(Px(6, dpi)));
+    Gdiplus::Pen outline(Tone(filled ? White : Blue), 1.f);
+    outline.SetDashStyle(Gdiplus::DashStyleDot);
+    g.DrawPath(&outline, &path);
+}
+
 inline void InputField(HDC dc, const RECT& bounds, UINT dpi, bool focused = false) {
     const float width = static_cast<float>(bounds.right - bounds.left);
     const float height = static_cast<float>(bounds.bottom - bounds.top);
