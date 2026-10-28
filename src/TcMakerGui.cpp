@@ -84,6 +84,7 @@ struct Ui {
     unsigned animationFrame = 0;
     HBRUSH backgroundBrush = nullptr;
     HBRUSH cardBrush = nullptr;
+    HBRUSH fieldBrush = nullptr;
     HWND title = nullptr;
     HWND subtitle = nullptr;
     HWND labelSources = nullptr;
@@ -123,6 +124,7 @@ struct Ui {
         for (HFONT f : {font, fontTitle, fontLabel, fontSmall, fontIcon}) if (f) DeleteObject(f);
         if (backgroundBrush) DeleteObject(backgroundBrush);
         if (cardBrush) DeleteObject(cardBrush);
+        if (fieldBrush) DeleteObject(fieldBrush);
         if (richEditModule) FreeLibrary(richEditModule);
         if (folderIcon) DestroyIcon(folderIcon);
     }
@@ -741,12 +743,11 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"(multiple source folders)", L"(несколько исходных папок)",
         L"(מספר תיקיות מקור)");
     s.sourcePath = AddControl(hwnd, L"EDIT", displayOrigin.c_str(),
-        ES_READONLY | ES_AUTOHSCROLL | WS_BORDER, ID_SOURCE_PATH,
-        WS_EX_CLIENTEDGE);
+        ES_READONLY | ES_AUTOHSCROLL, ID_SOURCE_PATH);
     s.destination = AddControl(hwnd, L"EDIT", s.initialDestination.c_str(),
-        WS_TABSTOP | ES_AUTOHSCROLL | WS_BORDER, ID_DEST,
-        WS_EX_CLIENTEDGE);
-    s.browse = AddControl(hwnd, L"BUTTON", L"",
+        WS_TABSTOP | ES_AUTOHSCROLL, ID_DEST);
+    s.browse = AddControl(hwnd, L"BUTTON", s.Choose(
+        L"Browse...", L"Обзор...", L"עיון..."),
         WS_TABSTOP | BS_OWNERDRAW, ID_BROWSE);
 
     // Native report-view table: familiar TC name/type/path columns and icons.
@@ -755,6 +756,9 @@ void CreateControls(HWND hwnd, Ui& s) {
         LVS_SINGLESEL, ID_SOURCES, WS_EX_CLIENTEDGE);
     ListView_SetExtendedListViewStyle(s.sources,
         LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+    ListView_SetBkColor(s.sources, tcs::visual::Field);
+    ListView_SetTextBkColor(s.sources, tcs::visual::Field);
+    ListView_SetTextColor(s.sources, tcs::visual::Ink);
     auto col = [&](int index, int pixels, const wchar_t* text) {
         LVCOLUMNW column{};
         column.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
@@ -812,7 +816,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         ES_AUTOVSCROLL | WS_BORDER, ID_RESULTS, WS_EX_CLIENTEDGE);
     if (s.results && s.richEditModule)
         SendMessageW(s.results, EM_SETBKGNDCOLOR, 0,
-            static_cast<LPARAM>(kSurface));
+            static_cast<LPARAM>(tcs::visual::Field));
     s.modeHint = AddControl(hwnd, L"STATIC", L"",
         SS_EDITCONTROL | alignCaption, ID_MODE_HINT, captionEx);
     s.relativeHint = AddControl(hwnd, L"STATIC", L"",
@@ -1046,6 +1050,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 state->dpi = GetDpiForWindow(hwnd);
                 state->backgroundBrush = CreateSolidBrush(kCanvas);
                 state->cardBrush = CreateSolidBrush(kSurface);
+                state->fieldBrush = CreateSolidBrush(tcs::visual::Field);
                 // Windows 11: match the NI-style navy banner in the title bar.
                 // DWM rejects unsupported attributes on older Windows safely.
                 const COLORREF caption = tcs::visual::Navy;
