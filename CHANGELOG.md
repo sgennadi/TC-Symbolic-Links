@@ -1,3 +1,15 @@
+## 0.2.10 (Preview) — faithful Nipkg Creator controls and DPI polish
+
+- Add clear vector play, folder, close, stop and chain glyphs rendered
+  with native GDI+ like NipkgCreator.ModernButton, including Hebrew alignment.
+- Replace icon-only Browse with a labelled button sized to its text,
+  and size Create/Close actions from font measurements.
+- Add rounded pale-blue path inputs with focus border, soft preview/help
+  card, offscreen double buffering and no opaque child-label patches.
+- Constrain status text before action buttons instead of allowing overlap.
+- Expand Windows VS2026 tests for real Maker control geometry and GDI+
+  input/glyph pixels. Keep TC user's .bar, .ini and command files unchanged.
+
 ## 0.2.9 (Preview) — NI Package Creator-inspired graphics and safe icon restore
 
 - Bring the native maker visually in line with Nipkg-Creator: navy/blue
