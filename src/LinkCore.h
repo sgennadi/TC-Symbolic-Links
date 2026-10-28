@@ -22,6 +22,19 @@ std::wstring ParentPath(const std::wstring& path);
 std::wstring BaseName(const std::wstring& path);
 std::wstring Join(const std::wstring& folder, const std::wstring& name);
 std::wstring WindowsErrorMessage(DWORD error);
+// Diagnostic classification is deliberately read-only: never retry with elevated
+// privileges, create a directory as a substitute, or change SMB policy.
+enum class LinkOutcomeDiagnostic {
+    None,
+    RemoteDirectoryAccessDenied,
+    RemoteFileAccessDenied,
+    RemoteToLocalCreated
+};
+bool IsRemoteSmbPath(std::wstring_view path);
+LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,
+    std::wstring_view destination, LinkKind kind, bool sourceIsDirectory,
+    DWORD windowsResult);
+
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source);
 LinkDetails InspectLink(const std::wstring& path, bool countHardlinks = false);
 DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
