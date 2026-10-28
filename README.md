@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.9 Preview
+# TC Symbolic Links 0.2.10 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,37 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.10 Preview: faithful Nipkg-Creator form controls
+
+This iteration copies not only the palette but also the original
+[Nipkg-Creator](https://github.com/sgennadi/Nipkg-Creator)'s
+**form-control language**, still entirely within native
+`SymlinkInspector.wdx64`:
+
+- **Navy-to-blue banner**, clipped wave graphics and embedded chain logo,
+  two white rounded source/target cards and a soft-blue help/preview card.
+- **Green Create** with a native vector Play icon; white/blue **Close**
+  with an X, Stop with a square, and fully **labelled Browse...** with
+  a vector folder icon. Icons are anti-aliased GDI+ paths instead of OS
+  font glyphs, including at 150% and 200% DPI.
+- Path inputs now sit inside pale `#F9FBFF` rounded fields with a
+  visible blue focus border, with the actual Win32 EDIT controls retained
+  for Unicode/IME/keyboard accessibility.
+- Button widths are measured from their translated text plus fixed icon
+  padding, preventing truncated labels; Hebrew action text is right
+  aligned. Status text stops before the action buttons instead of
+  disappearing underneath them.
+- The whole parent client area is double-buffered to avoid GDI resize
+  flicker; source files and results keep a familiar TC-style two-pane
+  view, colored OK/ERR messages and native file icons.
+- Regression coverage checks the actual Maker window has enough room
+  for Browse and action buttons, plus offscreen rendering of the
+  rounded inputs, focus border and vector folder icon.
+
+The installer/toolbar repair logic is unchanged; existing buttons,
+`wincmd.ini`, `usercmd.ini` and personalized `.bar` layouts are
+not replaced by these visual improvements.
 
 ## 0.2.9: NiPackageCreator-style GUI and safe icon recovery
 
