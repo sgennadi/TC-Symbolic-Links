@@ -60,15 +60,15 @@ button3=WCICONS.DLL,22
     # Conflicting icons in a backup must be skipped rather than guessed.
     $bar2 = Join-Path $root 'Ambiguous.bar'
     $bak2 = $bar2+'.tcslinks.bak'
-    [IO.File]::WriteAllText($bar2,@'
+    $ambiguousCurrent = @'
 [Buttonbar]
 Buttoncount=1
 cmd1=calc.exe
 param1=
 menu1=Calc
 button1=
-'@,[Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText($bak2,@'
+'@
+    $ambiguousOld = @'
 [Buttonbar]
 Buttoncount=2
 cmd1=calc.exe
@@ -79,7 +79,9 @@ cmd2=calc.exe
 param2=
 menu2=Calc
 button2=WCMICONS.DLL,5
-'@,[Text.Encoding]::ASCII)
+'@
+    [IO.File]::WriteAllText($bar2,$ambiguousCurrent,[Text.Encoding]::ASCII)
+    [IO.File]::WriteAllText($bak2,$ambiguousOld,[Text.Encoding]::ASCII)
     $before = (Get-FileHash $bar2 -Algorithm SHA256).Hash
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tool -IniPath $ini -BarPath $bar2 -Force
     Assert ($LASTEXITCODE -eq 0) 'Ambiguous icons should be skipped safely'
