@@ -1127,19 +1127,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             return 0;
         case WM_ERASEBKGND:
-            if (state && state->backgroundBrush) {
-                RECT rc{};
-                GetClientRect(hwnd, &rc);
-                FillRect(reinterpret_cast<HDC>(wParam), &rc, state->backgroundBrush);
-                return TRUE;
-            }
-            break;
+            // The whole surface is double-buffered in WM_PAINT, including
+            // anti-aliased controls, so erasing separately causes flicker.
+            return TRUE;
         case WM_PAINT: {
             PAINTSTRUCT paint{};
-            HDC dc = BeginPaint(hwnd, &paint);
+            HDC screenDc = BeginPaint(hwnd, &paint);
+            RECT client{};
+            GetClientRect(hwnd, &client);
+            const int cw = (std::max)(1L, client.right - client.left);
+            const int ch = (std::max)(1L, client.bottom - client.top);
+            HDC bufferDc = CreateCompatibleDC(screenDc);
+            HBITMAP buffer = bufferDc ?
+                CreateCompatibleBitmap(screenDc, cw, ch) : nullptr;
+            HGDIOBJ oldBitmap = buffer ? SelectObject(bufferDc, buffer) : nullptr;
+            HDC dc = buffer && oldBitmap ? bufferDc : screenDc;
+            HBRUSH canvas = CreateSolidBrush(kCanvas);
+            FillRect(dc, &client, canvas);
+            DeleteObject(canvas);
             if (state) {
-                RECT client{};
-                GetClientRect(hwnd, &client);
                 const int margin = Dp(*state, 15);
                 const int gap = Dp(*state, 14);
                 const std::wstring subtitle =
@@ -1222,6 +1228,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     }
                 }
             }
+            if (dc == bufferDc)
+                BitBlt(screenDc, 0, 0, cw, ch, bufferDc, 0, 0, SRCCOPY);
+            if (oldBitmap) SelectObject(bufferDc, oldBitmap);
+            if (buffer) DeleteObject(buffer);
+            if (bufferDc) DeleteDC(bufferDc);
             EndPaint(hwnd, &paint);
             return 0;
         }
