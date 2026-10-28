@@ -39,6 +39,21 @@ constexpr int ID_BROWSE = 115;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
+
+class GdiPlusScope {
+    ULONG_PTR token_ = 0;
+    bool ready_ = false;
+public:
+    GdiPlusScope() {
+        Gdiplus::GdiplusStartupInput input;
+        ready_ = Gdiplus::GdiplusStartup(&token_, &input, nullptr) == Gdiplus::Ok;
+    }
+    GdiPlusScope(const GdiPlusScope&) = delete;
+    GdiPlusScope& operator=(const GdiPlusScope&) = delete;
+    ~GdiPlusScope() { if (ready_) Gdiplus::GdiplusShutdown(token_); }
+    bool Ready() const { return ready_; }
+};
+
 // Respect the Windows/Total Commander classic colours and user's OS theme.
 constexpr COLORREF kCanvas = tcs::visual::Canvas;
 constexpr COLORREF kSurface = tcs::visual::White;
@@ -661,6 +676,10 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"נבחרו  |  קבצים קיימים לא יוחלפו");
     s.subtitle = AddControl(hwnd, L"STATIC", subtitle.c_str(),
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
+    // Text is drawn with antialiasing on top of the real gradient header.
+    // Hide the legacy labels to prevent Windows static backgrounds erasing it.
+    ShowWindow(s.title, SW_HIDE);
+    ShowWindow(s.subtitle, SW_HIDE);
     s.labelKind = AddControl(hwnd, L"STATIC",
         s.Choose(L"Link type:", L"Тип ссылки:", L"סוג קישור:"),
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
@@ -793,6 +812,10 @@ void CreateControls(HWND hwnd, Ui& s) {
     s.status = AddControl(hwnd, L"STATIC", s.Choose(
         L"Ready.", L"Готово.", L"מוכן."), SS_ENDELLIPSIS | alignCaption, 0,
         captionEx);
+    // Keep these HWNDs for status text, assistive tooling and old tests.
+    // The visible status card is composited in the main window instead.
+    ShowWindow(s.status, SW_HIDE);
+    ShowWindow(s.statusGlyph, SW_HIDE);
     s.create = AddControl(hwnd, L"BUTTON", s.Choose(
         L"F5  Create", L"F5  Создать", L"F5  צור"),
         WS_TABSTOP | BS_OWNERDRAW, ID_CREATE);
@@ -974,6 +997,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) {
                 state->dpi = GetDpiForWindow(hwnd);
                 state->backgroundBrush = CreateSolidBrush(kCanvas);
+                state->cardBrush = CreateSolidBrush(kSurface);
+                // Windows 11: match the NI-style navy banner in the title bar.
+                // DWM rejects unsupported attributes on older Windows safely.
+                const COLORREF caption = tcs::visual::Navy;
+                const COLORREF captionText = tcs::visual::White;
+                DwmSetWindowAttribute(hwnd, 35, &caption, sizeof(caption));
+                DwmSetWindowAttribute(hwnd, 36, &captionText, sizeof(captionText));
                 SHFILEINFOW folderInfo{};
                 if (SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY,
                         &folderInfo, sizeof(folderInfo),
@@ -1215,6 +1245,14 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     state->initialDestination = std::move(destination);
     INITCOMMONCONTROLSEX common{sizeof(common), ICC_LISTVIEW_CLASSES};
     if (!InitCommonControlsEx(&common)) { delete state; return 5; }
+    GdiPlusScope graphics;
+    if (!graphics.Ready()) {
+        MessageBoxW(nullptr, L"Windows GDI+ initialization failed. "
+            L"The native Total Commander UI cannot be drawn.",
+            L"TC Symbolic Links", MB_OK | MB_ICONERROR);
+        delete state;
+        return 7;
+    }
     WNDCLASSEXW cls{sizeof(cls)};
     cls.style = CS_DBLCLKS;
     cls.lpfnWndProc = WindowProc;
