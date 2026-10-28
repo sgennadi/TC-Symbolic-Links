@@ -141,6 +141,24 @@ bool IsExistingDirectory(const std::wstring& path) {
     return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
+SelectionSummary InspectSelection(const std::vector<std::wstring>& selected) {
+    SelectionSummary summary;
+    for (const auto& item : selected) {
+        const std::wstring path = FullPath(item);
+        const DWORD attrs = path.empty() ? INVALID_FILE_ATTRIBUTES :
+            GetFileAttributesW(ApiPath(path).c_str());
+        if (attrs == INVALID_FILE_ATTRIBUTES) {
+            ++summary.unavailable;
+            if (summary.firstUnavailable.empty()) summary.firstUnavailable = item;
+        } else if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+            ++summary.folders;
+        } else {
+            ++summary.files;
+        }
+    }
+    return summary;
+}
+
 std::wstring ParentPath(const std::wstring& path) {
     return std::filesystem::path(path).parent_path().wstring();
 }
