@@ -227,7 +227,8 @@ inline void FormPanels(HDC dc, const RECT& client, UINT dpi,
                        int margin, int gap, int cardTop, int cardBottom,
                        int toolsTop, int toolsHeight,
                        bool finished, bool failed, bool unsafe, bool creating,
-                       const std::wstring& status, bool rtl) {
+                       const std::wstring& status, bool rtl,
+                       int actionLeft = -1) {
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     g.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
@@ -256,12 +257,13 @@ inline void FormPanels(HDC dc, const RECT& client, UINT dpi,
          corner, statusFill, statusBorder);
     const COLORREF statusInk = unsafe || failed ? RGB(136, 39, 48) :
         finished && !creating ? GreenDark : Navy;
-    Text(g, status, Gdiplus::RectF(
-         rtl ? static_cast<float>(margin + Px(255, dpi)) :
-               static_cast<float>(margin + Px(18, dpi)),
+    const float left = static_cast<float>(margin + Px(18, dpi));
+    const float right = actionLeft > 0 ?
+        static_cast<float>(actionLeft - Px(16, dpi)) :
+        width - static_cast<float>(margin + Px(310, dpi));
+    Text(g, status, Gdiplus::RectF(left,
          static_cast<float>(statusTop + Px(5, dpi)),
-         (std::max)(1.f, usable - static_cast<float>(Px(265, dpi))),
-         static_cast<float>(Px(44, dpi))),
+         (std::max)(1.f, right - left), static_cast<float>(Px(44, dpi))),
          static_cast<float>(Px(11, dpi)), true, Tone(statusInk), rtl);
 }
 } // namespace tcs::visual
