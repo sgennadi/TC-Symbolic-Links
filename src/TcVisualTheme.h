@@ -29,6 +29,13 @@ constexpr COLORREF SoftRed = RGB(255, 236, 237);
 constexpr COLORREF Red = RGB(201, 43, 57);
 constexpr COLORREF White = RGB(255, 255, 255);
 
+constexpr COLORREF Field = RGB(249, 251, 255);
+
+// The same recognizable glyph vocabulary as NipkgCreator.ModernButton.
+// Native vector paths avoid empty Segoe MDL2 glyphs on some Windows images.
+enum class ButtonGlyph { Folder, Create, Close, Stop, Link };
+
+
 inline int Px(int base, UINT dpi) {
     return MulDiv(base, static_cast<int>(dpi), 96);
 }
@@ -67,6 +74,71 @@ inline void RoundedButton(HDC dc, const RECT& bounds,
          static_cast<float>(bounds.top) + 1.f, width - 2.f, height - 2.f),
          static_cast<float>(radius), fill, outline);
 }
+inline void InputField(HDC dc, const RECT& bounds, UINT dpi, bool focused = false) {
+    const float width = static_cast<float>(bounds.right - bounds.left);
+    const float height = static_cast<float>(bounds.bottom - bounds.top);
+    if (width <= 3.f || height <= 3.f) return;
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Card(g, Gdiplus::RectF(static_cast<float>(bounds.left) + 0.5f,
+                          static_cast<float>(bounds.top) + 0.5f,
+                          width - 1.f, height - 1.f),
+         static_cast<float>(Px(8, dpi)), Field, focused ? Blue : Stroke);
+}
+
+inline void Glyph(HDC dc, const RECT& bounds, ButtonGlyph kind,
+                  COLORREF ink, UINT dpi) {
+    const float width = static_cast<float>(bounds.right - bounds.left);
+    const float height = static_cast<float>(bounds.bottom - bounds.top);
+    if (width <= 1.f || height <= 1.f) return;
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    const float x = static_cast<float>(bounds.left);
+    const float y = static_cast<float>(bounds.top);
+    const float sx = width / 20.f;
+    const float sy = height / 20.f;
+    Gdiplus::Pen pen(Tone(ink), static_cast<float>(Px(1, dpi)) * 1.7f);
+    pen.SetStartCap(Gdiplus::LineCapRound);
+    pen.SetEndCap(Gdiplus::LineCapRound);
+    pen.SetLineJoin(Gdiplus::LineJoinRound);
+    auto line = [&](float x1, float y1, float x2, float y2) {
+        g.DrawLine(&pen, x + x1 * sx, y + y1 * sy,
+                  x + x2 * sx, y + y2 * sy);
+    };
+    switch (kind) {
+        case ButtonGlyph::Folder:
+            line(1.f, 6.f, 7.f, 6.f);
+            line(7.f, 6.f, 9.f, 8.f);
+            line(9.f, 8.f, 19.f, 8.f);
+            line(19.f, 8.f, 19.f, 18.f);
+            line(19.f, 18.f, 1.f, 18.f);
+            line(1.f, 18.f, 1.f, 6.f);
+            break;
+        case ButtonGlyph::Create: {
+            Gdiplus::PointF points[3] = {
+                {x + 5.f * sx, y + 2.f * sy},
+                {x + 18.f * sx, y + 10.f * sy},
+                {x + 5.f * sx, y + 18.f * sy}};
+            Gdiplus::SolidBrush brush(Tone(ink));
+            g.FillPolygon(&brush, points, 3);
+            break;
+        }
+        case ButtonGlyph::Close:
+            line(4.f, 4.f, 16.f, 16.f);
+            line(16.f, 4.f, 4.f, 16.f);
+            break;
+        case ButtonGlyph::Stop:
+            g.DrawRectangle(&pen, x + 5.f * sx, y + 5.f * sy,
+                            10.f * sx, 10.f * sy);
+            break;
+        case ButtonGlyph::Link:
+            g.DrawEllipse(&pen, x + 1.f * sx, y + 8.f * sy, 11.f * sx, 8.f * sy);
+            g.DrawEllipse(&pen, x + 8.f * sx, y + 4.f * sy, 11.f * sx, 8.f * sy);
+            break;
+    }
+}
+
+
 inline void Text(Gdiplus::Graphics& g, const std::wstring& text,
                  const Gdiplus::RectF& region, float px, bool bold,
                  Gdiplus::Color color, bool rtl) {
