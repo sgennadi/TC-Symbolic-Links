@@ -303,6 +303,12 @@ void RefreshCreateSafety(Ui& s) {
     if (s.statusGlyph) InvalidateRect(s.statusGlyph, nullptr, TRUE);
     if (s.create) InvalidateRect(s.create, nullptr, FALSE);
     if (s.preview) InvalidateRect(s.preview, nullptr, TRUE);
+    if (HWND owner = GetParent(s.destination)) {
+        RECT bottom{};
+        GetClientRect(owner, &bottom);
+        bottom.top = (std::max)(0, bottom.bottom - Dp(s, 74));
+        InvalidateRect(owner, &bottom, FALSE);
+    }
 }
 
 void UpdatePlannedOutput(Ui& s) {
@@ -459,7 +465,11 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     HGDIOBJ originalBitmap = memory && bitmap ? SelectObject(memory, bitmap) : nullptr;
     HDC dc = memory && bitmap ? memory : item.hDC;
     if (dc == memory) { r.left = 0; r.top = 0; r.right = w; r.bottom = h; }
-    HBRUSH canvas = CreateSolidBrush(kCanvas);
+    const COLORREF underlay = browse ? kSurface :
+        state.unsafeDestination || state.failed ? tcs::visual::SoftRed :
+        state.hasRun && !state.creating ? tcs::visual::SoftGreen :
+        tcs::visual::SoftBlue;
+    HBRUSH canvas = CreateSolidBrush(underlay);
     FillRect(dc, &r, canvas);
     DeleteObject(canvas);
     tcs::visual::RoundedButton(dc, r, fill, border, Dp(state, 9));
@@ -496,7 +506,8 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
 }
 void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
     RECT region = item.rcItem;
-    HBRUSH fill = CreateSolidBrush(kCanvas);
+    HBRUSH fill = CreateSolidBrush(item.CtlID == ID_STATUS_GLYPH ?
+        kCanvas : kSurface);
     FillRect(item.hDC, &region, fill);
     DeleteObject(fill);
     wchar_t glyph = static_cast<wchar_t>(0xE71B);
