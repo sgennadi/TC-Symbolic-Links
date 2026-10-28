@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.8 Preview
+# TC Symbolic Links 0.2.9 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,35 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.9: NiPackageCreator-style GUI and safe icon recovery
+
+**Visuals:** the built-in Win32 WDX maker now uses the same visual palette
+as the author's [Nipkg-Creator](https://github.com/sgennadi/Nipkg-Creator):
+navy-to-electric-blue rounded header, layered blue/green wave graphics,
+white rounded source/target cards, clean blue-bordered path/mode controls,
+a green primary F5 Create button, blue secondary actions, and a tinted
+blue/green/red status card. Native GDI+ antialiasing avoids the ragged edges
+of the old GDI RoundRect buttons at 150% / 200% scaling. The WDX remains a
+single native `.wdx64`: **no .NET runtime, companion EXE or third-party UI DLL**.
+
+**Recovered toolbar icons:** `Restore-TC-Toolbar-Icons.cmd` is now part of
+the separate recovery ZIP. It compares the **real** active `.bar` with
+the immutable `.tcslinks.bak` and per-update snapshots, matches each
+button's command + parameters + caption, and restores **only missing**
+`buttonN` icon references when the original is unambiguous.
+It saves a dated, verified rollback copy first. Existing icons, other buttons,
+`wincmd.ini`, `usercmd.ini` and the toolbar selection are not edited.
+If the entire toolbar was switched by 0.2.1/0.2.4, use
+`Restore-TC-Toolbar-Only.cmd` first. The older user-provided
+`Install_TC_Directory_Symlink_v10.ps1` intentionally leaves button bars
+untouched; it is **not itself a lost-icon repair tool**.
+
+**Preflight borrowed from v10:** all selected sources are verified before
+link creation. Explicit file-only or directory-only modes reject incompatible
+and inaccessible selections with localized guidance and create nothing.
+`Automatic` still supports mixtures of files and folders. This does not
+bypass Samba permissions; UNC directory symlink denials remain visible.
 
 ## 0.2.8: clear icons, colour and safety feedback
 
@@ -159,7 +188,7 @@ Russian and Hebrew UI, mixed RTL/LTR and Unicode paths are supported.
 ## Installation
 
 1. Download a **Windows x64 CI artifact** from [GitHub Actions](https://github.com/sgennadi/TC-Symbolic-Links/actions)
-   for a passing 0.2.6 build. Inside the artifact there is the Total Commander
+   for a passing 0.2.9 preview build. Inside the artifact there is the Total Commander
    installer ZIP; open that ZIP in TC, not with Ctrl+PgDn.
 2. When the WDX is first initialized by TC, it offers to configure the
    **startup** toolbar button and the two custom-column views. Confirm only
