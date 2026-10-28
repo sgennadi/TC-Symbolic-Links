@@ -1,3 +1,24 @@
+## 0.2.10: verify the new Ni Package Creator form details
+
+1. Open **Create Links** in the installed 0.2.10 WDX. It should look
+   like Nipkg Creator (blue gradient, curved waves, white cards, pale
+   fields, green Create), not a Windows 2000 grey dialog.
+2. **Browse...** must show both the folder glyph and the full button
+   label in English/Russian/Hebrew at 100%, 150% and 200% scaling.
+   The button must not overlap the target folder entry or its file panel.
+3. Verify rounded path-field outlines and focus changing to blue when
+   selecting the destination field, without affecting the caret or
+   international paths.
+4. Confirm F5 Create (green/play), Esc Close (white/blue X), and
+   Esc Stop (red/stop) glyphs are clear and text is never clipped.
+   Status messages should not run under the right-side buttons.
+5. Resize smaller and larger. Inspect wave corners, label truncation,
+   offscreen flicker and TC source/result alignment. Verify successful
+   links and failures still display their corresponding colors.
+6. Verify your original Total Commander buttons, nested bars and
+   custom `em_*` commands are still present. The UI-only change must
+   not modify these files.
+
 ## 0.2.9: NI Package Creator visual acceptance and icon recovery
 
 Before installing another plugin preview on a customized Total Commander
