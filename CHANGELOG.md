@@ -1,3 +1,20 @@
+## 0.2.9 (Preview) — NI Package Creator-inspired graphics and safe icon restore
+
+- Bring the native maker visually in line with Nipkg-Creator: navy/blue
+  gradient header, antialiased blue/green waves, rounded white source and
+  target cards, green F5 Create, white/blue secondary controls and
+  contextual blue/green/red status cards.
+- Draw crisp GDI+ rounded edges at 100%, 150% and 200% scaling;
+  remain one native WDX64 module with no companion EXE or .NET dependency.
+- Add a safe restore-icons helper which matches command, parameters and
+  caption against saved .bar snapshots and restores only missing icon
+  references; never replace existing user buttons or usercmd.ini.
+- Adopt v10 selection preflight: check missing/inaccessible paths before
+  creation and reject mixed input when an explicit file-only/folder-only
+  mode is selected; Automatic still supports both.
+- Include recovery regression tests in Windows VS2026 CI and package the
+  new helpers with the existing toolbar and custom-command restore tools.
+
 ## 0.2.8 (Preview) — self-link guard, embedded icons and colour
 
 - Block source/target pointing into the same directory, including 8.3 and
