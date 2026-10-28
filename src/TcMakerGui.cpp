@@ -3,6 +3,7 @@
 #include "LinkCore.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
+#include "TcVisualTheme.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <commctrl.h>
@@ -10,6 +11,7 @@
 #include <shobjidl.h>
 #include <shlobj.h>
 #include <objbase.h>
+#include <dwmapi.h>
 #include <algorithm>
 #include <cstddef>
 #include <exception>
@@ -38,15 +40,15 @@ constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
 // Respect the Windows/Total Commander classic colours and user's OS theme.
-constexpr COLORREF kCanvas = RGB(246, 248, 253);
-constexpr COLORREF kSurface = RGB(255, 255, 255);
-constexpr COLORREF kLine = RGB(221, 228, 238);
-constexpr COLORREF kInk = RGB(31, 41, 55);
-constexpr COLORREF kSecondary = RGB(100, 116, 139);
-constexpr COLORREF kAccent = RGB(37, 99, 235);
-constexpr COLORREF kAccentHover = RGB(29, 78, 216);
-constexpr COLORREF kPositive = RGB(22, 163, 74);
-constexpr COLORREF kDanger = RGB(220, 38, 38);
+constexpr COLORREF kCanvas = tcs::visual::Canvas;
+constexpr COLORREF kSurface = tcs::visual::White;
+constexpr COLORREF kLine = tcs::visual::Stroke;
+constexpr COLORREF kInk = tcs::visual::Ink;
+constexpr COLORREF kSecondary = tcs::visual::Muted;
+constexpr COLORREF kAccent = tcs::visual::Blue;
+constexpr COLORREF kAccentHover = tcs::visual::DarkBlue;
+constexpr COLORREF kPositive = tcs::visual::Green;
+constexpr COLORREF kDanger = tcs::visual::Red;
 constexpr COLORREF kWarning = RGB(217, 119, 6);
 constexpr COLORREF kSoftButton = RGB(235, 240, 248);
 
@@ -66,6 +68,7 @@ struct Ui {
     bool hoveringBrowse = false;
     unsigned animationFrame = 0;
     HBRUSH backgroundBrush = nullptr;
+    HBRUSH cardBrush = nullptr;
     HWND title = nullptr;
     HWND subtitle = nullptr;
     HWND labelSources = nullptr;
@@ -104,6 +107,7 @@ struct Ui {
     ~Ui() {
         for (HFONT f : {font, fontTitle, fontLabel, fontSmall, fontIcon}) if (f) DeleteObject(f);
         if (backgroundBrush) DeleteObject(backgroundBrush);
+        if (cardBrush) DeleteObject(cardBrush);
         if (richEditModule) FreeLibrary(richEditModule);
         if (folderIcon) DestroyIcon(folderIcon);
     }
@@ -421,17 +425,19 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     const bool pressed = (item.itemState & ODS_SELECTED) != 0;
     const bool hot = create ? state.hoveringCreate :
                      browse ? state.hoveringBrowse : state.hoveringClose;
-    const COLORREF fill = browse ? (hot ? RGB(219, 232, 255) : kSoftButton) :
-                          create ?
-        (!enabled ? RGB(169, 183, 209) : pressed ? RGB(30, 64, 175) :
-          hot ? kAccentHover : kAccent) :
-        (state.creating ? (hot ? RGB(254, 226, 226) : RGB(254, 242, 242)) :
-          hot ? RGB(222, 231, 245) : kSoftButton);
+    const COLORREF fill = browse ? (hot ? tcs::visual::SoftBlue : kSurface) :
+        create ? (!enabled ? RGB(192, 207, 216) : pressed ? tcs::visual::GreenDark :
+                  hot ? tcs::visual::GreenHover : tcs::visual::Green) :
+        state.creating ? (hot ? RGB(255, 220, 226) : tcs::visual::SoftRed) :
+                         (hot ? tcs::visual::SoftBlue : kSurface);
     const COLORREF border = create ? fill :
-        (state.creating ? RGB(254, 202, 202) : kLine);
-    const COLORREF ink = browse ? kAccent : create ? kSurface :
-        state.creating ? kDanger : kInk;
+        state.creating ? RGB(241, 179, 179) :
+                         (hot ? tcs::visual::Blue : tcs::visual::Stroke);
+    const COLORREF ink = browse ? tcs::visual::DarkBlue :
+        create ? kSurface : state.creating ? kDanger : tcs::visual::Navy;
 
+    // Double buffer the button. GDI+ anti-aliases its corners; avoid the
+    // visibly jagged native GDI RoundRect edges reported at 150/200% DPI.
     HDC memory = CreateCompatibleDC(item.hDC);
     const int w = r.right - r.left, h = r.bottom - r.top;
     HBITMAP bitmap = memory ? CreateCompatibleBitmap(item.hDC, w, h) : nullptr;
@@ -441,16 +447,7 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     HBRUSH canvas = CreateSolidBrush(kCanvas);
     FillRect(dc, &r, canvas);
     DeleteObject(canvas);
-    HBRUSH brush = CreateSolidBrush(fill);
-    HPEN pen = CreatePen(PS_SOLID, 1, border);
-    const HGDIOBJ oldPen = SelectObject(dc, pen);
-    const HGDIOBJ oldBrush = SelectObject(dc, brush);
-    RoundRect(dc, r.left + 1, r.top + 1, r.right - 1, r.bottom - 1,
-              Dp(state, 9), Dp(state, 9));
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(pen);
-    DeleteObject(brush);
+    tcs::visual::RoundedButton(dc, r, fill, border, Dp(state, 9));
 
     RECT icon = browse ? r : RECT{r.left + Dp(state, 9), r.top,
               r.left + Dp(state, 38), r.bottom};
