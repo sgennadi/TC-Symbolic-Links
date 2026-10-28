@@ -573,86 +573,86 @@ void Layout(HWND hwnd, Ui& s) {
     GetClientRect(hwnd, &rc);
     const int width = rc.right - rc.left;
     const int height = rc.bottom - rc.top;
-    const int margin = Dp(s, 10);
-    const int space = Dp(s, 8);
+    const int margin = Dp(s, 15);
+    const int gap = Dp(s, 14);
     const int usable = (std::max)(Dp(s, 320), width - 2 * margin);
-    const int leftWidth = (usable - space) / 2;
-    const int rightX = margin + leftWidth + space;
-    const int rightWidth = usable - leftWidth - space;
+    const int cardWidth = (usable - gap) / 2;
+    const int cardRightX = margin + cardWidth + gap;
+    const int inset = Dp(s, 13);
+    const int leftX = margin + inset;
+    const int rightX = cardRightX + inset;
+    const int leftWidth = cardWidth - 2 * inset;
+    const int rightWidth = usable - cardWidth - gap - 2 * inset;
 
     auto place = [&](HWND child, int x, int y, int w, int h) {
         if (child) MoveWindow(child, x, y, (std::max)(1, w),
                               (std::max)(1, h), TRUE);
     };
-    // Compact tool strip above two Commander-style file panels.
-    place(s.title, margin, Dp(s, 6), Dp(s, 220), Dp(s, 22));
-    place(s.subtitle, margin + Dp(s, 230), Dp(s, 7),
-          (std::max)(Dp(s, 80), usable - Dp(s, 230)), Dp(s, 20));
-    const int toolsY = Dp(s, 37);
-    const int labelWidth = Dp(s, 75);
-    const int kindWidth = (std::min)(Dp(s, 360),
-          (std::max)(Dp(s, 225), usable / 2 - labelWidth - Dp(s, 5)));
-    place(s.labelKind, margin, toolsY + Dp(s, 5), labelWidth, Dp(s, 19));
-    place(s.kind, margin + labelWidth, toolsY, kindWidth, Dp(s, 300));
-    const int checkX = margin + labelWidth + kindWidth + space;
-    place(s.relative, checkX, toolsY + Dp(s, 3),
-          (std::max)(Dp(s, 105), width - margin - checkX), Dp(s, 24));
+    // The blue/green rounded banner is painted in WM_PAINT, not by
+    // transparent STATIC controls (which erase the gradient on Windows).
+    const int toolsY = Dp(s, 122);
+    const int labelWidth = Dp(s, 86);
+    const int kindWidth = (std::min)(Dp(s, 344),
+        (std::max)(Dp(s, 245), usable / 2 - labelWidth));
+    place(s.labelKind, leftX, toolsY + Dp(s, 7), labelWidth, Dp(s, 23));
+    place(s.kind, leftX + labelWidth, toolsY + Dp(s, 1),
+          kindWidth, Dp(s, 300));
+    const int checkX = leftX + labelWidth + kindWidth + Dp(s, 16);
+    place(s.relative, checkX, toolsY + Dp(s, 5),
+          (std::max)(Dp(s, 105), width - margin - inset - checkX), Dp(s, 25));
 
-    const int headingY = Dp(s, 74);
-    place(s.sourceGlyph, margin, headingY - Dp(s, 2), Dp(s, 22), Dp(s, 22));
-    place(s.labelSources, margin + Dp(s, 25), headingY,
-          leftWidth - Dp(s, 25), Dp(s, 19));
-    place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 22), Dp(s, 22));
-    place(s.labelResults, rightX + Dp(s, 25), headingY,
-          rightWidth - Dp(s, 25), Dp(s, 19));
-    const int pathY = Dp(s, 95);
-    const int pathH = Dp(s, 27);
-    place(s.sourcePath, margin, pathY, leftWidth, pathH);
-    place(s.destination, rightX, pathY, rightWidth - Dp(s, 42), pathH);
-    place(s.browse, rightX + rightWidth - Dp(s, 36), pathY,
-          Dp(s, 36), pathH);
+    const int headingY = Dp(s, 190);
+    place(s.sourceGlyph, leftX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
+    place(s.labelSources, leftX + Dp(s, 29), headingY,
+          leftWidth - Dp(s, 29), Dp(s, 22));
+    place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
+    place(s.labelResults, rightX + Dp(s, 29), headingY,
+          rightWidth - Dp(s, 29), Dp(s, 22));
+    const int pathY = Dp(s, 218);
+    const int pathH = Dp(s, 29);
+    place(s.sourcePath, leftX, pathY, leftWidth, pathH);
+    place(s.destination, rightX, pathY, rightWidth - Dp(s, 46), pathH);
+    place(s.browse, rightX + rightWidth - Dp(s, 39), pathY,
+          Dp(s, 39), pathH);
 
-    const int paneY = pathY + pathH + Dp(s, 6);
-    const bool compact = height < Dp(s, 540);
-    const int paneBottom = height - Dp(s, compact ? 129 : 147);
-    const int paneHeight = (std::max)(Dp(s, 72), paneBottom - paneY);
-    place(s.sources, margin, paneY, leftWidth, paneHeight);
+    const int paneY = pathY + pathH + Dp(s, 9);
+    const int paneBottom = height - Dp(s, 174);
+    const int paneHeight = (std::max)(Dp(s, 64), paneBottom - paneY);
+    place(s.sources, leftX, paneY, leftWidth, paneHeight);
     place(s.results, rightX, paneY, rightWidth, paneHeight);
     if (s.sources) {
-        const int nameWidth = (std::max)(Dp(s, 110), leftWidth * 42 / 100);
-        const int typeWidth = Dp(s, 76);
+        const int nameWidth = (std::max)(Dp(s, 120), leftWidth * 43 / 100);
+        const int typeWidth = Dp(s, 84);
         ListView_SetColumnWidth(s.sources, 0, nameWidth);
         ListView_SetColumnWidth(s.sources, 1, typeWidth);
         ListView_SetColumnWidth(s.sources, 2,
-            (std::max)(Dp(s, 80), leftWidth - nameWidth - typeWidth - Dp(s, 8)));
+            (std::max)(Dp(s, 75), leftWidth - nameWidth - typeWidth - Dp(s, 7)));
     }
 
-    // Help is always available, but doesn't steal file panel space.
-    const int infoY = paneBottom + Dp(s, 6);
-    place(s.modeHint, margin + Dp(s, 3), infoY, usable - Dp(s, 6),
-          Dp(s, compact ? 28 : 35));
-    place(s.relativeHint, margin + Dp(s, 3),
-          infoY + Dp(s, compact ? 30 : 38), usable - Dp(s, 6),
-          Dp(s, compact ? 28 : 35));
-    place(s.preview, margin + Dp(s, 3), height - Dp(s, 60),
-          usable - Dp(s, 6), Dp(s, 20));
+    const int cardBottom = height - Dp(s, 161);
+    const int infoY = cardBottom + Dp(s, 6);
+    place(s.modeHint, margin + Dp(s, 5), infoY, usable - Dp(s, 10), Dp(s, 27));
+    place(s.relativeHint, margin + Dp(s, 5), infoY + Dp(s, 31),
+          usable - Dp(s, 10), Dp(s, 27));
+    place(s.preview, margin + Dp(s, 5), height - Dp(s, 96),
+          usable - Dp(s, 10), Dp(s, 22));
 
-    // Function-key buttons just like Total Commander's bottom command strip.
-    const int actionY = height - Dp(s, 35);
-    const int createWidth = Dp(s, 120);
-    const int closeWidth = Dp(s, 103);
-    const int actionH = Dp(s, 29);
-    place(s.create, width - margin - closeWidth - space - createWidth,
-          actionY, createWidth, actionH);
-    place(s.close, width - margin - closeWidth,
-          actionY, closeWidth, actionH);
-    place(s.statusGlyph, margin, actionY + Dp(s, 2), Dp(s, 25), Dp(s, 24));
-    place(s.status, margin + Dp(s, 29), actionY + Dp(s, 4),
-          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - 2 * space - Dp(s, 29)),
-          Dp(s, 22));
+    // Buttons sit inside an adaptive soft-green/blue/red status card.
+    const int buttonY = height - Dp(s, 61);
+    const int actionH = Dp(s, 40);
+    const int createWidth = Dp(s, 148);
+    const int closeWidth = Dp(s, 126);
+    place(s.create, width - margin - Dp(s, 10) - closeWidth - Dp(s, 10) - createWidth,
+          buttonY, createWidth, actionH);
+    place(s.close, width - margin - Dp(s, 10) - closeWidth,
+          buttonY, closeWidth, actionH);
+    // Hidden accessibility/status controls retain their text and Win32 IDs.
+    place(s.statusGlyph, leftX, buttonY + Dp(s, 7), Dp(s, 24), Dp(s, 24));
+    place(s.status, leftX + Dp(s, 29), buttonY + Dp(s, 5),
+          (std::max)(Dp(s, 80), usable - createWidth - closeWidth - Dp(s, 100)),
+          Dp(s, 28));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
-
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
