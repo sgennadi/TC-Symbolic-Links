@@ -129,6 +129,28 @@ int main() {
             Require(dirInfo.relative, "Directory symlink did not retain relative path");
             Require(dirInfo.targetExists, "Directory symlink target does not resolve");
         }
+        // SMB error diagnostics are pure classification: no network server
+        // is required and no permissions or symlink policies are changed.
+        Require(tcs::IsRemoteSmbPath(L"\\\\fedora\\Programs\\ScientificTools\\NI"),
+            "Standard SMB UNC path was not recognized");
+        Require(tcs::IsRemoteSmbPath(L"\\\\?\\UNC\\fedora\\Programs"),
+            "Extended SMB UNC path was not recognized");
+        Require(!tcs::IsRemoteSmbPath(L"C:\\Users\\Student"),
+            "Local disk incorrectly recognized as SMB");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Users\\Student\\Downloads\\Temp",
+                    L"\\\\fedora\\Programs\\ScientificTools\\NI\\Temp",
+                    tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied,
+                "SMB directory denial must have a precise diagnostic");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Users\\Student\\script.ps1",
+                    L"\\\\fedora\\Programs\\ScientificTools\\NI\\script.ps1",
+                    tcs::LinkKind::Automatic, false, ERROR_SUCCESS) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated,
+                "Successful SMB file symlinks to local drives need a traversal warning");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Temp", L"C:\\LocalLinks\\Temp",
+                    tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
+                    tcs::LinkOutcomeDiagnostic::None,
+                "Local access denied must not be misdiagnosed as SMB");
         std::cout << "PASS: Hebrew Unicode Win32 hardlink, junction, symlink checks\n";
         return 0;
     } catch (const std::exception& error) {
