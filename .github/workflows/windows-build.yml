@@ -21,7 +21,7 @@ jobs:
   windows-vs2026:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure and build VS 2026 x64 (MSVC v145)
         shell: pwsh
         run: |
@@ -72,7 +72,7 @@ jobs:
           }
       - name: Upload Total Commander evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TC-RealApp-Smoke-Windows
           path: tc-smoke-results/
@@ -86,7 +86,7 @@ jobs:
           Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win64.zip -Force
           $hash = (Get-FileHash TC-Symbolic-Links-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  TC-Symbolic-Links-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win64.zip.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: TC-Symbolic-Links-win64-VS2026
           path: |
@@ -97,7 +97,7 @@ jobs:
   linux-wdx-unicode:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
@@ -111,7 +111,7 @@ jobs:
           cp build/SymlinkInspector.wdx README-LINUX.md dist-linux/
           (cd dist-linux && zip ../TC-Symbolic-Links-Linux-WDX-x64.zip ./*)
           sha256sum TC-Symbolic-Links-Linux-WDX-x64.zip > TC-Symbolic-Links-Linux-WDX-x64.zip.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: TC-Symbolic-Links-Linux-WDX-x64
           path: |
@@ -121,7 +121,7 @@ jobs:
   linux-sanitizers:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: ASan and UBSan
         run: |
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
@@ -138,15 +138,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: TC-Symbolic-Links-win64-VS2026
           path: release
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: TC-Symbolic-Links-Linux-WDX-x64
           path: release
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           prerelease: true
           generate_release_notes: true
