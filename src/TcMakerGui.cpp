@@ -1049,24 +1049,34 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) {
                 RECT client{};
                 GetClientRect(hwnd, &client);
-                HPEN line = CreatePen(PS_SOLID, 1, GetSysColor(COLOR_3DSHADOW));
-                if (line) {
-                    HGDIOBJ old = SelectObject(dc, line);
-                    MoveToEx(dc, 0, Dp(*state, 31), nullptr);
-                    LineTo(dc, client.right, Dp(*state, 31));
-                    MoveToEx(dc, 0, client.bottom - Dp(*state, 40), nullptr);
-                    LineTo(dc, client.right, client.bottom - Dp(*state, 40));
-                    SelectObject(dc, old);
-                    DeleteObject(line);
-                }
-                // A restrained Commander-style accent strip and animated
-                // batch progress. The moving light is active ONLY during work.
-                RECT accent{0, 0, client.right, Dp(*state, 3)};
-                HBRUSH accentBrush = CreateSolidBrush(kAccent);
-                FillRect(dc, &accent, accentBrush);
-                DeleteObject(accentBrush);
-                RECT track{0, client.bottom - Dp(*state, 40),
-                           client.right, client.bottom - Dp(*state, 36)};
+                const int margin = Dp(*state, 15);
+                const int gap = Dp(*state, 14);
+                const std::wstring subtitle =
+                    std::to_wstring(state->selected.size()) + L" " + state->Choose(
+                    L"selected  |  Existing items are never overwritten",
+                    L"выбрано  |  Существующие объекты не перезаписываются",
+                    L"נבחרו  |  קבצים קיימים לעולם לא יוחלפו");
+                const RECT banner{margin, Dp(*state, 14),
+                                  client.right - margin, Dp(*state, 104)};
+                const HICON logo = reinterpret_cast<HICON>(
+                    GetClassLongPtrW(hwnd, GCLP_HICON));
+                tcs::visual::Banner(dc, banner, state->dpi, logo,
+                    L"TC Symbolic Links", subtitle, state->he);
+                const std::wstring status = L"●  " + GetText(state->status);
+                tcs::visual::FormPanels(dc, client, state->dpi,
+                    margin, gap, Dp(*state, 175),
+                    client.bottom - Dp(*state, 161),
+                    Dp(*state, 113), Dp(*state, 50),
+                    state->hasRun, state->failed != 0,
+                    state->unsafeDestination, state->creating,
+                    status, state->he);
+
+                // Thin animated progress rail at the top of the status card.
+                // Keeps results visible, without taking space from the panes.
+                const int progressTop = client.bottom - Dp(*state, 68);
+                RECT track{margin + Dp(*state, 12), progressTop,
+                           client.right - margin - Dp(*state, 12),
+                           progressTop + Dp(*state, 3)};
                 HBRUSH trackBrush = CreateSolidBrush(kLine);
                 FillRect(dc, &track, trackBrush);
                 DeleteObject(trackBrush);
@@ -1074,23 +1084,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     const auto total = (std::max)(std::size_t{1}, state->selected.size());
                     const auto done = (std::min)(total,
                         static_cast<std::size_t>(state->completed + state->failed));
-                    const int filled = (std::min)(static_cast<int>(client.right),
-                        static_cast<int>(static_cast<unsigned long long>(client.right) *
-                                         done / total));
-                    RECT bar{0, track.top, filled, track.bottom};
+                    const int width = track.right - track.left;
+                    const int filled = (std::min)(width,
+                        static_cast<int>(static_cast<unsigned long long>(width) * done / total));
+                    RECT bar{track.left, track.top,
+                             track.left + filled, track.bottom};
                     HBRUSH progress = CreateSolidBrush(state->creating ? kAccent :
-                        state->failed ? kWarning : kPositive);
+                        state->failed ? kDanger : kPositive);
                     FillRect(dc, &bar, progress);
                     DeleteObject(progress);
                     if (state->creating && filled > 0) {
-                        const int stripe = Dp(*state, 25);
+                        const int stripe = Dp(*state, 27);
                         const int offset = static_cast<int>(
                             (state->animationFrame * Dp(*state, 12)) %
                             static_cast<unsigned>((std::max)(1, filled + stripe)));
-                        RECT shine{(std::max)(0, offset - stripe), track.top,
-                                   (std::min)(filled, offset), track.bottom};
+                        RECT shine{track.left + (std::max)(0, offset - stripe),
+                            track.top, track.left + (std::min)(filled, offset),
+                            track.bottom};
                         if (shine.right > shine.left) {
-                            HBRUSH light = CreateSolidBrush(RGB(132, 184, 255));
+                            HBRUSH light = CreateSolidBrush(RGB(140, 203, 251));
                             FillRect(dc, &shine, light);
                             DeleteObject(light);
                         }
@@ -1126,8 +1138,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                      state->hasRun ? kPositive : kSecondary) :
                     (ctl == state->subtitle || ctl == state->modeHint ||
                      ctl == state->relativeHint ? kSecondary : kInk));
+                if ((ctl == state->labelSources || ctl == state->labelResults ||
+                     ctl == state->labelKind) && state->cardBrush)
+                    return reinterpret_cast<LRESULT>(state->cardBrush);
                 return reinterpret_cast<LRESULT>(state->backgroundBrush);
             }
+            break;
+        case WM_CTLCOLORBTN:
+            if (state && state->cardBrush)
+                return reinterpret_cast<LRESULT>(state->cardBrush);
             break;
         case WM_TIMER:
             if (state && wParam == ID_ANIMATION_TIMER && state->creating) {
