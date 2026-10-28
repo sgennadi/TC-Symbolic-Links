@@ -973,6 +973,43 @@ void BeginCreate(HWND hwnd, Ui& state) {
     const auto sel = SendMessageW(state.kind, CB_GETCURSEL, 0, 0);
     state.batchKind = (sel >= 0 && sel <= 4) ? static_cast<tcs::LinkKind>(sel) :
         tcs::LinkKind::Automatic;
+    const auto scan = tcs::InspectSelection(state.selected);
+    const bool folderMode = state.batchKind == tcs::LinkKind::DirectorySymbolic ||
+                            state.batchKind == tcs::LinkKind::Junction;
+    const bool fileMode = state.batchKind == tcs::LinkKind::FileSymbolic ||
+                          state.batchKind == tcs::LinkKind::Hardlink;
+    std::wstring warning;
+    if (scan.unavailable) {
+        warning = state.Choose(
+            L"Some selected items cannot be accessed. No links were created.",
+            L"Некоторые выбранные объекты недоступны. Ссылки не созданы.",
+            L"חלק מהפריטים שנבחרו אינם נגישים. לא נוצרו קישורים.");
+        warning += L"\r\n" + scan.firstUnavailable;
+    } else if (folderMode && scan.files) {
+        warning = state.Choose(
+            L"This link type requires folders only. Choose folders or switch to Automatic / File Symlink. No links were created.",
+            L"Этот тип ссылок предназначен только для папок. Выберите папки либо режим Automatic / File Symlink. Ссылки не созданы.",
+            L"סוג קישור זה מיועד לתיקיות בלבד. יש לבחור תיקיות או לשנות את הסוג.");
+    } else if (fileMode && scan.folders) {
+        warning = state.Choose(
+            L"This link type requires files only. Choose files or switch to Automatic / Directory Symlink. No links were created.",
+            L"Этот тип ссылок предназначен только для файлов. Выберите файлы либо режим Automatic / Directory Symlink. Ссылки не созданы.",
+            L"סוג קישור זה מיועד לקבצים בלבד. יש לבחור קבצים או לשנות את הסוג.");
+    }
+    if (!warning.empty()) {
+        const std::wstring counts = state.Choose(L"Files: ", L"Файлов: ", L"קבצים: ") +
+            std::to_wstring(scan.files) +
+            state.Choose(L"; folders: ", L"; папок: ", L"; תיקיות: ") +
+            std::to_wstring(scan.folders);
+        AppendLine(state.results, L"WARN  " + warning + L"\r\n" + counts);
+        SetWindowTextW(state.status, state.Choose(L"Preflight rejected selection.",
+            L"Проверка выборки: операция отменена.", L"בדיקת הבחירה נכשלה."));
+        InvalidateRect(hwnd, nullptr, FALSE);
+        MessageBoxW(hwnd, (warning + L"\r\n" + counts).c_str(),
+            L"TC Symbolic Links", MB_OK | MB_ICONWARNING);
+        return;
+    }
+    // Automatic mode intentionally accepts mixed file/folder selections.
     state.batchRelative = sel < 3 && SendMessageW(state.relative, BM_GETCHECK, 0, 0) == BST_CHECKED;
     state.batchDestination = destination;
     state.nextItem = 0;
