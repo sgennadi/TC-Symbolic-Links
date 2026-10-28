@@ -80,6 +80,15 @@ if(WIN32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
 
   if(BUILD_TESTING)
+    # Offscreen GDI+ theme acceptance does not depend on a visible desktop.
+    add_executable(windows_visual_theme_tests tests/windows_visual_theme_tests.cpp)
+    target_include_directories(windows_visual_theme_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_visual_theme_tests PRIVATE user32 gdi32 gdiplus)
+    add_test(NAME tc_nipkg_theme_offscreen COMMAND windows_visual_theme_tests)
+    if(MSVC)
+      target_compile_options(windows_visual_theme_tests PRIVATE /W4 /utf-8)
+    endif()
+
     add_executable(windows_link_tests tests/windows_link_tests.cpp)
     target_link_libraries(windows_link_tests PRIVATE tc_link_core)
     add_test(NAME win32_hebrew_links COMMAND windows_link_tests)
