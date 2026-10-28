@@ -112,6 +112,18 @@ DWORD MakeJunction(const std::wstring& source, const std::wstring& destination) 
 }
 }
 
+// Total Commander includes a trailing '\' for selected directories in %WL.
+// Preserve volume/share roots, but remove separators from non-root paths so
+// std::filesystem::path::filename() always returns the selected directory.
+std::wstring TrimDirectorySeparators(std::wstring input) {
+    namespace fs = std::filesystem;
+    while (!input.empty() && (input.back() == L'\\' || input.back() == L'/')) {
+        const fs::path parsed(input);
+        if (parsed == parsed.root_path()) break; // C:\, UNC root and device roots.
+        input.pop_back();
+    }
+    return input;
+}
 std::wstring FullPath(std::wstring_view input) {
     if (input.empty()) return {};
     std::wstring str(input);
@@ -121,7 +133,7 @@ std::wstring FullPath(std::wstring_view input) {
     DWORD actual = GetFullPathNameW(str.c_str(), capacity, result.data(), nullptr);
     if (!actual || actual >= capacity) return {};
     result.resize(actual);
-    return Unprefix(std::move(result));
+    return TrimDirectorySeparators(Unprefix(std::move(result)));
 }
 bool IsExistingDirectory(const std::wstring& path) {
     if (path.empty()) return false;
@@ -133,7 +145,10 @@ std::wstring ParentPath(const std::wstring& path) {
     return std::filesystem::path(path).parent_path().wstring();
 }
 std::wstring BaseName(const std::wstring& path) {
-    return std::filesystem::path(path).filename().wstring();
+    if (path.empty()) return {};
+    // %WL may supply C:\Folder\; filename() would otherwise be empty.
+    // A drive root (C:\) must not be transformed into an invalid link name.
+    return std::filesystem::path(TrimDirectorySeparators(path)).filename().wstring();
 }
 std::wstring Join(const std::wstring& folder, const std::wstring& name) {
     return (std::filesystem::path(folder) / name).wstring();
@@ -148,6 +163,32 @@ std::wstring WindowsErrorMessage(DWORD error) {
     while (!result.empty() && (result.back() == L'\r' || result.back() == L'\n' || result.back() == L' '))
         result.pop_back();
     return result;
+}
+
+bool IsRemoteSmbPath(std::wstring_view path) {
+    // Normal UNC and extended-length UNC, including the NT object path form.
+    return path.starts_with(L"\\\\") && !path.starts_with(L"\\\\?\\") &&
+           !path.starts_with(L"\\\\.\\") ||
+           path.starts_with(L"\\\\?\\UNC\\") ||
+           path.starts_with(L"\\??\\UNC\\");
+}
+
+LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,
+    std::wstring_view destination, LinkKind kind, bool sourceIsDirectory,
+    DWORD windowsResult) {
+    const bool remoteTarget = IsRemoteSmbPath(destination);
+    const bool localSource = !IsRemoteSmbPath(source);
+    if (!remoteTarget) return LinkOutcomeDiagnostic::None;
+    const bool linkDirectory = kind == LinkKind::DirectorySymbolic ||
+        kind == LinkKind::Junction || (kind == LinkKind::Automatic && sourceIsDirectory);
+    const bool linkFile = kind == LinkKind::FileSymbolic ||
+        (kind == LinkKind::Automatic && !sourceIsDirectory);
+    if (windowsResult == ERROR_ACCESS_DENIED)
+        return linkDirectory ? LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied :
+            LinkOutcomeDiagnostic::RemoteFileAccessDenied;
+    if (windowsResult == ERROR_SUCCESS && localSource && (linkDirectory || linkFile))
+        return LinkOutcomeDiagnostic::RemoteToLocalCreated;
+    return LinkOutcomeDiagnostic::None;
 }
 
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source) {

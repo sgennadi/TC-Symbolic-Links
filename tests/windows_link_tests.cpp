@@ -66,9 +66,18 @@ int main() {
                 tcs::LinkKind::Hardlink, false) != ERROR_SUCCESS,
                 "Existing destination was unexpectedly overwritten");
 
+        // TC %WL directory selections end with a backslash. Regression:
+        // v0.2.5 reported "Invalid source name" instead of creating a link.
+        const auto directoryWithSlash = sourceFolder.wstring() + L"\\";
+        Require(tcs::BaseName(directoryWithSlash) == sourceFolder.filename().wstring(),
+                "Folder selection ending in backslash has an empty link name");
+        Require(tcs::BaseName(sourceFolder.wstring()) == tcs::BaseName(directoryWithSlash),
+                "Trailing-slash and ordinary folder names must match");
+        Require(tcs::BaseName(L"C:\\").empty(),
+                "Drive root should not be given a fabricated link name");
         // Directory junction with mixed Hebrew/Latin directory names.
         const fs::path junction = targetFolder / L"קישור תיקייה 2026";
-        const DWORD junctionError = tcs::CreateLink(sourceFolder.wstring(), junction.wstring(),
+        const DWORD junctionError = tcs::CreateLink(directoryWithSlash, junction.wstring(),
                                                        tcs::LinkKind::Junction, false);
         Require(junctionError == ERROR_SUCCESS, "Hebrew directory junction creation failed");
         const auto junctionDetails = tcs::InspectLink(junction.wstring());
@@ -108,7 +117,7 @@ int main() {
         }
 
         const fs::path directorySymlink = targetFolder / L"סימלינק תיקייה";
-        const DWORD dirSymbolError = tcs::CreateLink(sourceFolder.wstring(), directorySymlink.wstring(),
+        const DWORD dirSymbolError = tcs::CreateLink(directoryWithSlash, directorySymlink.wstring(),
                                                      tcs::LinkKind::DirectorySymbolic, true);
         if (dirSymbolError == ERROR_PRIVILEGE_NOT_HELD) {
             std::cout << "SKIP: directory symlink needs Developer Mode or elevated privilege\n";
@@ -120,6 +129,28 @@ int main() {
             Require(dirInfo.relative, "Directory symlink did not retain relative path");
             Require(dirInfo.targetExists, "Directory symlink target does not resolve");
         }
+        // SMB error diagnostics are pure classification: no network server
+        // is required and no permissions or symlink policies are changed.
+        Require(tcs::IsRemoteSmbPath(L"\\\\fedora\\Programs\\ScientificTools\\NI"),
+            "Standard SMB UNC path was not recognized");
+        Require(tcs::IsRemoteSmbPath(L"\\\\?\\UNC\\fedora\\Programs"),
+            "Extended SMB UNC path was not recognized");
+        Require(!tcs::IsRemoteSmbPath(L"C:\\Users\\Student"),
+            "Local disk incorrectly recognized as SMB");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Users\\Student\\Downloads\\Temp",
+                    L"\\\\fedora\\Programs\\ScientificTools\\NI\\Temp",
+                    tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied,
+                "SMB directory denial must have a precise diagnostic");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Users\\Student\\script.ps1",
+                    L"\\\\fedora\\Programs\\ScientificTools\\NI\\script.ps1",
+                    tcs::LinkKind::Automatic, false, ERROR_SUCCESS) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated,
+                "Successful SMB file symlinks to local drives need a traversal warning");
+        Require(tcs::DiagnoseLinkOutcome(L"C:\\Temp", L"C:\\LocalLinks\\Temp",
+                    tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
+                    tcs::LinkOutcomeDiagnostic::None,
+                "Local access denied must not be misdiagnosed as SMB");
         std::cout << "PASS: Hebrew Unicode Win32 hardlink, junction, symlink checks\n";
         return 0;
     } catch (const std::exception& error) {

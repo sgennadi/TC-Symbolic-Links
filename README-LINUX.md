@@ -1,11 +1,11 @@
-# TC Symbolic Links 0.1.5 - Linux Double Commander WDX
+# Native Linux WDX (Double Commander)
 
-Native Linux x86-64 WDX content plugin: `SymlinkInspector.wdx` (ELF 64-bit).
+`SymlinkInspector.wdx` is a Linux ELF library compiled from the same source as the Windows WDX. It is inspection-only: fields `Link type`, `Link target`, `Target exists`, `Hardlink count`. There is no Total Commander Windows button-bar or Win32 symlink maker on Linux.
 
-**Install:** Open Double Commander -> Configuration -> Options -> Plugins -> Content plugins (WDX) -> Add. Select `SymlinkInspector.wdx`. Then create a custom-column layout with its fields: `Link type`, `Link target`, `Target exists`, `Hardlink count`.
+    cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+    cmake --build build-linux --parallel
+    ctest --test-dir build-linux --output-on-failure
 
-On Linux it recognizes POSIX symlinks, broken/relative symlinks, and regular files with multiple hardlinks. It preserves Hebrew, niqqud, mixed Hebrew/English, and supplementary Unicode symbols in UTF-16 WDX output. Linux does not support Windows directory junctions; the shared portable NTFS reparse parser is tested independently with synthetic Windows buffers.
+Select the plugin in Double Commander → Configuration → Options → Plugins → Content plugins (WDX). Select the content fields for your custom column layout. Tests with Hebrew/niqqud, emoji, relative links, broken links and hardlinks are performed through the exported WDX API.
 
-**Verification:** The test loader calls the actual ELF WDX exports with UTF-16 filenames and creates real POSIX links. GCC 14 and Clang 17 Release as well as GCC ASan/UBSan passed all three CTest suites. GUI integration in Double Commander remains unverified in the current headless container.
-
-**Important:** This Linux ELF WDX is *not* the Windows `.wdx64` DLL, and it does not create links; link creation with `TCSymlinkMaker.exe` requires Windows x64. Do not load it in Windows Total Commander.
+Note: the native Linux plugin is not a replacement for the Windows `.wdx64` DLL or Total Commander GUI tests.

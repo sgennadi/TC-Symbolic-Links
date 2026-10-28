@@ -1,86 +1,219 @@
-# TC Symbolic Links
+# TC Symbolic Links 0.2.8 Preview
 
-[![Windows VS2026 + Linux WDX + Sanitizers](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml/badge.svg)](https://github.com/sgennadi/TC-Symbolic-Links/actions/workflows/windows-build.yml)
+**All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
+The installer package contains `SymlinkInspector.wdx64` (link inspector and
+Unicode link-creation UI). **No companion EXE is needed.** The button calls
+the installed DLL through the system `rundll32.exe`.
 
-**Native Total Commander x64 utilities for symbolic links, directory junctions and hardlinks.**
+> **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
+> could switch the active button bar and hide existing icons. Version 0.2.4
+> also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
+> as the selected filename, so the DLL could not load. Do not keep using
+> those broken generated buttons.
 
-[Windows x64 build / tested artifact](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) · [CI run and test logs](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) · [Manual acceptance checklist](docs/MANUAL-TESTS.md)
+## 0.2.8: clear icons, colour and safety feedback
 
-> **Preview 0.1.5**. Full GitHub Actions matrix passed: Windows Server 2025 / Visual Studio 2026 compilation, all four native Windows tests, Linux WDX build/tests and ASan/UBSan. The *real* Total Commander 11.58 executable started, and the GUI companion created a Hebrew/niqqud hardlink. Loading the WDX into TC's own window and rendering its custom columns remain **unverified**, because the main TC window was not available to the headless runner.
+- **No self-links:** the maker detects identical source/destination folders
+  (including paths ending in \`\\.\`, mixed-case spellings, junction aliases and
+  NTFS 8.3 directory aliases) and disables **F5 Create**. The destination field
+  stays editable; choosing another existing directory restores the action.
+- **No recursive links:** prevents creating a selected directory's link inside
+  that same selected directory or one of its subdirectories.
+- **Purpose-built link icon** embedded as 16/32px resources in the WDX DLL;
+  the Total Commander toolbar uses that icon instead of an unrelated
+  WCMICONS image. One plugin module remains; no external EXE.
+- In the Maker window, familiar **folder / link / warning / stop / close icons**
+  accompany text labels, with tooltips in English, Russian and Hebrew.
+  Icons use Windows Segoe MDL2 Assets, without bundled fonts.
+- Clear blue **F5 Create** and subdued **Esc Close** action buttons, hover
+  highlighting, and a compact top accent. Batch execution has an **animated
+  progress strip**.
+- Built-in Windows RichEdit colours actual **OK** lines green and **ERR**
+  lines red; safe preview and helpful error text appear before any operation.
+  The old Windows EDIT is retained as a fallback.
+- Retains the previous source/target split panes, Unicode, RTL/Hebrew,
+  Junction/Hardlink and all installer backup safeguards.
 
-## What it does
+**Preview acceptance:** test the new dialog at 100%/150%/200% scaling,
+including the same-folder selection from the user screenshot, and check
+the embedded icon renders in a real TC toolbar. The GitHub runner's headless
+environment cannot fully confirm a user's personalised toolbar layout.
 
-- **Create links:** `TCSymlinkMaker.exe` makes file symlinks, directory symlinks, NTFS directory junctions and file hardlinks using native Unicode Win32 APIs — no shell, `cmd.exe` or extra runtime DLLs.
-- **Inspect links:** `SymlinkInspector.wdx64` adds content fields `Link type`, `Link target`, `Target exists` and `Hardlink count` to Total Commander custom columns.
-- **Bulk operation:** accepts files selected in one TC panel, creates links in the other panel, shows progress and offers Stop.
-- **Languages:** English, Russian and Hebrew UI; UTF-16 filenames with Hebrew niqqud, mixed RTL/LTR, Cyrillic, spaces, emoji and long paths.
-- **Double Commander on Linux:** build the same WDX source as a native ELF `SymlinkInspector.wdx` with a POSIX backend; it inspects Linux symlinks and hardlinks.
+## 0.2.7 Preview: familiar Total Commander-style Maker window
 
-The WDX is an inspector, **not** a context-menu plugin. Link creation is provided by a separate TC button-bar application.
+The native link maker now looks and behaves like a compact Total Commander
+operation dialog, while remaining entirely inside **SymlinkInspector.wdx64**:
 
-## Install in Total Commander (Windows x64)
+- **Side-by-side source and destination panels**, with path strips that resemble
+  TC's directory bars. The source remains read-only; the opposite panel path is
+  editable before creation.
+- **Details-view file table** with small Windows icons, Name / Type / Full path,
+  full-row selection, and a flexible width when the window is resized.
+- **Live destination preview** on the right before creation, changing into
+  individual success / Windows-error results when you start the batch.
+- Native Windows system colours, compact Segoe UI 9-point controls and a
+  traditional bottom command strip instead of large modern cards.
+- **F5 = Create Links**, **Esc = Stop / Close**, also visible on the two buttons.
+- Keeps automatic/file/folder symlink, junction, hardlink and relative-path
+  options, multiline contextual help, Hebrew/Russian/English, and DPI-aware
+  resizing including 4K/200% Windows display scaling.
+- Keeps the WDX, toolbar integration and existing user configuration handling
+  independent of these window layout changes.
 
-1. Download [TC-Symbolic-Links-win64-VS2026](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598343525) from the successful Windows Actions run. Extract `TC-Symbolic-Links-win64.zip` from the downloaded artifact.
-2. Open the inner ZIP in Total Commander x64; use its plugin installer for `SymlinkInspector.wdx64`. Ensure `TCSymlinkMaker.exe` is alongside the installed WDX.
-3. Add a new button to Total Commander's button bar with these settings:
+The CI verifies that the dialog actually contains two non-overlapping panels,
+a native \`SysListView32\` table and source/destination path strips, then
+creates an NTFS Junction from a Hebrew folder with the **F5** accelerator.
+The real Total Commander GUI shell/custom-column rendering still needs
+interactive user validation.
 
-   | TC button field | Value |
-   |---|---|
-   | **Command** | Full path to installed `TCSymlinkMaker.exe` |
-   | **Parameters** | `--list "%WL" --dest "%T"` |
-   | **Start path** | `%P` |
+## 0.2.6: folder links and improved maker window
 
-4. Select files and/or folders in the source panel and navigate to an existing destination directory in the opposite panel. Click the button, choose the link type and create links.
-5. In **Configuration → Options → Custom columns**, add fields from the WDX plugin to display link metadata.
+- **Fixed actual user screenshot:** Total Commander sends selected folders with a trailing
+  `\` in `%WL`. The old `BaseName()` returned an empty name and falsely reported
+  "Invalid source name". The plugin now strips only trailing separators from
+  non-root paths, including Unicode folder names, and preserves drive roots.
+- Directory Symlinks and NTFS Junctions work for those folder selections.
+  A Windows integration test **launches the DLL's GUI** with a UTF-16LE folder
+  list ending in `\`, chooses **Directory Junction**, creates the link, checks
+  its NTFS type, and confirms that the source content is accessible.
+- Refreshed native Windows UI with a clear source and output preview, helpful
+  explanations for all five link types, and a permanent explanation of **Relative
+  target**. That option is disabled for Junction and Hardlink.
+- Fixed misleading errors: "Windows Error 1314 / Developer Mode" now appears
+  only for an actual insufficient-symlink-privilege error, not for bad names or
+  pre-existing targets. The result pane displays Windows error codes per item.
+- **Previously lost custom icons are not reconstructed by reinstalling the WDX.**
+  First close TC, restore the original toolbar with the included recovery script,
+  and verify the icons. The new `Inspect-TC-Toolbars.cmd` only examines candidate
+  `.bar` files and the original INI backup; it does not modify anything.
+- Version 0.2.6 does **not** change the `[Buttonbar] Buttonbar=` selection.
 
-The tool does not overwrite existing destinations. Windows symbolic links need appropriate privileges or Developer Mode; junction targets must be local directories; hardlinks must be files on the same volume.
+## Preserving and recovering your own Total Commander commands
 
-## Build and test
+Recent recovery hardening does **not** replace or re-encode usercmd.ini.
+The toolbar installer preserves the original `.tcslinks.bak` file, and now
+also creates a uniquely named `.tcslinks.preupdate.*.bak` snapshot before
+each later configuration write. This protects buttons added after the first
+plugin install.
 
-**Windows:** Visual Studio 2026, MSVC v145, CMake 4.2+, Windows SDK, x64.
+If custom `em_*` definitions are missing, use the recovery artifact's
+`Restore-TC-Missing-Commands.cmd` (or its PowerShell script). After you
+close Total Commander and select your **actual** `wincmd.ini` from
+Help > About, the tool compares `usercmd.ini` against
+`usercmd.ini.tcslinks.bak`. It restores **only missing** `em_*` sections,
+never replaces existing definitions, creates a rollback snapshot, and verifies
+each recovered section. It refuses to guess commands when the old backup is
+absent. On error it rolls back the command file.
 
-```powershell
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
-```
+Recovery is distinct from plugin installation. Restoring a toolbar selection
+does not necessarily restore missing `usercmd.ini` definitions, and
+restoring commands does not recreate an erased `.bar` layout. Check both.
 
-Or run `build-windows.cmd`.
+## First: restore your existing toolbar if its icons disappeared
 
-**Linux:**
+1. In Total Commander open **Help > About** and note the exact `wincmd.ini` path.
+2. **Close every Total Commander window.**
+3. Download/extract the recovery package and run
+   `Restore-TC-Toolbar-Only.cmd`. Choose the recorded `wincmd.ini`,
+   examine the displayed current and backup toolbar references, and confirm
+   with `RESTORE`.
+4. This changes **only** `[Buttonbar] Buttonbar` when it currently points to
+   either `TCSymbolicLinks.bar` (0.2.1) or
+   `TC-Symbolic-Links-Default.bar` (0.2.4). It uses the original
+   `wincmd.ini.tcslinks.bak`, saves the current INI to a timestamped file,
+   keeps all other settings and `.bar` files, and refuses uncertain backups.
+5. Start TC and confirm your custom buttons are present **before** installing
+   another preview. If the helper refuses or the old bar does not return,
+   do not retry the plugin: run `Inspect-TC-Toolbars.cmd` (read-only),
+   preserve the candidate `.bar` files, and select the real original bar
+   through **Configuration > Change button bar** if needed.
 
-```bash
-cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
-cmake --build build-linux --parallel
-ctest --test-dir build-linux --output-on-failure
-```
+## What changes in 0.2.5
 
-## Verification (Preview 0.1.5)
+- **Never change or create a `[Buttonbar] Buttonbar=` selection.**
+- If a personal .bar is explicitly configured, append/repair **one** Create
+  Links button in that file, keeping every existing button and icon.
+- If there is no `Buttonbar=` setting, use TC's actual startup `DEFAULT.BAR`
+  **only if it is writable**, with a byte-for-byte pre-change backup. If
+  protected (e.g., under Program Files), the plugin refuses the toolbar
+  operation without changing INI, other buttons, or columns. This is
+  intentionally safer than copying/replacing the bar automatically.
+- If a legacy plugin-created shadow bar is still selected, refuse to change
+  it. Restore the original bar first (see above).
+- Write an **absolute DLL filename** into the button's parameters. Never use
+  `%COMMANDER_PATH%` or `%COMMANDER_INI_PATH%` there: TC parses `%C` as
+  selected-file expansion and breaks the plugin path.
+- Verify persisted INI quotes, preserve `usercmd.ini`, prevent duplicate
+  buttons and reject unrepresentable/ambiguous plugin paths. Roll back all
+  edited files on setup errors.
+- Set up a custom-column view `TC Symbolic Links` in **both** panels, with:
+  `Link type`, `Link target`, `Target exists`, `Hardlink count`. Existing
+  column definitions stay intact.
 
-| Test | Status |
-|---|---|
-| VS 2026 Windows x64 build: EXE and WDX64 | **Passed** |
-| Win32 symlinks, junctions, hardlinks with Hebrew paths | **Passed** |
-| WDX64 API exports and UTF-16 fields via direct Windows loader | **Passed** |
-| Unicode file-selection parsing, including niqqud | **Passed** |
-| NTFS reparse decoder, malformed buffers and UTF-16 validation | **Passed** |
-| Native Linux WDX tests (including real POSIX links) | **Passed** |
-| Linux ASan + UBSan | **Passed** |
-| Total Commander 11.58 x64 process launch | **Passed** |
-| GUI companion creates Hebrew hardlink | **Passed** |
-| WDX loaded and custom columns displayed **inside Total Commander** | **Not yet verified** |
+The WDX plugin is an inspector (WDX content API) and includes the link maker
+window as a **Unicode `rundll32.exe` export** called `TCLinkCreateW` (invoked
+with base name `TCLinkCreate`). Supported creations: file symlinks,
+directory symlinks, NTFS junctions and same-volume file hardlinks. English,
+Russian and Hebrew UI, mixed RTL/LTR and Unicode paths are supported.
 
-Full evidence: [GitHub Actions verified VS2026/Linux/sanitizer run](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971) and [TC smoke report/screenshots](https://github.com/sgennadi/TC-Symbolic-Links/actions/runs/40192370971/artifacts/12598288654). The smoke-test job records this limitation explicitly rather than treating process startup as a complete GUI pass.
+## Installation
 
-## Documentation
+1. Download a **Windows x64 CI artifact** from [GitHub Actions](https://github.com/sgennadi/TC-Symbolic-Links/actions)
+   for a passing 0.2.6 build. Inside the artifact there is the Total Commander
+   installer ZIP; open that ZIP in TC, not with Ctrl+PgDn.
+2. When the WDX is first initialized by TC, it offers to configure the
+   **startup** toolbar button and the two custom-column views. Confirm only
+   after restoring the original toolbar. The TC installer itself has no
+   supported post-install toolbar-configuration hook.
+3. If your implicit `DEFAULT.BAR` is protected, no toolbar will be modified.
+   To use safe automatic setup, first select a **writable personal `.bar`**
+   through TC's built-in Configuration > Change button bar interface. Then
+   use the plugin's explicit setup export, or reinstall/initialize it.
+4. Close/restart TC after setup. Confirm your original buttons and the new
+   button. Test the link maker on disposable files before using it in production.
 
-- [Windows GitHub Actions and build](docs/GITHUB-CI.md)
-- [Real Total Commander CI test](docs/REAL-TC-CI.md)
-- [Manual Windows / Hebrew acceptance tests](docs/MANUAL-TESTS.md)
-- [Native Linux WDX](README-LINUX.md)
-- [Changelog](CHANGELOG.md)
-- [GitHub repository About description and topic suggestions](docs/ABOUT.md)
+The generated button uses:
 
-## License
+- Command: `%SystemRoot%\System32\rundll32.exe` resolved to its real
+  **absolute** system path during installation.
+- Parameters: `"C:\absolute\path\SymlinkInspector.wdx64",TCLinkCreate --list "%WL" --dest "%T." --tc-launch`
 
-No open-source license has been selected. All rights reserved unless an explicit license is later added.
+`%WL` and `%T` are **TC button placeholders** that must remain. `%T.` avoids
+trailing-backslash quote escaping. The ignored marker prevents the Windows
+INI reader from stripping the first DLL-path quote. The WDX's installed path
+must be representable in the existing .bar encoding and must not contain a
+literal `%` character; otherwise setup refuses safely.
+
+## Building and testing
+
+Windows: Visual Studio **2026**, CMake 4.2+, MSVC v145:
+
+    cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
+    cmake --build build --config Release --parallel
+    ctest --test-dir build -C Release --output-on-failure
+
+Linux (native `.wdx` for Double Commander):
+
+    cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release
+    cmake --build build-linux --parallel
+    ctest --test-dir build-linux --output-on-failure
+
+Native Windows CI tests simulate a DLL installed **under the actual TC
+installation directory**, inspect the persisted .bar, refuse read-only
+DEFAULT.BAR, and use the real system rundll32 to load the saved DLL. They
+also test preservation of existing buttons, Unicode paths, `.ini` backups and
+recovery from both broken 0.2.1 and 0.2.4 shadow bars.
+
+**Preview acceptance remains:** the hosted Windows runner cannot verify
+Total Commander's live toolbar/custom columns inside its main window. Do not
+publish stable until the user verifies it on a real customized TC profile.
+See [PR #1](https://github.com/sgennadi/TC-Symbolic-Links/pull/1) and
+[manual acceptance checklist](docs/MANUAL-TESTS.md).
+
+## Source, security and license
+
+Native C++23 Win32/NTFS filesystem APIs, no third-party runtime DLLs.
+The Linux WDX uses POSIX system APIs. Existing destination paths are not
+silently replaced; symlink creation needs the corresponding Windows privilege
+or Developer Mode. No open-source license has been selected (all rights
+reserved until licensed).

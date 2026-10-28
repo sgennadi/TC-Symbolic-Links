@@ -1,25 +1,8 @@
-TC Symbolic Links 0.1.5 - Native Linux WDX, TC Unicode list, portable NTFS parser
-Verification date: 2026-10-25
-
-Release GCC 14.2 / CMake 3.31.6 / Linux x64:
-  ntfs_reparse_hebrew_bounds PASS
-  tc_wide_list PASS
-  linux_wdx_hebrew_plugin PASS
-
-Release Clang 17 / Linux x64:
-  ntfs_reparse_hebrew_bounds PASS
-  tc_wide_list PASS
-  linux_wdx_hebrew_plugin PASS
-
-GCC 14.2 ASan + UBSan:
-  ntfs_reparse_hebrew_bounds PASS
-  tc_wide_list PASS
-  linux_wdx_hebrew_plugin PASS
-
-Clean source ZIP extraction + GCC 14.2 rebuild:
-  ntfs_reparse_hebrew_bounds PASS
-  tc_wide_list PASS
-  linux_wdx_hebrew_plugin PASS
-
-Windows VS 2026 and real Total Commander 11.58 jobs:
-  CONFIGURED, NOT EXECUTED. No dedicated repository is connected yet.
+TC Symbolic Links 0.2.1 (Preview)
+Native Linux/Double Commander WDX, UTF-16 selection parser, bounded NTFS reparse parser, and custom-column index regression.
+GCC 14 Release: 4/4 CTest passed.
+Clang 17 Release: 4/4 CTest passed.
+GCC 14 AddressSanitizer + UndefinedBehaviorSanitizer: 4/4 CTest passed.
+Windows VS2026 x64: 6/6 CTest passed, including rundll32 Unicode export and TC INI integration.
+Real Total Commander 11.58 launched; embedded GUI created Hebrew/niqqud hardlink.
+Full WDX custom column rendering inside Total Commander remains unverified.

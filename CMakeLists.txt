@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.1.5 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +10,14 @@ if(MSVC)
 endif()
 
 include(CTest)
+
+# Cross-platform regression: TC custom column sets have SpecialView=index+2.
+# Also run on Linux to catch regressions before the first Windows CI build.
+if(BUILD_TESTING)
+  add_executable(tc_custom_view_tests tests/tc_custom_view_tests.cpp)
+  target_include_directories(tc_custom_view_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME tc_custom_view_indices COMMAND tc_custom_view_tests)
+endif()
 
 # Portable, bounded parser of raw FSCTL_GET_REPARSE_POINT data.
 # Tested on Linux with crafted NTFS symlinks and junctions before the
@@ -64,8 +72,11 @@ if(WIN32)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse)
 
-  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp)
-  target_link_libraries(SymlinkInspector PRIVATE tc_link_core)
+  add_library(tc_integration STATIC src/TcIntegration.cpp)
+  target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp src/LinkMaker.rc)
+  target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 comctl32 shell32 ole32 uuid)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
 
   if(BUILD_TESTING)
@@ -77,25 +88,47 @@ if(WIN32)
     target_link_libraries(wdx_abi_tests PRIVATE tc_link_core)
     add_test(NAME wdx_unicode_exports COMMAND wdx_abi_tests $<TARGET_FILE:SymlinkInspector>)
 
+    add_executable(windows_maker_folder_tests tests/windows_maker_folder_tests.cpp)
+    target_link_libraries(windows_maker_folder_tests PRIVATE tc_link_core)
+    add_test(NAME tc_real_folder_selection_and_junction_gui
+      COMMAND windows_maker_folder_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_real_folder_selection_and_junction_gui PROPERTIES TIMEOUT 45)
+
     if(MSVC)
       target_compile_options(windows_link_tests PRIVATE /W4 /utf-8)
       target_compile_options(wdx_abi_tests PRIVATE /W4 /utf-8)
+      target_compile_options(windows_maker_folder_tests PRIVATE /W4 /utf-8)
     endif()
   endif()
 
-  # MSVC's auto-generated manifest must be disabled because maker.rc embeds
-  # an RT_MANIFEST resource with per-monitor-v2 DPI and long-path awareness.
-  configure_file(src/maker.manifest "${CMAKE_CURRENT_BINARY_DIR}/maker.manifest" COPYONLY)
-  add_executable(TCSymlinkMaker WIN32 src/TCSymlinkMaker.cpp src/maker.rc)
-  set_source_files_properties(src/maker.rc PROPERTIES
-    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/maker.manifest")
-  target_include_directories(TCSymlinkMaker PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(TCSymlinkMaker PRIVATE tc_link_core tc_list user32 gdi32 comctl32 shell32)
-  if(MSVC)
-    target_link_options(TCSymlinkMaker PRIVATE "/MANIFEST:NO")
+  if(BUILD_TESTING)
+    add_executable(windows_default_bar_tests tests/windows_default_bar_tests.cpp)
+    target_link_libraries(windows_default_bar_tests PRIVATE tc_integration)
+    add_test(NAME tc_implicit_default_toolbar_install
+      COMMAND windows_default_bar_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_implicit_default_toolbar_install PROPERTIES TIMEOUT 40)
+    if(MSVC)
+      target_compile_options(windows_default_bar_tests PRIVATE /W4 /utf-8)
+    endif()
+    add_executable(windows_integration_tests tests/windows_integration_tests.cpp)
+    target_link_libraries(windows_integration_tests PRIVATE tc_integration shell32)
+    add_test(NAME tc_one_dll_installer_and_rundll32
+      COMMAND windows_integration_tests $<TARGET_FILE:SymlinkInspector>)
+    set_tests_properties(tc_one_dll_installer_and_rundll32 PROPERTIES TIMEOUT 70)
+    # Regress the exact on-disk wincmd.ini damage seen with v0.2.1 without
+    # modifying the real user profile or any Total Commander installation.
+    find_program(TC_POWERSHELL NAMES pwsh powershell)
+    if(TC_POWERSHELL)
+      add_test(NAME tc_toolbar_only_recovery
+        COMMAND "${TC_POWERSHELL}" -NoProfile -File
+          "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_recovery.ps1")
+    endif()
+    if(MSVC)
+      target_compile_options(windows_integration_tests PRIVATE /W4 /utf-8)
+    endif()
   endif()
 
-  foreach(t tc_link_core SymlinkInspector TCSymlinkMaker tc_list)
+  foreach(t tc_link_core SymlinkInspector tc_list tc_integration)
     target_compile_definitions(${t} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
     if(MSVC)
       target_compile_options(${t} PRIVATE /W4 /permissive- /utf-8 /std:c++latest)
