@@ -92,6 +92,7 @@ int wmain(int argc, wchar_t** argv) {
         bool commanderLayout = false;
         bool actionStripOnScreen = false;
         bool understandableControls = false;
+        bool nipkgControlsFit = false;
         bool rejectsSameFolder = false;
         bool rejectsChildDestination = false;
         bool allowsSafeTarget = false;
@@ -151,6 +152,23 @@ int wmain(int argc, wchar_t** argv) {
                     left.right <= right.left && left.top == right.top &&
                     srcLine.right <= dstLine.left && srcLine.top == dstLine.top &&
                     ControlText(action).find(L"F5") != std::wstring::npos;
+                // NiPackageCreator regression: Browse is a labelled button,
+                // text fields have room, and actions do not touch each other.
+                RECT browseRect{}, createRect{}, closeRect{};
+                if (browseFolder && closeAction &&
+                    GetWindowRect(browseFolder, &browseRect) &&
+                    GetWindowRect(action, &createRect) &&
+                    GetWindowRect(closeAction, &closeRect)) {
+                    const UINT dpi = GetDpiForWindow(window);
+                    nipkgControlsFit = browseRect.left >= dstLine.right &&
+                        browseRect.top <= dstLine.top &&
+                        browseRect.bottom >= dstLine.bottom &&
+                        browseRect.right <= right.right &&
+                        createRect.right < closeRect.left &&
+                        (browseRect.right - browseRect.left) >=
+                            MulDiv(108, static_cast<int>(dpi), 96) &&
+                        !ControlText(browseFolder).empty();
+                }
             }
             // User screenshot regression: source Downloads\PS1, target
             // Downloads\. must NOT attempt to create Downloads\PS1 again.
@@ -219,6 +237,7 @@ int wmain(int argc, wchar_t** argv) {
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
         Check(understandableControls, "Source/target/status glyphs, browse icon or labeled Create/Close buttons missing");
+        Check(nipkgControlsFit, "Ni-package-style Browse or action buttons clipped or overlap file panes");
         Check(rejectsSameFolder && rejectsChildDestination && allowsSafeTarget,
               "Maker F5 not guarded against same-directory or recursive link destination");
         Check(actionStripOnScreen, "TC-style F5 button clipped by Windows taskbar/work area");
