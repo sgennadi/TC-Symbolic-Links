@@ -68,6 +68,25 @@ int main() {
                   "Primary Create button is not green");
             Check(corner == tcs::visual::Canvas,
                   "Rounded corner is square or its backdrop is not preserved");
+            // NiPackageCreator path fields and vector folder glyph:
+            // pale editable surface, crisp symbolic icon, blue focus edge.
+            const RECT field{230, 120, 445, 163};
+            tcs::visual::InputField(screen.dc, field, 96);
+            Check(GetPixel(screen.dc, 410, 143) == tcs::visual::Field,
+                  "Rounded path control lost its pale blue fill");
+            tcs::visual::Glyph(screen.dc, RECT{275, 130, 295, 150},
+                tcs::visual::ButtonGlyph::Folder, tcs::visual::DarkBlue, 96);
+            int coloredPixels = 0;
+            for (int gy = 130; gy < 150; ++gy)
+                for (int gx = 275; gx < 295; ++gx) {
+                    const COLORREF pixel = GetPixel(screen.dc, gx, gy);
+                    if (pixel != tcs::visual::Field) ++coloredPixels;
+                }
+            Check(coloredPixels > 12,
+                  "Vector Browse folder glyph did not paint");
+            tcs::visual::InputField(screen.dc, field, 96, true);
+            Check(GetRValue(GetPixel(screen.dc, 230, 143)) < 240,
+                  "Focused path field did not use its blue outline");
             const RECT client{0, 0, 690, 410};
             tcs::visual::FormPanels(screen.dc, client, 96, 15, 14,
                 175, 244, 113, 50, true, false, false, false,
