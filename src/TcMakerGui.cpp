@@ -694,11 +694,12 @@ void Layout(HWND hwnd, Ui& s) {
 
     const int cardBottom = height - Dp(s, 161);
     const int infoY = cardBottom + Dp(s, 6);
-    place(s.modeHint, margin + Dp(s, 5), infoY, usable - Dp(s, 10), Dp(s, 27));
-    place(s.relativeHint, margin + Dp(s, 5), infoY + Dp(s, 31),
-          usable - Dp(s, 10), Dp(s, 27));
-    place(s.preview, margin + Dp(s, 5), height - Dp(s, 96),
-          usable - Dp(s, 10), Dp(s, 22));
+    place(s.modeHint, margin + Dp(s, 15), infoY + Dp(s, 3),
+          usable - Dp(s, 30), Dp(s, 24));
+    place(s.relativeHint, margin + Dp(s, 15), infoY + Dp(s, 30),
+          usable - Dp(s, 30), Dp(s, 24));
+    place(s.preview, margin + Dp(s, 15), height - Dp(s, 94),
+          usable - Dp(s, 30), Dp(s, 22));
 
     // Buttons sit inside an adaptive soft-green/blue/red status card.
     const int buttonY = height - Dp(s, 61);
@@ -1272,8 +1273,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                      state->hasRun ? kPositive : kSecondary) :
                     (ctl == state->subtitle || ctl == state->modeHint ||
                      ctl == state->relativeHint ? kSecondary : kInk));
-                if ((ctl == state->sourcePath || ctl == state->results) &&
-                    state->fieldBrush) {
+                if ((ctl == state->sourcePath || ctl == state->results ||
+                     ctl == state->modeHint || ctl == state->relativeHint ||
+                     ctl == state->preview) && state->fieldBrush) {
                     SetBkMode(dc, OPAQUE);
                     SetBkColor(dc, tcs::visual::Field);
                     SetTextColor(dc, tcs::visual::Ink);
