@@ -76,7 +76,7 @@ function Get-Toolbar([string]$path) {
             Icon = Get-IniKey $path ('button'+$n)
         }
     }
-    return ,$result
+    return $result
 }
 function Expand-ToolbarReference([string]$value,[string]$iniDir) {
     if (-not $value -or $value -eq '#TCS_ABSENT#') { return '' }
