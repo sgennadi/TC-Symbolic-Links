@@ -264,6 +264,12 @@ inline void FormPanels(HDC dc, const RECT& client, UINT dpi,
          static_cast<float>(cardTop) + 0.5f, cardW - 1.f,
          panelHeight - 1.f), corner, White, Stroke);
     const int statusTop = client.bottom - Px(67, dpi);
+    const float infoY = static_cast<float>(cardBottom + Px(4, dpi));
+    const float infoBottom = static_cast<float>(statusTop - Px(5, dpi));
+    if (infoBottom - infoY > static_cast<float>(Px(38, dpi)))
+        Card(g, Gdiplus::RectF(static_cast<float>(margin) + 0.5f,
+             infoY + 0.5f, usable - 1.f, infoBottom - infoY - 1.f),
+             static_cast<float>(Px(11, dpi)), Field, Stroke);
     const COLORREF statusFill = unsafe || failed ? SoftRed :
         finished && !creating ? SoftGreen : SoftBlue;
     const COLORREF statusBorder = unsafe || failed ? RGB(241, 179, 179) :
