@@ -1154,13 +1154,35 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 tcs::visual::Banner(dc, banner, state->dpi, logo,
                     L"TC Symbolic Links", subtitle, state->he);
                 const std::wstring status = L"●  " + GetText(state->status);
+                RECT actionRect{};
+                int actionLeft = -1;
+                if (state->create && GetWindowRect(state->create, &actionRect)) {
+                    MapWindowPoints(nullptr, hwnd,
+                        reinterpret_cast<POINT*>(&actionRect), 2);
+                    actionLeft = actionRect.left;
+                }
                 tcs::visual::FormPanels(dc, client, state->dpi,
                     margin, gap, Dp(*state, 175),
                     client.bottom - Dp(*state, 161),
                     Dp(*state, 113), Dp(*state, 50),
                     state->hasRun, state->failed != 0,
                     state->unsafeDestination, state->creating,
-                    status, state->he);
+                    status, state->he, actionLeft);
+
+                // Rounded Ni-style edit shells behind the real Win32 text
+                // controls. Native EDIT owns caret, selection, IME and Unicode.
+                const auto drawField = [&](HWND edit) {
+                    if (!edit) return;
+                    RECT editRect{};
+                    if (!GetWindowRect(edit, &editRect)) return;
+                    MapWindowPoints(nullptr, hwnd,
+                        reinterpret_cast<POINT*>(&editRect), 2);
+                    InflateRect(&editRect, Dp(*state, 10), Dp(*state, 6));
+                    tcs::visual::InputField(dc, editRect, state->dpi,
+                                            GetFocus() == edit);
+                };
+                drawField(state->sourcePath);
+                drawField(state->destination);
 
                 // Thin animated progress rail at the top of the status card.
                 // Keeps results visible, without taking space from the panes.
@@ -1219,6 +1241,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 }
             }
             break;
+        case WM_CTLCOLOREDIT:
+            if (state && state->fieldBrush &&
+                reinterpret_cast<HWND>(lParam) == state->destination) {
+                HDC editDc = reinterpret_cast<HDC>(wParam);
+                SetBkMode(editDc, OPAQUE);
+                SetBkColor(editDc, tcs::visual::Field);
+                SetTextColor(editDc, tcs::visual::Ink);
+                return reinterpret_cast<LRESULT>(state->fieldBrush);
+            }
+            break;
         case WM_CTLCOLORSTATIC:
             if (state && state->backgroundBrush) {
                 HDC dc = reinterpret_cast<HDC>(wParam);
@@ -1229,6 +1261,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                      state->hasRun ? kPositive : kSecondary) :
                     (ctl == state->subtitle || ctl == state->modeHint ||
                      ctl == state->relativeHint ? kSecondary : kInk));
+                if ((ctl == state->sourcePath || ctl == state->results) &&
+                    state->fieldBrush) {
+                    SetBkMode(dc, OPAQUE);
+                    SetBkColor(dc, tcs::visual::Field);
+                    SetTextColor(dc, tcs::visual::Ink);
+                    return reinterpret_cast<LRESULT>(state->fieldBrush);
+                }
                 if ((ctl == state->labelSources || ctl == state->labelResults ||
                      ctl == state->labelKind) && state->cardBrush)
                     return reinterpret_cast<LRESULT>(state->cardBrush);
@@ -1260,6 +1299,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 UpdateModeHelp(*state);
             } else if (state && LOWORD(wParam) == ID_DEST && HIWORD(wParam) == EN_CHANGE) {
                 UpdatePreview(*state);
+            } else if (state && LOWORD(wParam) == ID_DEST &&
+                (HIWORD(wParam) == EN_SETFOCUS || HIWORD(wParam) == EN_KILLFOCUS)) {
+                InvalidateRect(hwnd, nullptr, FALSE);
             } else if (state && LOWORD(wParam) == ID_CREATE &&
                        (HIWORD(wParam) == BN_CLICKED || lParam == 0)) {
                 BeginCreate(hwnd, *state);
