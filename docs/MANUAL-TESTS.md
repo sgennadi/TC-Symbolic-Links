@@ -1,3 +1,44 @@
+## 0.2.9: NI Package Creator visual acceptance and icon recovery
+
+Before installing another plugin preview on a customized Total Commander
+profile, take a copy of the real `wincmd.ini`, `usercmd.ini` and every
+referenced `.bar` and nested submenu bar.
+
+1. Install the **0.2.9** DLL with all TC processes closed; reopen Total
+   Commander. The Create Links dialog should have a navy-to-bright-blue
+   gradient banner with blue/green wave graphics, two rounded white file
+   panels, green **F5 Create**, an outlined **Esc Close**, and a soft colored
+   status card. Compare visually to the author's Nipkg-Creator (not a plain
+   grey Win32 dialog).
+2. Test 100%, 150%, and 200% scaling. Inspect the curved banner corners
+   and green F5 button edges for pixel gaps/jagged outlines, verify the
+   Source/Target path fields, Browse button, link-mode combo, RTL Hebrew and
+   Russian text are not clipped or overlapping.
+3. On a disposable local NTFS source, select a file and folder, choose
+   Directory Symlink. Expect a **preflight warning** with file/folder counts
+   and **no** link created. Switch to Automatic and verify both can be
+   created together. Repeat using one missing/inaccessible selection path.
+4. In a disposable cloned TC profile, remove **only** an icon reference
+   `buttonN=` from one existing toolbar slot while keeping the original
+   `.bar.tcslinks.bak`. Close TC; run
+   `Restore-TC-Toolbar-Icons.cmd` and select the actual `wincmd.ini`.
+   Confirm that only the missing icon reference returns, original command
+   definitions and every other icon remain unchanged. Test a second run
+   (no changes) and conflicting old icons (no guessed replacements).
+5. If your **entire** toolbar disappeared after old 0.2.1/0.2.4 setup,
+   run `Restore-TC-Toolbar-Only.cmd` first; the new icon-only utility
+   intentionally cannot switch or recreate an entire missing button bar.
+6. Verify the SHA-256 hashes of `wincmd.ini` and `usercmd.ini` before
+   and after the icon-only repair are identical; inspect the dated rollback
+   snapshot `.bar.before-icon-recovery-*.bak`.
+7. Confirm the existing personalized TC toolbar, nested subbars, custom
+   `em_*` commands, original icons and WDX custom columns still work
+   after updating to 0.2.9.
+
+The offscreen Windows GDI+ test covers gradient/button/card pixel values and
+RTL/200% render APIs; it cannot substitute for viewing the actual dialog on
+the user's customized TC desktop.
+
 # Required manual acceptance for 0.2.8 before stable release
 
 On a real Total Commander 11.58 x64 machine with existing personal toolbar:
