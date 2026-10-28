@@ -2,7 +2,7 @@ name: TC Symbolic Links - VS2026, real TC GUI smoke and Linux Unicode
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "preview/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
