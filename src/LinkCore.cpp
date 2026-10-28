@@ -165,6 +165,32 @@ std::wstring WindowsErrorMessage(DWORD error) {
     return result;
 }
 
+bool IsRemoteSmbPath(std::wstring_view path) {
+    // Normal UNC and extended-length UNC, including the NT object path form.
+    return path.starts_with(L"\\\\") && !path.starts_with(L"\\\\?\\") &&
+           !path.starts_with(L"\\\\.\\") ||
+           path.starts_with(L"\\\\?\\UNC\\") ||
+           path.starts_with(L"\\??\\UNC\\");
+}
+
+LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,
+    std::wstring_view destination, LinkKind kind, bool sourceIsDirectory,
+    DWORD windowsResult) {
+    const bool remoteTarget = IsRemoteSmbPath(destination);
+    const bool localSource = !IsRemoteSmbPath(source);
+    if (!remoteTarget) return LinkOutcomeDiagnostic::None;
+    const bool linkDirectory = kind == LinkKind::DirectorySymbolic ||
+        kind == LinkKind::Junction || (kind == LinkKind::Automatic && sourceIsDirectory);
+    const bool linkFile = kind == LinkKind::FileSymbolic ||
+        (kind == LinkKind::Automatic && !sourceIsDirectory);
+    if (windowsResult == ERROR_ACCESS_DENIED)
+        return linkDirectory ? LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied :
+            LinkOutcomeDiagnostic::RemoteFileAccessDenied;
+    if (windowsResult == ERROR_SUCCESS && localSource && (linkDirectory || linkFile))
+        return LinkOutcomeDiagnostic::RemoteToLocalCreated;
+    return LinkOutcomeDiagnostic::None;
+}
+
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source) {
     namespace fs = std::filesystem;
     const fs::path from(FullPath(ParentPath(destinationLink)));
