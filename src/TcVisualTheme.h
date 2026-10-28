@@ -2,6 +2,9 @@
 // NI Package Creator-inspired native visual layer.
 // Uses only Windows GDI+, not .NET, WebView or another executable.
 #include <windows.h>
+// GDI+ headers need the COM IStream/PROPID types when WIN32_LEAN_AND_MEAN is set.
+#include <objidl.h>
+#include <propidl.h>
 #include <gdiplus.h>
 #include <algorithm>
 #include <string>
@@ -104,7 +107,7 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
         x + w - Px(240, dpi), y + h - Px(80, dpi),
         x + w - Px(95, dpi), y + h - Px(36, dpi),
         x + w, y + h - Px(25, dpi));
-    blueWave.AddLine(x + w, y + h);
+    blueWave.AddLine(x + w, y + h - Px(25, dpi), x + w, y + h);
     blueWave.CloseFigure();
     Gdiplus::SolidBrush blueGlow(Gdiplus::Color(87, 43, 190, 255));
     g.FillPath(&blueGlow, &blueWave);
@@ -113,7 +116,7 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
         x + w - Px(140, dpi), y + h - Px(65, dpi),
         x + w - Px(62, dpi), y + h - Px(52, dpi),
         x + w, y + h - Px(70, dpi));
-    greenWave.AddLine(x + w, y + h);
+    greenWave.AddLine(x + w, y + h - Px(70, dpi), x + w, y + h);
     greenWave.CloseFigure();
     Gdiplus::SolidBrush greenGlow(Gdiplus::Color(108, 34, 211, 128));
     g.FillPath(&greenGlow, &greenWave);
