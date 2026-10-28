@@ -620,7 +620,7 @@ int MeasuredButtonWidth(const Ui& state, HWND button, int baseDp) {
     if (previous) SelectObject(dc, previous);
     ReleaseDC(button, dc);
     // Mimic NipkgCreator's measured text + icon + generous right padding.
-    return ok ? (std::max)(minimum, measured.cx + Dp(state, 68)) : minimum;
+    return ok ? (std::max)(minimum, static_cast<int>(measured.cx) + Dp(state, 68)) : minimum;
 }
 
 void Layout(HWND hwnd, Ui& s) {
