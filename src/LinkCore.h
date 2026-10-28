@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tcs {
 enum class LinkKind { Automatic, FileSymbolic, DirectorySymbolic, Junction, Hardlink };
@@ -34,6 +35,16 @@ bool IsRemoteSmbPath(std::wstring_view path);
 LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,
     std::wstring_view destination, LinkKind kind, bool sourceIsDirectory,
     DWORD windowsResult);
+
+// Preflight: inspect the complete TC %WL selection before mutating anything.
+// Missing/inaccessible sources and explicit link-type mismatches stop the batch.
+struct SelectionSummary {
+    std::size_t files = 0;
+    std::size_t folders = 0;
+    std::size_t unavailable = 0;
+    std::wstring firstUnavailable;
+};
+SelectionSummary InspectSelection(const std::vector<std::wstring>& selected);
 
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source);
 LinkDetails InspectLink(const std::wstring& path, bool countHardlinks = false);
