@@ -147,11 +147,25 @@ int wmain(int argc, wchar_t** argv) {
                 GetWindowRect(resultPane, &right);
                 GetWindowRect(sourcePath, &srcLine);
                 GetWindowRect(destinationPath, &dstLine);
+                const auto rows = SendMessageW(sourceList, LVM_GETITEMCOUNT, 0, 0);
+                const auto f5Label = ControlText(action);
                 commanderLayout = _wcsicmp(className, L"SysListView32") == 0 &&
-                    SendMessageW(sourceList, LVM_GETITEMCOUNT, 0, 0) == 1 &&
+                    rows == 1 &&
                     left.right <= right.left && left.top == right.top &&
                     srcLine.right <= dstLine.left && srcLine.top == dstLine.top &&
-                    ControlText(action).find(L"F5") != std::wstring::npos;
+                    f5Label.find(L"F5") != std::wstring::npos;
+                if (!commanderLayout) {
+                    std::wcerr << L"Maker layout diagnostics: class=" << className
+                        << L", rows=" << rows << L", action=" << f5Label
+                        << L", source=[" << left.left << L"," << left.top
+                        << L"," << left.right << L"," << left.bottom << L"]"
+                        << L", results=[" << right.left << L"," << right.top
+                        << L"," << right.right << L"," << right.bottom << L"]"
+                        << L", srcPath=[" << srcLine.left << L"," << srcLine.top
+                        << L"," << srcLine.right << L"," << srcLine.bottom << L"]"
+                        << L", dstPath=[" << dstLine.left << L"," << dstLine.top
+                        << L"," << dstLine.right << L"," << dstLine.bottom << L"]\n";
+                }
                 // NiPackageCreator regression: Browse is a labelled button,
                 // text fields have room, and actions do not touch each other.
                 RECT browseRect{}, createRect{}, closeRect{};
