@@ -59,7 +59,7 @@ int wmain(int argc, wchar_t** argv) {
             const DWORD extractError = GetLastError();
             const UINT resourceId = static_cast<UINT>(101 + index);
             const bool hasGroup = resourceModule &&
-                FindResourceW(resourceModule, MAKEINTRESOURCEW(resourceId), RT_GROUP_ICON) != nullptr;
+                FindResourceW(resourceModule, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(14)) != nullptr;
             HICON byId = resourceModule ? static_cast<HICON>(LoadImageW(
                 resourceModule, MAKEINTRESOURCEW(resourceId), IMAGE_ICON, 32, 32, 0)) : nullptr;
             if (count != 1 || (!iconBig && !iconSmall) || !byId || !hasGroup) {
