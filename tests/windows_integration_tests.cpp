@@ -39,7 +39,7 @@ int wmain(int argc, wchar_t** argv) {
     try {
         Require(argc == 2, "Pass WDX module path");
         const fs::path module = argv[1];
-        Require(fs::exists(module), "Built WDX64 missing");
+        Require(fs::exists(module), "Built WDX module missing");
         HICON bigIcon = nullptr, smallIcon = nullptr;
         const UINT found = ExtractIconExW(module.c_str(), 0,
                                           &bigIcon, &smallIcon, 1);
@@ -103,9 +103,9 @@ int wmain(int argc, wchar_t** argv) {
                 buttonParams.find(L"\" --tc-launch") != std::wstring::npos,
                 "regression: INI reader stripped critical surrounding argument quotes");
         const auto iconSetting = Ini(bar, L"Buttonbar", L"button4");
-        Require(iconSetting.find(L"SymlinkInspector.wdx64,0") != std::wstring::npos,
+        Require(iconSetting.find(module.filename().wstring() + L",0") != std::wstring::npos,
                 "new TC button must use the WDX embedded chain icon");
-        Require(buttonParams.find(L"SymlinkInspector.wdx64") != std::wstring::npos,
+        Require(buttonParams.find(module.filename().wstring()) != std::wstring::npos,
                 "button missing WDX module");
         Require(buttonParams.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
                 buttonParams.find(L"%COMMANDER_INI_PATH%") == std::wstring::npos,

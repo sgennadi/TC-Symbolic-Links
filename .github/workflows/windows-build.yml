@@ -34,6 +34,19 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
+      - name: Configure and build VS 2026 Win32 (v145)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S . -B build-win32 -G "Visual Studio 18 2026" -A Win32 -T v145
+          if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 configure failed' }
+          cmake --build build-win32 --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 build failed' }
+      - name: Run x86 WDX ABI, Win32 GUI and symlink tests
+        shell: pwsh
+        run: |
+          ctest --test-dir build-win32 -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Windows x86 tests failed' }
       - name: Verify original user commands survive and missing ones can be recovered
         shell: pwsh
         run: |
@@ -84,24 +97,27 @@ jobs:
           name: TC-Symbolic-Links-Toolbar-Recovery
           path: TC-Symbolic-Links-Toolbar-Recovery.zip
           if-no-files-found: error
-      - name: Package Total Commander x64 plugin
+      - name: Package unified Total Commander x86 and x64 plugin
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/SymlinkInspector.wdx64 dist/
+          Copy-Item build-win32/Release/SymlinkInspector.wdx dist/
           Copy-Item pluginst.inf dist/
           Copy-Item README.md dist/
           Copy-Item docs/MANUAL-TESTS.md dist/
-          Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win64.zip -Force
-          $hash = (Get-FileHash TC-Symbolic-Links-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  TC-Symbolic-Links-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win64.zip.sha256
+          New-Item -ItemType Directory -Force -Path dist/Recovery | Out-Null
+          Copy-Item toolbar-recovery/* dist/Recovery/
+          Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win32-win64.zip -Force
+          $hash = (Get-FileHash TC-Symbolic-Links-win32-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  TC-Symbolic-Links-win32-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win32-win64.zip.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: TC-Symbolic-Links-win64-VS2026
+          name: TC-Symbolic-Links-win32-win64-VS2026
           path: |
-            TC-Symbolic-Links-win64.zip
-            TC-Symbolic-Links-win64.zip.sha256
+            TC-Symbolic-Links-win32-win64.zip
+            TC-Symbolic-Links-win32-win64.zip.sha256
           if-no-files-found: error
 
   linux-wdx-unicode:
@@ -156,7 +172,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: TC-Symbolic-Links-win64-VS2026
+          name: TC-Symbolic-Links-win32-win64-VS2026
           path: release
       - uses: actions/download-artifact@v8
         with:
@@ -167,7 +183,7 @@ jobs:
           prerelease: true
           generate_release_notes: true
           files: |
-            release/TC-Symbolic-Links-win64.zip
-            release/TC-Symbolic-Links-win64.zip.sha256
+            release/TC-Symbolic-Links-win32-win64.zip
+            release/TC-Symbolic-Links-win32-win64.zip.sha256
             release/TC-Symbolic-Links-Linux-WDX-x64.zip
             release/TC-Symbolic-Links-Linux-WDX-x64.zip.sha256

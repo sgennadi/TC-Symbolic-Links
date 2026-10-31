@@ -265,7 +265,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             // Treat only a command created by our versions as ours.
             if (_wcsicmp(cmd.c_str(), L"em_TCSymbolicLinks_Create") != 0 &&
                 (_wcsicmp(cmd.c_str(), host.c_str()) != 0 ||
-                 ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str()).find(L"SymlinkInspector.wdx64") == std::wstring::npos)) {
+                 ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str()).find(L"SymlinkInspector.wdx") == std::wstring::npos)) {
                 status = L"An unrelated button has the same label; refusing to replace it.";
                 return false;
             }
@@ -380,7 +380,9 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const DWORD n = GetModuleFileNameW(nullptr, exe, 32768);
     if (!n || n >= 32768) return;
     const auto exeName = std::wstring(exe).substr(std::wstring(exe).find_last_of(L"\\/") + 1);
-    if (_wcsicmp(exeName.c_str(), L"TOTALCMD64.EXE") != 0) return;
+    const bool is64 = _wcsicmp(exeName.c_str(), L"TOTALCMD64.EXE") == 0;
+    const bool is32 = _wcsicmp(exeName.c_str(), L"TOTALCMD.EXE") == 0;
+    if (!is64 && !is32) return;
     std::wstring ini = GetEnv(L"COMMANDER_INI");
     if (ini.empty() && suggestedIniPath && *suggestedIniPath) {
         const int chars = MultiByteToWideChar(CP_ACP, 0, suggestedIniPath, -1, nullptr, 0);
@@ -392,9 +394,20 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     }
     if (!IsFile(ini)) return;
     const auto marker = Join(Parent(ini), L"TCSymbolicLinksInstall.ini");
-    if ((GetPrivateProfileIntW(L"Setup", L"Completed", 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", L"Version", 0, marker.c_str()) >= 208) ||
-        GetPrivateProfileIntW(L"Setup", L"Declined", 0, marker.c_str())) return;
+    // The shared package contains both .wdx and .wdx64. Setup is recorded
+    // independently for each architecture to avoid a false "already done".
+    const wchar_t* completedKey = is64 ? L"Completed" : L"Completed32";
+    const wchar_t* versionKey = is64 ? L"Version" : L"Version32";
+    const wchar_t* declinedKey = is64 ? L"Declined" : L"Declined32";
+    const int currentArchitecture = is64 ? 64 : 32;
+    const bool matchingLauncher = GetPrivateProfileIntW(
+        L"Setup", L"LastConfiguredArchitecture", 0, marker.c_str()) == currentArchitecture;
+    // TC x86 and x64 may share one .bar file. The button always points to
+    // one actual DLL; prompt for a safe rebind on architecture switches.
+    if ((matchingLauncher &&
+         GetPrivateProfileIntW(L"Setup", completedKey, 0, marker.c_str()) &&
+         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 212) ||
+        GetPrivateProfileIntW(L"Setup", declinedKey, 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
     const bool ru = PRIMARYLANGID(lang) == LANG_RUSSIAN;
@@ -406,7 +419,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
              L"Append one button to your STARTUP toolbar WITHOUT SWITCHING toolbars and enable WDX columns "
              L"in both panes? Original files will be backed up.";
     if (MessageBoxW(owner, prompt, L"TC Symbolic Links", MB_YESNO | MB_ICONQUESTION) != IDYES) {
-        WriteIni(marker, L"Setup", L"Declined", L"1");
+        WriteIni(marker, L"Setup", declinedKey, L"1");
         return;
     }
     HMODULE self = nullptr;
@@ -419,8 +432,10 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     std::wstring status;
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
-        WriteIni(marker, L"Setup", L"Completed", L"1");
-        WriteIni(marker, L"Setup", L"Version", L"208");
+        WriteIni(marker, L"Setup", completedKey, L"1");
+        WriteIni(marker, L"Setup", versionKey, L"212");
+        WriteIni(marker, L"Setup", L"LastConfiguredArchitecture",
+                 is64 ? L"64" : L"32");
     }
     MessageBoxW(owner, status.c_str(), L"TC Symbolic Links", MB_OK | (success ? MB_ICONINFORMATION : MB_ICONERROR));
 }

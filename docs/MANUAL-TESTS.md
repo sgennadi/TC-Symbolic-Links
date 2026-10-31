@@ -1,3 +1,40 @@
+## 0.2.12: one ZIP, both TC architectures, and SMB matrix
+
+Use disposable files and a backed-up Total Commander profile. Do not change
+your real .bar files or global symlink-evaluation policies to make a test pass.
+
+1. Open the **single win32-win64 ZIP** directly in TC x64. The pluginst.inf
+   must offer installation; verify `SymlinkInspector.wdx64` is used by x64
+   and `SymlinkInspector.wdx` is available beside it.
+2. Repeat in **Total Commander x86**. Confirm WDX custom fields work,
+   the native Maker appears through x86 rundll32, and file/folder symlinks
+   can be created on a writable local NTFS test directory.
+3. Compare all original toolbar icons, button positions, nested .bar files,
+   custom commands and column sets. Installer must add/update only its own
+   Create Links button and must never replace the active toolbar.
+4. If both TC architectures share the same profile, switch between them.
+   After agreeing to rebind the architecture-specific DLL, confirm there
+   is still one Create Links button, not duplicate buttons. Declining
+   reconfiguration must leave the saved toolbar untouched.
+5. With **SMB shares from Windows Server, Samba and a NAS** (where
+   available), create a file symlink and a directory symlink within each
+   writable share. Check real reparse type and link traversal separately.
+   Lack of SMB reparse support must be reported without fake .lnk objects.
+6. Repeat using a mapped Z: drive and ordinary UNC paths. A target
+   in the *same* share may be relative; a target in a different share
+   must be absolute UNC, not an escaping .. path.
+7. Verify remote-to-local and remote-to-remote warnings, including
+   situations where Windows symlink evaluation blocks traversal.
+8. Attempt a remote Junction. It must fail **without leaving an empty
+   destination directory**. Test denied SMB permissions and disconnected
+   server diagnostics without changing any client/server security setting.
+9. Test Unicode Hebrew/Russian paths, DPI 100/150/200%, and shutdown/restart
+   of TC with all original icon references intact.
+
+A GitHub Windows runner can confirm build, ABI, native GUI launch and a
+headless Maker action, but **cannot** certify personalized TC toolbars,
+full interactive GUI or every third-party SMB implementation.
+
 ## 0.2.10: verify the new Ni Package Creator form details
 
 1. Open **Create Links** in the installed 0.2.10 WDX. It should look

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.11 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.12 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,8 +67,12 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(WIN32)
-  if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "TC Symbolic Links currently supports Windows x64 only")
+  # Both x86 and x64 WDX modules are built from identical source.
+  # Total Commander chooses the matching module by .wdx/.wdx64 suffix.
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(TC_WDX_SUFFIX ".wdx64")
+  else()
+    set(TC_WDX_SUFFIX ".wdx")
   endif()
 
   add_library(tc_link_core STATIC src/LinkCore.cpp)
@@ -78,9 +82,13 @@ if(WIN32)
   add_library(tc_integration STATIC src/TcIntegration.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp src/LinkMaker.rc)
+  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    # Undecorated WDX and rundll32 names for MSVC x86 __stdcall.
+    target_sources(SymlinkInspector PRIVATE src/SymlinkInspector.x86.def)
+  endif()
   target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 gdiplus dwmapi comctl32 shell32 ole32 uuid)
-  set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX ".wdx64")
+  set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX "${TC_WDX_SUFFIX}")
 
   if(BUILD_TESTING)
     # Offscreen GDI+ theme acceptance does not depend on a visible desktop.

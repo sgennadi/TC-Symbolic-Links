@@ -1,3 +1,14 @@
+## 0.2.12 (Preview) — one x86/x64 ZIP with native WDX exports
+
+- Build matching x86 .wdx and x64 .wdx64 binaries in VS 2026 and package
+  both under one pluginst.inf with optional toolbar recovery scripts.
+- Export undecorated stdcall entry points for WDX and rundll32 on 32-bit TC.
+- Support first-load setup in TOTALCMD.EXE and TOTALCMD64.EXE with distinct
+  markers and safe reconfiguration when the active TC bitness changes.
+- Keep one Create Links toolbar button, no helper EXE, no altered usercmd.ini,
+  and no silent replacement of unrelated toolbar icons.
+- Run Windows CTest for both architectures plus Linux regression suites.
+
 ## 0.2.11 (Preview) — generic SMB symlink support
 
 - Normalize UNC and connected mapped-drive paths without assuming a specific

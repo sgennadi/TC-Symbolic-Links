@@ -1,4 +1,4 @@
-// Load the compiled .wdx64 with the Windows loader and exercise the actual
+// Load the compiled .wdx or .wdx64 with the Windows loader and exercise the actual
 // Total Commander WDX Unicode exports without requiring a TC installation.
 #include "LinkCore.h"
 #include <windows.h>
@@ -32,7 +32,7 @@ struct TempDir {
 struct Module {
     HMODULE handle = nullptr;
     explicit Module(const wchar_t* path) : handle(LoadLibraryW(path)) {
-        Require(handle != nullptr, "LoadLibraryW(.wdx64) failed");
+        Require(handle != nullptr, "LoadLibraryW(WDX) failed");
     }
     ~Module() { if (handle) FreeLibrary(handle); }
     Module(const Module&) = delete;
@@ -66,7 +66,7 @@ void WriteFile(const fs::path& path) {
 
 int wmain(int argc, wchar_t** argv) {
     try {
-        Require(argc == 2, "Pass full path to SymlinkInspector.wdx64");
+        Require(argc == 2, "Pass full path to SymlinkInspector.wdx/.wdx64");
         Module module(argv[1]);
         const auto getField = module.Export<GetSupportedField>("ContentGetSupportedField");
         const auto getValue = module.Export<GetValueW>("ContentGetValueW");

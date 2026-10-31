@@ -1,0 +1,11 @@
+; x86 stdcall exports need undecorated names for Total Commander and rundll32.
+; x64 does not use this file because MSVC x64 exports are already undecorated.
+LIBRARY SymlinkInspector
+EXPORTS
+    ContentSetDefaultParams=_ContentSetDefaultParams@4
+    ContentGetSupportedField=_ContentGetSupportedField@16
+    ContentGetValue=_ContentGetValue@24
+    ContentGetValueW=_ContentGetValueW@24
+    TCLinkCreateW=_TCLinkCreateW@16
+    TCLinkSetupW=_TCLinkSetupW@16
+    TCLinkProbeW=_TCLinkProbeW@16

@@ -66,7 +66,7 @@ int wmain(int argc, wchar_t** argv) {
     try {
         Check(argc == 2, "Pass the built Windows WDX path");
         const fs::path compiledDll = argv[1];
-        Check(fs::is_regular_file(compiledDll), "Missing SymlinkInspector.wdx64");
+        Check(fs::is_regular_file(compiledDll), "Missing SymlinkInspector module");
         wchar_t temporary[MAX_PATH + 1]{};
         Check(GetTempPathW(MAX_PATH + 1, temporary) > 0, "GetTempPathW failed");
         wchar_t candidate[MAX_PATH + 1]{};
@@ -78,7 +78,7 @@ int wmain(int argc, wchar_t** argv) {
         const auto plugDir = tcDir / L"plugins" / L"wdx" / L"TCSymbolicLinks";
         fs::create_directories(plugDir);
         fs::create_directories(configDir);
-        const auto dll = plugDir / L"SymlinkInspector.wdx64";
+        const auto dll = plugDir / compiledDll.filename();
         fs::copy_file(compiledDll, dll);
         EnvVar tcPath(L"COMMANDER_PATH", tcDir.wstring());
         const auto defaultBar = tcDir / L"DEFAULT.BAR";

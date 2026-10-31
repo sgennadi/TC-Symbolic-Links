@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.11 Preview
+# TC Symbolic Links 0.2.12 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,32 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.12 Preview — one ZIP for Total Commander x86 and x64
+
+The **same installer ZIP** contains `SymlinkInspector.wdx` (x86),
+`SymlinkInspector.wdx64` (x64), `pluginst.inf`, documentation,
+and a `Recovery/` directory with toolbar/icon and custom-command repair
+scripts. There is **no companion EXE**. Total Commander selects the
+architecture-matching WDX automatically when installed from `pluginst.inf`
+(the INF registers the base `.wdx` file).
+
+- Both variants are compiled with Visual Studio 2026 (v145, C++ latest),
+  including native CTest checks on Windows.
+- x86 exposes **undecorated** WDX and `rundll32` exports using a Win32
+  module-definition file; x64 keeps its existing exports.
+- First-load setup is available in `TOTALCMD.EXE` (32-bit) as well as
+  `TOTALCMD64.EXE` (64-bit), with separate completion markers.
+- Existing buttons, usercmd.ini, custom columns and the selected .bar are
+  backed up and preserved. The installer must never replace an unrelated
+  button with a matching caption.
+- If 32- and 64-bit TC use a **shared** .bar, its one Create Links button
+  references one architecture-specific DLL at a time. On switching TC
+  architectures, the WDX offers to safely rebind that button; the existing
+  button and icon are updated in place, never duplicated. Declining leaves
+  the profile unchanged.
+- CI verifies the WDX binaries and setup logic, but full interactive TC
+  toolbar acceptance still requires a real, licensed GUI session.
 
 ## 0.2.11 Preview: generic SMB file and directory symlinks
 
