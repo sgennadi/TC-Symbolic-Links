@@ -48,15 +48,35 @@ int wmain(int argc, wchar_t** argv) {
         if (smallIcon) DestroyIcon(smallIcon);
         Require(hasChainIcon, "WDX must embed an extractable chain-link toolbar icon");
         // The installer must not assign missing-icon indices 1 and 2.
+        const UINT totalIcons = ExtractIconExW(module.c_str(), -1, nullptr, nullptr, 0);
+        HMODULE resourceModule = LoadLibraryExW(module.c_str(), nullptr,
+                                                LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
         for (int index : {1, 2}) {
             HICON iconBig = nullptr, iconSmall = nullptr;
+            SetLastError(0);
             const UINT count = ExtractIconExW(module.c_str(), index,
                                              &iconBig, &iconSmall, 1);
-            const bool present = count == 1 && (iconBig || iconSmall);
+            const DWORD extractError = GetLastError();
+            const UINT resourceId = static_cast<UINT>(101 + index);
+            const bool hasGroup = resourceModule &&
+                FindResourceW(resourceModule, MAKEINTRESOURCEW(resourceId), RT_GROUP_ICON) != nullptr;
+            HICON byId = resourceModule ? static_cast<HICON>(LoadImageW(
+                resourceModule, MAKEINTRESOURCEW(resourceId), IMAGE_ICON, 32, 32, 0)) : nullptr;
+            if (count != 1 || (!iconBig && !iconSmall) || !byId || !hasGroup) {
+                std::wcerr << L"WDX_ICON_DIAGNOSTIC index=" << index
+                           << L" total=" << totalIcons
+                           << L" extracted=" << count
+                           << L" extractLastError=" << extractError
+                           << L" groupExists=" << hasGroup
+                           << L" directLoad=" << (byId != nullptr) << L"\\n";
+            }
+            const bool present = count == 1 && (iconBig || iconSmall) && hasGroup && byId;
             if (iconBig) DestroyIcon(iconBig);
             if (iconSmall) DestroyIcon(iconSmall);
-            Require(present, "Dedicated file/folder WDX icon is missing");
+            if (byId) DestroyIcon(byId);
+            Require(present, "Dedicated file/folder WDX icon missing or unreadable");
         }
+        if (resourceModule) FreeLibrary(resourceModule);
         wchar_t tempDir[MAX_PATH+1]{};
         Require(GetTempPathW(MAX_PATH+1, tempDir) > 0, "GetTempPathW failed");
         wchar_t path[MAX_PATH+1]{};
