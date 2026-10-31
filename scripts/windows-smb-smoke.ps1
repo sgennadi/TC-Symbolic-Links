@@ -44,10 +44,10 @@ function Invoke-SmbBinary {
     foreach ($line in $rawOutput) { Write-Host "$Label : $line" }
     if ($exitCode -eq 0) { return 'passed' }
     if ($exitCode -eq 77) {
-        Write-Warning "$Label: SMB operations unsupported, denied or blocked by test endpoint."
+        Write-Warning "${Label}: SMB operations unsupported, denied or blocked by test endpoint."
         return 'skipped-by-server-or-policy'
     }
-    throw "$Label: SMB smoke executable failed (exit $exitCode)."
+    throw "${Label}: SMB smoke executable failed (exit $exitCode)."
 }
 
 try {
