@@ -505,6 +505,10 @@ try {
     }
 } catch {
     Write-Log ('ERROR ['+$Mode+']: '+$_.Exception.Message)
+    if ($Mode -eq 'SelfTest') {
+        Write-Output ('SELFTEST_FAIL: '+$_.Exception.ToString())
+        Write-Output ('SELFTEST_STACK: '+$_.ScriptStackTrace)
+    }
     if ($Mode -ne 'Auto' -and $Mode -ne 'SelfTest') {
         Message ((Say 'Update failed: ' 'Ошибка обновления: ' 'שגיאת עדכון: ')+$_.Exception.Message)
     }
