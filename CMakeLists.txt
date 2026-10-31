@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.12 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.13 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -103,6 +103,15 @@ if(WIN32)
     add_executable(windows_link_tests tests/windows_link_tests.cpp)
     target_link_libraries(windows_link_tests PRIVATE tc_link_core)
     add_test(NAME win32_hebrew_links COMMAND windows_link_tests)
+
+    # Optional real loopback SMB test; invoked by the dedicated CI script
+    # after publishing a unique temporary Windows share. Never touches any
+    # existing user SMB share, and is excluded from ordinary local CTest.
+    add_executable(windows_smb_smoke_tests tests/windows_smb_smoke_tests.cpp)
+    target_link_libraries(windows_smb_smoke_tests PRIVATE tc_link_core)
+    if(MSVC)
+      target_compile_options(windows_smb_smoke_tests PRIVATE /W4 /utf-8)
+    endif()
 
     add_executable(wdx_abi_tests tests/wdx_abi_tests.cpp)
     target_link_libraries(wdx_abi_tests PRIVATE tc_link_core)

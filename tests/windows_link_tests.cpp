@@ -129,6 +129,13 @@ int main() {
             Require(dirInfo.relative, "Directory symlink did not retain relative path");
             Require(dirInfo.targetExists, "Directory symlink target does not resolve");
         }
+        // Read-only traversal is different from inspecting a reparse point.
+        // It must succeed for a normal directory junction on local NTFS.
+        Require(tcs::CheckLinkTraversal(junction.wstring()) == ERROR_SUCCESS,
+                "Read-only junction traversal must succeed");
+        Require(tcs::CheckLinkTraversal((cleanup.path / L"no_such_traversal_file.txt").wstring()) == ERROR_FILE_NOT_FOUND ||
+                tcs::CheckLinkTraversal((cleanup.path / L"no_such_traversal_file.txt").wstring()) == ERROR_PATH_NOT_FOUND,
+                "Missing target traversal must return a Windows error");
         // From the user's v10 preflight: reject unavailable inputs before
         // a batch and detect file/directory combinations. Automatic remains mixed.
         const auto missingSource = cleanup.path / L"not-installed-file.txt";

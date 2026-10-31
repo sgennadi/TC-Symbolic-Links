@@ -47,6 +47,31 @@ jobs:
         run: |
           ctest --test-dir build-win32 -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Windows x86 tests failed' }
+      - name: Exercise a real temporary SMB share with x64 and x86
+        shell: pwsh
+        run: |
+          ./scripts/windows-smb-smoke.ps1 -Win64Test build/Release/windows_smb_smoke_tests.exe -Win32Test build-win32/Release/windows_smb_smoke_tests.exe -OutputDirectory smb-smoke-results
+      - name: Report SMB creation, traversal and cleanup separately
+        if: always()
+        shell: pwsh
+        run: |
+          $file = 'smb-smoke-results/result.json'
+          if (Test-Path -LiteralPath $file) {
+            $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+            "## Isolated SMB loopback smoke" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "SMB share: $($report.share_status)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "Mapped drive: $($report.mapped_drive_status)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "Windows x64: $($report.win64)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "Windows x86: $($report.win32)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "Cleanup: $($report.cleanup)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload isolated SMB test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TC-SMB-Loopback-Windows
+          path: smb-smoke-results/
+          if-no-files-found: warn
       - name: Verify original user commands survive and missing ones can be recovered
         shell: pwsh
         run: |

@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.12 Preview
+# TC Symbolic Links 0.2.13 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,34 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.13 Preview — validate SMB creation separately from traversal
+
+**What is new:** creating an SMB reparse-point symlink and successfully
+*opening* its target are different operations. Even after a successful
+`CreateSymbolicLinkW`, Windows can refuse traversal because of
+client symlink-evaluation policy, share/NTFS permissions, or a missing target.
+The maker now reports **Created with warnings** rather than claiming all
+links are usable when a read-only `CreateFileW` traversal check fails.
+
+- The result pane distinguishes genuine creation failures from successful
+  creation with failed reparse readback or target traversal.
+- Warnings show the original Win32 error code and a localized
+  English/Russian/Hebrew explanation. No automatic security changes,
+  elevation or permission retries are performed.
+- GitHub Actions **optionally** creates a unique ephemeral Windows SMB share,
+  owned by the CI identity, and runs both x86 and x64 real symlink tests.
+  Each test creates a file symlink, a directory symlink and checks their
+  reparse type and traversal separately. It also rejects SMB junctions
+  without leaving placeholder directories.
+- CI attempts a temporary mapped drive and tests portable relative targets
+  between a mapped destination and UNC source on the same SMB share.
+- Logs show **PASS**, **BLOCKED/SKIPPED**, or **FAIL** independently. The
+  scripted cleanup removes only the temporary share, drive mapping and
+  isolated test directory; failures in cleanup fail CI.
+- When CI cannot provision the SMB share (e.g. runner permission limits),
+  it reports **SKIPPED** visibly. A passing CI run alone never proves
+  support by arbitrary Windows Server, Samba or NAS implementations.
 
 ## 0.2.12 Preview — one ZIP for Total Commander x86 and x64
 

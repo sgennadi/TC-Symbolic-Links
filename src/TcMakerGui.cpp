@@ -117,6 +117,7 @@ struct Ui {
     std::size_t nextItem = 0;
     int completed = 0;
     int failed = 0;
+    int warnings = 0;
     tcs::LinkKind batchKind = tcs::LinkKind::Automatic;
     bool batchRelative = false;
     std::wstring batchDestination;
@@ -164,6 +165,7 @@ void AppendLine(HWND edit, const std::wstring& line) {
     COLORREF tint = kInk;
     if (line.rfind(L"OK ", 0) == 0) tint = kPositive;
     else if (line.rfind(L"ERR ", 0) == 0) tint = kDanger;
+    else if (line.rfind(L"WARN ", 0) == 0) tint = kWarning;
     else if (line.rfind(L"Created:", 0) == 0 ||
              line.rfind(L"Создано:", 0) == 0) tint = kAccent;
     else if (line.find(L"Stopped") != std::wstring::npos ||
@@ -925,6 +927,9 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
         std::to_wstring(state.completed) + state.Choose(L"; skipped / failed: ",
             L"; пропущено / ошибки: ", L"; דולגו / נכשלו: ") +
         std::to_wstring(state.failed));
+    if (state.warnings)
+        AppendLine(state.results, state.Choose(L"Warnings: ", L"Предупреждений: ",
+            L"אזהרות: ") + std::to_wstring(state.warnings));
     if (cancelled) AppendLine(state.results, state.Choose(
         L"Stopped by user. Already created links remain in place.",
         L"Остановлено. Созданные ссылки сохранены.",
@@ -936,6 +941,9 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     SetWindowTextW(state.status, state.failed ? state.Choose(L"Completed with errors - see details above.",
         L"Завершено с ошибками — подробности выше.", L"הושלם עם שגיאות - ראה פירוט.") :
         (cancelled ? state.Choose(L"Stopped.", L"Остановлено.", L"נעצר.") :
+         state.warnings ? state.Choose(L"Created, but with warnings - check results.",
+             L"Ссылки созданы, но есть предупреждения.",
+             L"הקישורים נוצרו עם אזהרות.") :
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
@@ -988,11 +996,25 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                 const auto verified = tcs::InspectLink(link);
                 const auto expected = sourceDirectory ? tcs::ReparseKind::SymbolicDirectory :
                     tcs::ReparseKind::SymbolicFile;
-                if (verified.kind != expected)
+                if (verified.kind != expected) {
+                    ++state.warnings;
                     AppendLine(state.results, state.Choose(
-                        L"NOTE: Created, but SMB reparse-point type could not be verified on readback.",
-                        L"ВНИМАНИЕ: Windows сообщила об успехе, но SMB-сервер не подтвердил тип ссылки при чтении.",
-                        L"שים לב: הקישור נוצר, אך סוגו לא אומת בקריאה חוזרת."));
+                        L"WARN  SMB link created, but its reparse type could not be confirmed.",
+                        L"WARN  SMB-ссылка создана, но тип reparse point подтвердить не удалось.",
+                        L"WARN  הקישור נוצר, אך לא ניתן לאמת את סוג הקישור."));
+                }
+                // Creation and traversal are independent on SMB: the client
+                // may enforce R2R/R2L policy, ACLs or target availability.
+                const DWORD traversal = tcs::CheckLinkTraversal(link);
+                if (traversal != ERROR_SUCCESS) {
+                    ++state.warnings;
+                    AppendLine(state.results, std::wstring(state.Choose(
+                        L"WARN  Link exists, but this client cannot open its target: ",
+                        L"WARN  Ссылка создана, но Windows не может открыть цель: ",
+                        L"WARN  הקישור נוצר אך לא ניתן לגשת ליעד: ")) +
+                        tcs::WindowsErrorMessage(traversal) +
+                        L" (" + std::to_wstring(traversal) + L")");
+                }
             }
         } else {
             ++state.failed;
@@ -1088,6 +1110,7 @@ void BeginCreate(HWND hwnd, Ui& state) {
     state.nextItem = 0;
     state.completed = 0;
     state.failed = 0;
+    state.warnings = 0;
     state.privilegeError = false;
     state.creating = true;
     state.animationFrame = 0;

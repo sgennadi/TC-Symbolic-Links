@@ -51,6 +51,10 @@ SelectionSummary InspectSelection(const std::vector<std::wstring>& selected);
 
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source);
 LinkDetails InspectLink(const std::wstring& path, bool countHardlinks = false);
+// Read-only target-open probe: distinguishes reparse-point creation from
+// actual Windows client traversal (R2R/R2L policy, ACL, missing target).
+// Never modifies a link or changes system symlink policy.
+DWORD CheckLinkTraversal(const std::wstring& path);
 DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
                  LinkKind kind, bool preferRelative);
 }

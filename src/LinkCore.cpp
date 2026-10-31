@@ -306,6 +306,19 @@ LinkDetails InspectLink(const std::wstring& path, bool countHardlinks) {
     return result;
 }
 
+DWORD CheckLinkTraversal(const std::wstring& path) {
+    const std::wstring absolute = FullPath(path);
+    if (absolute.empty()) return ERROR_INVALID_NAME;
+    // Do not supply FILE_FLAG_OPEN_REPARSE_POINT: Windows/SMB must evaluate
+    // the link. Backup semantics allows read-only opening of directories.
+    HANDLE h = CreateFileW(ApiPath(absolute).c_str(), FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return GetLastError();
+    CloseHandle(h);
+    return ERROR_SUCCESS;
+}
+
 DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
                  LinkKind kind, bool preferRelative) {
     const auto src = FullPath(source);

@@ -1,3 +1,23 @@
+## 0.2.13: real SMB smoke and target-traversal checks
+
+1. On a disposable writable SMB share, test a file and a directory link
+   with **Automatic** and explicit symlink mode. Verify that the Maker shows
+   both **reparse creation** and **traversal** results.
+2. If Windows blocks traversal after link creation, the result must show
+   **created with warnings**, not a false creation failure or a false
+   fully-working success. Never change `SymlinkEvaluation` automatically.
+3. Test mapped-drive to UNC links and cross-share links. Same-share
+   relative targets may be portable; cross-share links must use absolute
+   UNC targets and warn about possible R2R traversal limits.
+4. Attempt remote Junction creation: it must refuse without a leftover
+   folder. Verify no symlink is silently replaced by `.lnk`.
+5. In GitHub Actions, check the **TC-SMB-Loopback-Windows** artifact.
+   Read the separate `win64.log`, `win32.log` and `result.json`
+   results. Distinguish **SKIPPED** coverage (no SMB privileges or server
+   support) from a verified success. Check that cleanup passed.
+6. Confirm 32-bit and 64-bit WDX load, icons and personalized Total
+   Commander bars still work after updating the single ZIP.
+
 ## 0.2.12: one ZIP, both TC architectures, and SMB matrix
 
 Use disposable files and a backed-up Total Commander profile. Do not change

@@ -1,3 +1,16 @@
+## 0.2.13 (Preview) — real SMB loopback tests and traversal diagnostics
+
+- Add read-only target-open verification to distinguish a successfully
+  created SMB reparse point from a link that Windows cannot traverse.
+- Report successful creation with warnings, original Win32 error and
+  translated English/Russian/Hebrew guidance without changing security.
+- Add an isolated Windows SMB smoke executable and CI harness that creates
+  a per-run share, tests x64/x86 file and folder links plus mapped-drive
+  relative targets when possible, and verifies remote Junction refusal.
+- CI reports SKIPPED when SMB provisioning, reparse or policy restrictions
+  prevent live coverage. Fail on corrupt successful links and cleanup errors.
+- Retain one ZIP, toolbar backups, native WDX, VS2026 and Node.js 24 actions.
+
 ## 0.2.12 (Preview) — one x86/x64 ZIP with native WDX exports
 
 - Build matching x86 .wdx and x64 .wdx64 binaries in VS 2026 and package
