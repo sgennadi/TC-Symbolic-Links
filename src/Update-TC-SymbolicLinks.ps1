@@ -197,7 +197,7 @@ function Report-Result([string]$folder,[string]$text) {
 }
 function Apply-Staged([string]$folder,[string]$installedPath) {
     Verify-Stage $folder
-    $install=Split-Path -LiteralPath $installedPath -Parent
+    $install=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($installedPath))
     if (-not $install -or -not (Test-Path -LiteralPath $installedPath -PathType Leaf)) { throw 'Installed WDX not found.' }
     $names=@('SymlinkInspector.wdx','SymlinkInspector.wdx64','pluginst.inf')
     $backup=Join-Path $install ('.tcslinks-update-backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' +
@@ -367,7 +367,7 @@ function Show-Manager($initial) {
             $start=[Diagnostics.ProcessStartInfo]::new()
             $start.FileName=Join-Path $PSHOME 'powershell.exe'
             $start.Arguments=('-NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File "{0}" -Mode Apply -PluginPath "{1}" -StageDirectory "{2}"' -f (Join-Path $stage 'apply.ps1'),$PluginPath,$stage)
-            $targetDirectory=Split-Path -LiteralPath $PluginPath -Parent
+            $targetDirectory=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($PluginPath))
             if (-not (Can-WritePluginDirectory $targetDirectory)) {
                 # Program Files and some shared installations need explicit UAC.
                 # Never elevate silently, change ACLs, or change user passwords.
