@@ -132,11 +132,9 @@ int wmain() {
                 tcs::LinkKind::FileSymbolic, tcs::ReparseKind::SymbolicFile);
             mappedCreated = mapped.created;
             std::cout << "SMB_MAPPED=" << (mappedCreated ? "CREATED" : "BLOCKED")
-                      << '
-';
+                      << '\n';
         } else {
-            std::cout << "SMB_MAPPED=NOT_CONFIGURED
-";
+            std::cout << "SMB_MAPPED=NOT_CONFIGURED\n";
         }
         // Remote junction must never leave a placeholder directory behind.
         const fs::path forbidden = targetDir / L"Junction-must-not-exist";
