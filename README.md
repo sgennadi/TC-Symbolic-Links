@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.14 Preview
+# TC Symbolic Links 0.2.15 Preview
 
 **All-in-one Total Commander x86/x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,61 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.15 Preview — built-in Update Manager (no companion EXE)
+
+**Inside the existing native Maker**, use **Check for Updates** to open
+the Update Manager. There are no extra installation scripts, helper EXEs,
+toolbar replacements, or changes to the existing three symlink buttons.
+The WDX embeds the trusted Update Manager script as a Win32 RCDATA resource,
+and runs it through the Windows-provided PowerShell only when needed.
+
+The NI-inspired Update Manager has English/Russian/Hebrew UI, a channel
+selector (**Preview / Stable**), **Check for Updates**, **Install Update**,
+and **Never check automatically**. The latter disables startup checks
+without preventing manual checks. Automatic checks run at most once per
+24 hours in the current Windows profile. The check happens outside the
+Total Commander WDX startup callback: it does not block TC's UI.
+
+**Release security:** The updater uses the exact official repository
+`sgennadi/TC-Symbolic-Links` GitHub Releases API; only known-version
+releases with exactly one `TC-Symbolic-Links-win32-win64.zip` asset and a
+valid GitHub-reported **SHA-256 digest** are eligible. It rejects
+untrusted download hosts, missing/mismatched SHA-256, duplicate or missing
+ZIP payloads, wrong x86/x64 PE architectures and incorrect `pluginst.inf`.
+Only the expected root DLLs and `pluginst.inf` are extracted; downloaded
+ZIP contents are **never executed**.
+
+After explicit confirmation the ZIP is downloaded, verified and staged in
+`%LOCALAPPDATA%\TCSymbolicLinks\Updates`. A temporary separate
+Windows PowerShell process waits for the user to close **all** x86 and x64
+Total Commander windows; it never terminates them. The installer backs up
+the existing x86/x64 WDX files and pluginst.inf, then replaces only those
+files in the **same installed plugin directory**. Every installed payload
+is hashed again. Errors trigger best-effort rollback from the preserved
+backups with an explicit error report; rollback failures are never hidden.
+`wincmd.ini`, `usercmd.ini`, personal .bar files, custom columns and
+other plugins are **not modified** by the update operation.
+
+For direct access from Total Commander, the same DLL exports
+`TCLinkUpdateW` through `rundll32` as `TCLinkUpdate`; normally it is
+unnecessary because the Maker already contains the update button.
+
+**Preview releases** are published automatically only after successful
+Windows x86/x64, Linux and SMB CI on the preview branch. Each GitHub
+Release tag is `v0.2.15-preview.<workflow-run-number>`, and both DLLs
+embed the matching build version. Stable channel intentionally ignores
+all Preview releases. The version shown in the Update Manager is an
+installed DLL build version, not merely the ZIP filename. This release
+mechanism cannot fetch short-lived PR/CI artifacts as if they were
+official published GitHub Releases.
+
+**Testing:** Offline Windows CI validates version ordering, channel
+filtering, release URLs, SHA-256 mismatch rejection, PE machine types,
+ZIP validation and simulated partial-install rollback. These tests
+do not replace manual checks of your personalized Total Commander
+profile, Windows user privileges, third-party SMB servers or enterprise
+software restrictions on PowerShell.
 
 ## 0.2.14 Preview — three integrated native buttons with distinct icons
 

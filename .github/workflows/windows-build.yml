@@ -25,7 +25,7 @@ jobs:
             throw "CMake 4.2+ is required by the VS 2026 generator. Found: $versionText"
           }
           Write-Host $versionText
-          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }}
           if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
           cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw 'VS 2026 build failed' }
@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build-win32 -G "Visual Studio 18 2026" -A Win32 -T v145
+          cmake -S . -B build-win32 -G "Visual Studio 18 2026" -A Win32 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }}
           if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 configure failed' }
           cmake --build build-win32 --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 build failed' }
@@ -47,6 +47,11 @@ jobs:
         run: |
           ctest --test-dir build-win32 -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Windows x86 tests failed' }
+      - name: Verify trusted Update Manager (versions, SHA-256, ZIP, x86/x64, malicious releases)
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File src/Update-TC-SymbolicLinks.ps1 -Mode SelfTest -TestX86 build-win32/Release/SymlinkInspector.wdx -TestX64 build/Release/SymlinkInspector.wdx64
+          if ($LASTEXITCODE -ne 0) { throw 'Update Manager offline security regression failed' }
       - name: Exercise a real temporary SMB share with x64 and x86
         shell: pwsh
         run: |
@@ -189,7 +194,10 @@ jobs:
         run: ctest --test-dir build-asan --output-on-failure
 
   prerelease:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Every SUCCESSFUL push on the preview development branch gets a real
+    # numbered GitHub Release, not a short-lived Actions artifact.
+    # This is required by the in-WDX auto-updater's authenticated API source.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/preview/0.2.1-one-dll'
     needs: [windows-vs2026, linux-wdx-unicode, linux-sanitizers]
     runs-on: ubuntu-24.04
     permissions:
@@ -205,8 +213,19 @@ jobs:
           path: release
       - uses: softprops/action-gh-release@v3
         with:
+          tag_name: v0.2.15-preview.${{ github.run_number }}
+          name: TC Symbolic Links 0.2.15 Preview build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           prerelease: true
+          make_latest: false
           generate_release_notes: true
+          body: |
+            Preview build from successful Visual Studio 2026 Windows x86/x64,
+            Linux WDX, sanitizers and isolated Windows SMB tests.
+            The single ZIP includes both WDX architectures and native
+            Update Manager (manual / automatic / never / verified SHA-256).
+            Manual Total Commander GUI and third-party NAS/Samba tests remain
+            recommended before Stable.
           files: |
             release/TC-Symbolic-Links-win32-win64.zip
             release/TC-Symbolic-Links-win32-win64.zip.sha256

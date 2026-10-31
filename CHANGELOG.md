@@ -1,3 +1,23 @@
+## 0.2.15 (Preview) — embedded Update Manager, verified ZIP and rollback
+
+- Embed the trusted Update Manager script as WDX RCDATA and provide
+  `TCLinkUpdateW` plus the native Maker's Check for Updates button.
+- Auto-check at most daily; configurable Preview/Stable, explicit manual
+  check, Never check automatically, and English/Russian/Hebrew GUI.
+- Query only official GitHub Releases, require canonical ZIP URL and
+  GitHub-provided SHA-256; reject unsupported versions, duplicate files,
+  mismatched hashes, invalid PE x86/x64 DLLs and wrong pluginst.inf.
+- Stage updates under per-user LOCALAPPDATA, then wait for both TC
+  architectures to close without terminating them. Back up only the
+  installed WDX files, replace them, verify installed hashes and roll
+  back partial updates with explicit errors. Leave .bar, wincmd.ini,
+  usercmd.ini and WDX custom columns untouched.
+- Add offline PowerShell tests for channel/version ordering, tampered ZIP,
+  executable architecture and injected mid-copy rollback in Windows CI.
+- Publish numbered Preview GitHub Releases from successful preview-branch
+  CI runs, with an embedded version matching the release tag. Stable
+  releases remain separate from the Preview update channel.
+
 ## 0.2.14 (Preview) — restore three distinct Total Commander symlink buttons
 
 - Configure Auto, File and Directory symlink actions together in the

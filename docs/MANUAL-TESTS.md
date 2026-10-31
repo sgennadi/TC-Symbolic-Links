@@ -1,3 +1,33 @@
+## 0.2.15 — Update Manager interactive and safety checks
+
+1. Verify the Maker now has **Check for Updates**, and that it fits at DPI
+   100%, 150%, 200% without overlapping Create / Close.
+2. Open Update Manager from 32-bit and 64-bit Total Commander; confirm
+   Russian / Hebrew / English labels, Preview / Stable selector and
+   responsive controls.
+3. Select **Never check automatically**, restart TC, and confirm there
+   is no background network update check or automatic prompt. Manual
+   **Check for Updates** must still work. Uncheck to restore auto checks.
+4. Test an account with no GitHub network connectivity: report a
+   meaningful error without blocking TC startup or changing any file.
+5. Verify the latest numbered Preview Release appears on Preview channel,
+   but not Stable. Do not offer a release without its SHA-256 digest.
+6. Download a Preview ZIP from the signed-in user's normal network;
+   verify hash, 32/64-bit PE architecture and file list before offering
+   installation. A tampered ZIP must not change installed files.
+7. While TC is open, choose Install Update: no loaded WDX can be
+   overwritten. Close all TC windows; verify that the isolated updater
+   finishes, both binaries are upgraded and the backup folder persists.
+8. Force a local write failure (e.g. testing with a denied disposable
+   plugin directory); verify explicit failure and bytewise rollback.
+   Do **not** test on production TC profiles without backups.
+9. Verify all three pre-existing symlink buttons, icons, paths, usercmd,
+   personal toolbars, custom column sets and unrelated plugins remain
+   untouched after both successful and unsuccessful updates.
+10. Test x86/x64 shared profiles, removable/downloaded ZIP location and
+    corporate security restrictions on Windows PowerShell. The updater
+    must never require changing PowerShell execution policies globally.
+
 ## 0.2.14: three-button installer and correct source types
 
 1. Back up your original `wincmd.ini`, current .bar, `usercmd.ini` and

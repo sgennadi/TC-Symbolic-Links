@@ -127,6 +127,7 @@ int wmain(int argc, wchar_t** argv) {
             HWND statusGlyph = GetDlgItem(window, 114);
             HWND browseFolder = GetDlgItem(window, 115);
             HWND closeAction = GetDlgItem(window, 106);
+            HWND checkUpdates = GetDlgItem(window, 116);
             if (!sourceList || !sourcePath || !destinationPath ||
                 !resultPane || !action)
                 std::wcerr << L"Maker controls not ready: src=" << (sourceList != nullptr)
@@ -136,7 +137,7 @@ int wmain(int argc, wchar_t** argv) {
                     << L", action=" << (action != nullptr) << L"\n";
             RECT folderBounds{}, buttonBounds{};
             if (folderGlyph && linkGlyph && statusGlyph && browseFolder &&
-                closeAction && action &&
+                closeAction && checkUpdates && action &&
                 GetWindowRect(folderGlyph, &folderBounds) &&
                 GetWindowRect(browseFolder, &buttonBounds)) {
                 const DWORD makeStyle = static_cast<DWORD>(
@@ -193,16 +194,20 @@ int wmain(int argc, wchar_t** argv) {
                 }
                 // NiPackageCreator regression: Browse is a labelled button,
                 // text fields have room, and actions do not touch each other.
-                RECT browseRect{}, createRect{}, closeRect{};
+                RECT browseRect{}, createRect{}, closeRect{}, updateRect{};
                 if (browseFolder && closeAction &&
                     GetWindowRect(browseFolder, &browseRect) &&
                     GetWindowRect(action, &createRect) &&
-                    GetWindowRect(closeAction, &closeRect)) {
+                    GetWindowRect(closeAction, &closeRect) &&
+                    checkUpdates && GetWindowRect(checkUpdates, &updateRect)) {
                     const UINT dpi = GetDpiForWindow(window);
                     nipkgControlsFit = browseRect.left >= dstLine.right &&
                         browseRect.top <= dstLine.top &&
                         browseRect.bottom >= dstLine.bottom &&
                         browseRect.right <= right.right &&
+                        updateRect.right < createRect.left &&
+                        updateRect.left >= left.left &&
+                        !ControlText(checkUpdates).empty() &&
                         createRect.right < closeRect.left &&
                         (browseRect.right - browseRect.left) >=
                             MulDiv(108, static_cast<int>(dpi), 96) &&

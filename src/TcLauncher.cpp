@@ -5,6 +5,7 @@
 // The WDX content API is implemented by SymlinkInspector.cpp in this SAME DLL.
 #include "TcIntegration.h"
 #include "TcMakerGui.h"
+#include "UpdateManager.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <string>
@@ -78,4 +79,16 @@ extern "C" __declspec(dllexport) void CALLBACK TCLinkProbeW(
     DWORD wrote = 0;
     WriteFile(file, result, sizeof(result) - 1, &wrote, nullptr);
     CloseHandle(file);
+}
+
+
+// Optional direct Total Commander button: rundll32 ...,TCLinkUpdate
+// The ordinary Maker also exposes Check for Updates in its footer.
+extern "C" __declspec(dllexport) void CALLBACK TCLinkUpdateW(
+    HWND parent, HINSTANCE module, LPWSTR, int) {
+    try { tcs::update::StartUpdateManager(module, false, parent); }
+    catch (...) {
+        MessageBoxW(parent, L"Update Manager failed.", L"TC Symbolic Links",
+                    MB_OK | MB_ICONERROR);
+    }
 }

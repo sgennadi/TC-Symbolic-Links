@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.14 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.15 LANGUAGES CXX)
+# CI preview releases use the matching GitHub workflow run number.
+set(TC_PREVIEW_ITERATION 0 CACHE STRING "Preview build serial; 0 for local builds")
+if(NOT TC_PREVIEW_ITERATION MATCHES "^[0-9]+$")
+  message(FATAL_ERROR "TC_PREVIEW_ITERATION must be a decimal integer")
+endif()
+string(LENGTH "${TC_PREVIEW_ITERATION}" TC_ITERATION_DIGITS)
+if(TC_ITERATION_DIGITS GREATER 8)
+  message(FATAL_ERROR "TC_PREVIEW_ITERATION must contain at most eight decimal digits")
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -81,13 +90,18 @@ if(WIN32)
 
   add_library(tc_integration STATIC src/TcIntegration.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp src/TcLauncher.cpp src/LinkMaker.rc)
+  add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
+    src/TcLauncher.cpp src/UpdateManager.cpp src/LinkMaker.rc)
+  # The updater is raw data embedded in this same WDX, not a companion EXE.
+  set_property(SOURCE src/LinkMaker.rc APPEND PROPERTY OBJECT_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Update-TC-SymbolicLinks.ps1")
+  target_compile_definitions(SymlinkInspector PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION})
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     # Undecorated WDX and rundll32 names for MSVC x86 __stdcall.
     target_sources(SymlinkInspector PRIVATE src/SymlinkInspector.x86.def)
   endif()
   target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 gdiplus dwmapi comctl32 shell32 ole32 uuid)
+  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 gdiplus dwmapi comctl32 shell32 ole32 uuid advapi32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX "${TC_WDX_SUFFIX}")
 
   if(BUILD_TESTING)

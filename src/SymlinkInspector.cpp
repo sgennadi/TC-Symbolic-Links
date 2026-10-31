@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #include "LinkCore.h"
 #include "TcIntegration.h"
+#include "UpdateManager.h"
 #include <windows.h>
 #else
 #include <cerrno>
@@ -258,6 +259,9 @@ struct ContentDefaultParamStruct {
 WDX_EXPORT void WDX_CALL ContentSetDefaultParams(ContentDefaultParamStruct* params) {
     tcs::AutoConfigureOnFirstLoad(params && params->size >= sizeof(ContentDefaultParamStruct)
                                  ? params->defaultIniName : nullptr);
+    // Only starts a detached Windows PowerShell check when due; no network
+    // calls, GUI or waiting in Total Commander's WDX callback.
+    tcs::update::StartAutomaticUpdateCheck();
 }
 #endif
 

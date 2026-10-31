@@ -3,6 +3,7 @@
 #include "LinkCore.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
+#include "UpdateManager.h"
 #include "TcVisualTheme.h"
 #include <windows.h>
 #include <shellapi.h>
@@ -36,6 +37,7 @@ constexpr int ID_SOURCE_GLYPH = 112;
 constexpr int ID_TARGET_GLYPH = 113;
 constexpr int ID_STATUS_GLYPH = 114;
 constexpr int ID_BROWSE = 115;
+constexpr int ID_UPDATE = 116;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr std::size_t kCreateBatchSize = 12;
@@ -81,6 +83,7 @@ struct Ui {
     bool hoveringCreate = false;
     bool hoveringClose = false;
     bool hoveringBrowse = false;
+    bool hoveringUpdate = false;
     unsigned animationFrame = 0;
     HBRUSH backgroundBrush = nullptr;
     HBRUSH cardBrush = nullptr;
@@ -107,6 +110,7 @@ struct Ui {
     HWND status = nullptr;
     HWND create = nullptr;
     HWND close = nullptr;
+    HWND update = nullptr;
     std::vector<std::wstring> selected;
     std::wstring initialDestination;
     bool creating = false;
@@ -207,7 +211,7 @@ void RecreateFont(Ui& state) {
     if (!state.fontIcon) state.fontIcon = oldIcon;
     for (HWND item : {state.sources, state.sourcePath, state.destination, state.kind,
                       state.browse,
-                      state.relative, state.results, state.create, state.close}) {
+                      state.relative, state.results, state.create, state.close, state.update}) {
         if (item && state.font) SendMessageW(item, WM_SETFONT,
                                              reinterpret_cast<WPARAM>(state.font), TRUE);
     }
@@ -432,7 +436,8 @@ LRESULT CALLBACK ActionButtonProc(HWND hwnd, UINT msg, WPARAM wParam,
     auto* state = reinterpret_cast<Ui*>(value);
     if (state) {
         bool& hovering = id == ID_CREATE ? state->hoveringCreate :
-                         id == ID_CLOSE ? state->hoveringClose : state->hoveringBrowse;
+                         id == ID_CLOSE ? state->hoveringClose :
+                         id == ID_UPDATE ? state->hoveringUpdate : state->hoveringBrowse;
         if (msg == WM_MOUSEMOVE && !hovering) {
             hovering = true;
             TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0};
@@ -448,10 +453,12 @@ LRESULT CALLBACK ActionButtonProc(HWND hwnd, UINT msg, WPARAM wParam,
 void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     RECT r = item.rcItem;
     const bool create = item.CtlID == ID_CREATE;
-    const bool browse = item.CtlID == ID_BROWSE;
+    const bool update = item.CtlID == ID_UPDATE;
+    const bool browse = item.CtlID == ID_BROWSE || update;
     const bool enabled = (item.itemState & ODS_DISABLED) == 0;
     const bool pressed = (item.itemState & ODS_SELECTED) != 0;
     const bool hot = create ? state.hoveringCreate :
+                     update ? state.hoveringUpdate :
                      browse ? state.hoveringBrowse : state.hoveringClose;
     const COLORREF fill = browse ? (hot ? tcs::visual::SoftBlue : kSurface) :
         create ? (!enabled ? RGB(192, 207, 216) : pressed ? tcs::visual::GreenDark :
@@ -488,7 +495,8 @@ void PaintAction(const Ui& state, const DRAWITEMSTRUCT& item) {
     const int iconX = state.he ? r.right - Dp(state, 15) - iconSize :
                                  r.left + Dp(state, 14);
     const RECT icon{iconX, iconY, iconX + iconSize, iconY + iconSize};
-    const auto glyph = browse ? tcs::visual::ButtonGlyph::Folder :
+    const auto glyph = update ? tcs::visual::ButtonGlyph::Refresh :
+                       browse ? tcs::visual::ButtonGlyph::Folder :
                        create ? tcs::visual::ButtonGlyph::Create :
                        state.creating ? tcs::visual::ButtonGlyph::Stop :
                                         tcs::visual::ButtonGlyph::Close;
@@ -711,6 +719,10 @@ void Layout(HWND hwnd, Ui& s) {
     const int actionH = Dp(s, 40);
     const int createWidth = MeasuredButtonWidth(s, s.create, 148);
     const int closeWidth = MeasuredButtonWidth(s, s.close, 126);
+    const int updateWidth = MeasuredButtonWidth(s, s.update, 180);
+    place(s.update, width - margin - Dp(s, 10) - closeWidth -
+          Dp(s, 10) - createWidth - Dp(s, 10) - updateWidth,
+          buttonY, updateWidth, actionH);
     place(s.create, width - margin - Dp(s, 10) - closeWidth - Dp(s, 10) - createWidth,
           buttonY, createWidth, actionH);
     place(s.close, width - margin - Dp(s, 10) - closeWidth,
@@ -718,7 +730,7 @@ void Layout(HWND hwnd, Ui& s) {
     // Hidden accessibility/status controls retain their text and Win32 IDs.
     place(s.statusGlyph, leftX, buttonY + Dp(s, 7), Dp(s, 24), Dp(s, 24));
     place(s.status, leftX + Dp(s, 29), buttonY + Dp(s, 5),
-          (std::max)(Dp(s, 60), usable - createWidth - closeWidth - Dp(s, 116)),
+          (std::max)(Dp(s, 60), usable - createWidth - closeWidth - updateWidth - Dp(s, 126)),
           Dp(s, 28));
     InvalidateRect(hwnd, nullptr, FALSE);
 }
@@ -881,6 +893,9 @@ void CreateControls(HWND hwnd, Ui& s) {
     s.close = AddControl(hwnd, L"BUTTON", s.Choose(
         L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"),
         WS_TABSTOP | BS_OWNERDRAW, ID_CLOSE);
+    s.update = AddControl(hwnd, L"BUTTON", s.Choose(
+        L"Check for Updates", L"Проверить обновления", L"בדיקת עדכונים"),
+        WS_TABSTOP | BS_OWNERDRAW, ID_UPDATE);
 
     for (const wchar_t* label : {
         s.Choose(L"Automatic (file / folder)", L"Автоматически (файл / папка)",
@@ -898,12 +913,18 @@ void CreateControls(HWND hwnd, Ui& s) {
                       reinterpret_cast<DWORD_PTR>(&s));
     SetWindowSubclass(s.close, ActionButtonProc, ID_CLOSE,
                       reinterpret_cast<DWORD_PTR>(&s));
+    SetWindowSubclass(s.update, ActionButtonProc, ID_UPDATE,
+                      reinterpret_cast<DWORD_PTR>(&s));
     SetWindowSubclass(s.browse, ActionButtonProc, ID_BROWSE,
                       reinterpret_cast<DWORD_PTR>(&s));
     AddToolTip(hwnd, s.browse, s.Choose(
         L"Choose another destination folder...",
         L"Выберите папку назначения...",
         L"בחירת תיקיית יעד אחרת..."));
+    AddToolTip(hwnd, s.update, s.Choose(
+        L"Check releases, set Preview/Stable channel and automatic checks.",
+        L"Проверить версии, канал Preview/Stable и автоматические обновления.",
+        L"בדוק גרסאות וקבע עדכונים אוטומטיים."));
     AddToolTip(hwnd, s.create, s.Choose(
         L"Create links in the destination panel (F5)",
         L"Создать ссылки в папке назначения (F5)",
@@ -925,6 +946,7 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     if (state.statusGlyph) InvalidateRect(state.statusGlyph, nullptr, TRUE);
     if (state.close) InvalidateRect(state.close, nullptr, FALSE);
     if (state.browse) EnableWindow(state.browse, TRUE);
+    if (state.update) EnableWindow(state.update, TRUE);
     AppendLine(state.results, L"------------------------------");
     AppendLine(state.results, state.Choose(L"Created: ", L"Создано: ", L"נוצרו: ") +
         std::to_wstring(state.completed) + state.Choose(L"; skipped / failed: ",
@@ -1124,6 +1146,7 @@ void BeginCreate(HWND hwnd, Ui& state) {
     SetWindowTextW(state.results, L"");
     EnableWindow(state.create, FALSE);
     if (state.browse) EnableWindow(state.browse, FALSE);
+    if (state.update) EnableWindow(state.update, FALSE);
     EnableWindow(state.relative, FALSE);
     SetWindowTextW(state.status, state.Choose(L"Creating links...",
         L"Создание ссылок...", L"יוצר קישורים..."));
@@ -1297,7 +1320,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state && lParam) {
                 const auto* item = reinterpret_cast<const DRAWITEMSTRUCT*>(lParam);
                 if (item->CtlID == ID_CREATE || item->CtlID == ID_CLOSE ||
-                    item->CtlID == ID_BROWSE) {
+                    item->CtlID == ID_BROWSE || item->CtlID == ID_UPDATE) {
                     PaintAction(*state, *item);
                     return TRUE;
                 }
@@ -1362,7 +1385,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) ContinueCreate(hwnd, *state);
             return 0;
         case WM_COMMAND:
-            if (state && LOWORD(wParam) == ID_BROWSE && HIWORD(wParam) == BN_CLICKED) {
+            if (state && LOWORD(wParam) == ID_UPDATE && HIWORD(wParam) == BN_CLICKED) {
+                if (!state->creating)
+                    tcs::update::StartUpdateManager(nullptr, false, hwnd);
+            } else if (state && LOWORD(wParam) == ID_BROWSE && HIWORD(wParam) == BN_CLICKED) {
                 ChooseDestination(hwnd, *state);
             } else if (state && LOWORD(wParam) == ID_KIND && HIWORD(wParam) == CBN_SELCHANGE) {
                 UpdateModeHelp(*state);

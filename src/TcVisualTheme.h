@@ -33,7 +33,7 @@ constexpr COLORREF Field = RGB(249, 251, 255);
 
 // The same recognizable glyph vocabulary as NipkgCreator.ModernButton.
 // Native vector paths avoid empty Segoe MDL2 glyphs on some Windows images.
-enum class ButtonGlyph { Folder, Create, Close, Stop, Link };
+enum class ButtonGlyph { Folder, Create, Close, Stop, Link, Refresh };
 
 
 inline int Px(int base, UINT dpi) {
@@ -152,6 +152,13 @@ inline void Glyph(HDC dc, const RECT& bounds, ButtonGlyph kind,
             g.DrawEllipse(&pen, x + 1.f * sx, y + 8.f * sy, 11.f * sx, 8.f * sy);
             g.DrawEllipse(&pen, x + 8.f * sx, y + 4.f * sy, 11.f * sx, 8.f * sy);
             break;
+        case ButtonGlyph::Refresh: {
+            Gdiplus::RectF arc(x + 3.f * sx, y + 3.f * sy, 14.f * sx, 14.f * sy);
+            g.DrawArc(&pen, arc, 32.f, 292.f);
+            line(16.f, 3.f, 17.f, 9.f);
+            line(16.f, 3.f, 10.5f, 5.f);
+            break;
+        }
     }
 }
 

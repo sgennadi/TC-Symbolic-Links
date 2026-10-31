@@ -2,3 +2,4 @@
 101 ICON "LinkMaker.ico"
 102 ICON "FileSymlink.ico"
 103 ICON "DirectorySymlink.ico"
+220 RCDATA "Update-TC-SymbolicLinks.ps1"
