@@ -1,4 +1,4 @@
-# TC Symbolic Links Update Manager 0.2.15
+﻿# TC Symbolic Links Update Manager 0.2.15
 # Trusted script embedded as WDX RCDATA; downloaded ZIP contents are DATA ONLY.
 # No bundled or downloaded EXE is executed. Windows PowerShell is an OS component.
 [CmdletBinding()]
@@ -261,6 +261,16 @@ function Message([string]$text) {
     [void][Windows.Forms.MessageBox]::Show($text,'TC Symbolic Links',
         [Windows.Forms.MessageBoxButtons]::OK,[Windows.Forms.MessageBoxIcon]::Information)
 }
+function Can-WritePluginDirectory([string]$directory) {
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) { return $false }
+    $probe=Join-Path $directory ('TCS-WriteTest-'+[Guid]::NewGuid().ToString('N')+'.tmp')
+    try {
+        $stream=[IO.File]::Open($probe,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        $stream.Dispose()
+        return $true
+    } catch { return $false }
+    finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
+}
 function Show-Manager($initial) {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
@@ -357,8 +367,23 @@ function Show-Manager($initial) {
             $start=[Diagnostics.ProcessStartInfo]::new()
             $start.FileName=Join-Path $PSHOME 'powershell.exe'
             $start.Arguments=('-NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File "{0}" -Mode Apply -PluginPath "{1}" -StageDirectory "{2}"' -f (Join-Path $stage 'apply.ps1'),$PluginPath,$stage)
-            $start.UseShellExecute=$false
-            $start.CreateNoWindow=$true
+            $targetDirectory=Split-Path -LiteralPath $PluginPath -Parent
+            if (-not (Can-WritePluginDirectory $targetDirectory)) {
+                # Program Files and some shared installations need explicit UAC.
+                # Never elevate silently, change ACLs, or change user passwords.
+                $question=Say 'The plugin directory is protected. Allow Windows UAC elevation to install the VERIFIED update?' 'Папка плагина защищена. Разрешить запрос UAC для установки ПРОВЕРЕННОГО обновления?' 'התיקייה מוגנת. לאשר הרשאות מנהל לעדכון המאומת?'
+                $agree=[Windows.Forms.MessageBox]::Show(
+                    $question,'TC Symbolic Links',
+                    [Windows.Forms.MessageBoxButtons]::YesNo,
+                    [Windows.Forms.MessageBoxIcon]::Question)
+                if ($agree -ne [Windows.Forms.DialogResult]::Yes) { throw 'Elevation declined; no installed files changed.' }
+                $start.UseShellExecute=$true
+                $start.Verb='runas'
+                $start.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
+            } else {
+                $start.UseShellExecute=$false
+                $start.CreateNoWindow=$true
+            }
             $start.WorkingDirectory=$stage
             $proc=[Diagnostics.Process]::Start($start)
             if ($null -eq $proc) {throw 'After-close updater process could not start.'}

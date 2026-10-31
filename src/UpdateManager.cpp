@@ -102,11 +102,20 @@ bool Launch(HMODULE module, bool automatic) {
         return false;
     }
     constexpr unsigned char bom[3]{0xEF, 0xBB, 0xBF};
+    const auto* payload = static_cast<const unsigned char*>(script);
+    const bool embeddedBom = bytes >= 3 &&
+        payload[0] == bom[0] && payload[1] == bom[1] &&
+        payload[2] == bom[2];
     DWORD written = 0;
-    bool okay = WriteFile(file, bom, sizeof(bom), &written, nullptr) &&
-        written == sizeof(bom);
+    bool okay = true;
+    // Windows PowerShell 5.1 assumes an ANSI code page without this BOM.
+    // The repository script already has a UTF-8 BOM; never write two.
+    if (!embeddedBom)
+        okay = WriteFile(file, bom, sizeof(bom), &written, nullptr) &&
+               written == sizeof(bom);
     written = 0;
-    okay = okay && WriteFile(file, script, bytes, &written, nullptr) && written == bytes;
+    okay = okay && WriteFile(file, script, bytes, &written, nullptr) &&
+           written == bytes;
     CloseHandle(file);
     if (!okay) {
         DeleteFileW(scriptFile.c_str());
