@@ -1,3 +1,26 @@
+## 0.2.14: three-button installer and correct source types
+
+1. Back up your original `wincmd.ini`, current .bar, `usercmd.ini` and
+   custom WDX columns. Install the single x86/x64 plugin ZIP using the
+   built-in `pluginst.inf` dialog.
+2. The startup toolbar must gain **exactly three** clearly distinct
+   plugin buttons: Auto (chain), File symlink (blue file) and Directory
+   symlink (gold folder). No original buttons, icons or subbars disappear.
+3. Select one file and invoke **Directory symlink**. It must show a
+   translated type-mismatch warning and must not create an empty folder.
+   Repeat with a folder selected and the **File symlink** button.
+4. The native Maker mode list must open on Automatic / File / Directory,
+   respectively. Switching mode manually after opening must still work.
+5. Run installation a second time: still exactly three plugin buttons,
+   no duplicates, no changes to unrelated sections of .bar or usercmd.ini.
+6. Upgrade from a 0.2.13 profile with only the Auto button. The existing
+   Auto button and personal icons must remain in their original positions.
+7. On a shared 32/64-bit profile, switch architectures. After accepting
+   the rebind, the same three buttons must call the matching DLL without
+   adding duplicates or overwriting other shortcuts.
+8. Confirm the initial .tcslinks.bak and timestamped pre-update snapshots
+   are kept, and the original active toolbar selection is unchanged.
+
 ## 0.2.13: real SMB smoke and target-traversal checks
 
 1. On a disposable writable SMB share, test a file and a directory link

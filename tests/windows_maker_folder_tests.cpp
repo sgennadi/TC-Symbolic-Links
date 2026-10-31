@@ -69,7 +69,7 @@ int wmain(int argc, wchar_t** argv) {
         std::wstring command = L"\"" + rundll.wstring() + L"\" \"" +
             dll.wstring() + L"\",TCLinkCreate --list \"" +
             (root.dir / L"selected.wl").wstring() + L"\" --dest \"" +
-            output.wstring() + L"\" --tc-launch";
+            output.wstring() + L"\" --mode directory --tc-launch";
         STARTUPINFOW startup{sizeof(startup)};
         PROCESS_INFORMATION process{};
         Check(CreateProcessW(rundll.c_str(), command.data(), nullptr, nullptr,
@@ -103,6 +103,7 @@ int wmain(int argc, wchar_t** argv) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         bool created = false;
+        bool presetDirectoryMode = false;
         bool helpPresent = false;
         bool relativeDisabled = false;
         bool wrongHint = false;
@@ -241,6 +242,10 @@ int wmain(int argc, wchar_t** argv) {
                 }
             }
             HWND combo = GetDlgItem(window, 102);
+            // The dedicated Directory toolbar button must preselect its
+            // mode before any user interaction. The same flag parser drives
+            // --mode file for the File Symlink button.
+            presetDirectoryMode = combo && SendMessageW(combo, CB_GETCURSEL, 0, 0) == 2;
             HWND createButton = GetDlgItem(window, 105);
             HWND relativeButton = GetDlgItem(window, 103);
             HWND help = GetDlgItem(window, 108);
@@ -273,6 +278,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
+        Check(presetDirectoryMode, "Directory toolbar mode was not preselected");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
         Check(understandableControls, "Source/target/status glyphs, browse icon or labeled Create/Close buttons missing");
         Check(nipkgControlsFit, "Ni-package-style Browse or action buttons clipped or overlap file panes");

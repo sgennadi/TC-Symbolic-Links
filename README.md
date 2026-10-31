@@ -1,6 +1,6 @@
-# TC Symbolic Links 0.2.13 Preview
+# TC Symbolic Links 0.2.14 Preview
 
-**All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
+**All-in-one Total Commander x86/x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
 Unicode link-creation UI). **No companion EXE is needed.** The button calls
 the installed DLL through the system `rundll32.exe`.
@@ -10,6 +10,38 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.14 Preview — three integrated native buttons with distinct icons
+
+The WDX installer configures three commands in the **existing** Total
+Commander startup toolbar. It never switches to a new .bar or removes
+your existing buttons, custom icons, personal commands or WDX column sets.
+
+1. **TC Symbolic Links - Create links**: auto-detects file vs directory,
+   opens the common native Maker with Automatic selected.
+2. **TC Symbolic Links - File symlink**: opens with File symbolic link
+   preselected; file-only selection is enforced before writing.
+3. **TC Symbolic Links - Directory symlink**: opens with Directory
+   symbolic link preselected; directory-only selection is enforced.
+
+All three use the **same** `SymlinkInspector.wdx`/`.wdx64` DLL, native
+`rundll32.exe` and `TCLinkCreate` entry point with optional
+`--mode file`/`--mode directory`; no helper EXE is installed.
+Three embedded icon resources (Auto chain, blue file, gold folder) at
+indexes 0, 1 and 2 include 16/32/48/64px images with alpha transparency.
+
+For existing 0.2.13 installations the Auto command is repaired **in place**;
+only missing File/Directory buttons are appended. Repeated setup leaves
+exactly the same button count. If a different command owns one of the
+exact menu labels, installation aborts without changing the user's files.
+The installer saves an immutable first-time snapshot and a fresh
+pre-update backup for every affected configuration. On any write failure,
+it attempts byte-for-byte rollback. `usercmd.ini` is never edited.
+
+When switching TC x86 and x64 with a shared toolbar, both the
+`System32` and `SysWOW64` versions of `rundll32.exe` are recognized as
+belonging to this plugin; rebinding is offered instead of silently
+duplicating buttons. Auto-setup version marker increments to 214.
 
 ## 0.2.13 Preview — validate SMB creation separately from traversal
 

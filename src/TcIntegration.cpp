@@ -7,6 +7,7 @@
 #include "TcIntegration.h"
 #include "TcCustomView.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <cwchar>
@@ -17,7 +18,16 @@
 
 namespace {
 constexpr wchar_t kTitle[] = L"TC Symbolic Links";
-constexpr wchar_t kButtonLabel[] = L"TC Symbolic Links - Create links";
+constexpr std::array<const wchar_t*, 3> kButtonLabels{
+    L"TC Symbolic Links - Create links",
+    L"TC Symbolic Links - File symlink",
+    L"TC Symbolic Links - Directory symlink"
+};
+// In the common Maker each button chooses an initial mode, which the user
+// may change before pressing F5. No companion executable is necessary.
+constexpr std::array<const wchar_t*, 3> kModeArguments{
+    L"", L" --mode file", L" --mode directory"
+};
 std::atomic_flag g_attempted = ATOMIC_FLAG_INIT;
 
 std::wstring Parent(std::wstring path) {
@@ -164,6 +174,22 @@ bool AcpRoundTrip(std::wstring_view value) {
     return MultiByteToWideChar(cp, cp == CP_UTF8 ? MB_ERR_INVALID_CHARS : 0, multibyte.data(), length, roundTrip.data(), wideLength) == wideLength
         && roundTrip == value;
 }
+// Recognize *both* Windows loader paths. A profile can be shared between
+// x86 (SysWOW64\rundll32.exe) and x64 (System32\rundll32.exe) TC.
+// Comparing against only the current process host would reject our own
+// button on the next architecture switch.
+bool IsSystemRundll32(const std::wstring& cmd) {
+    wchar_t root[32768]{};
+    const auto n = GetWindowsDirectoryW(root, 32768);
+    if (!n || n >= 32768) return false;
+    const std::wstring prefix(root, n);
+    for (const wchar_t* folder : {L"System32", L"SysWOW64"}) {
+        const auto expected = Join(Join(prefix, folder), L"rundll32.exe");
+        if (_wcsicmp(expected.c_str(), cmd.c_str()) == 0) return true;
+    }
+    return false;
+}
+
 bool CanOpenForWrite(const std::wstring& path) {
     HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -236,14 +262,18 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     // silently open an error dialog instead of our Maker window. Finish with
     // an ignored but harmless marker so the final character is not a quote.
     // RunMakerFromArguments deliberately ignores unknown --tc-launch tokens.
-    const std::wstring arguments = L"\"" + actualDll +
-        L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\" --tc-launch";
-    if (!AcpRoundTrip(arguments)) {
-        status = L"This plugin path is not representable in the active bar's INI encoding. "
-                 L"Install the WDX under COMMANDER_PATH or the TC INI folder.";
-        return false;
+    std::array<std::wstring, 3> arguments;
+    for (std::size_t i = 0; i < arguments.size(); ++i) {
+        arguments[i] = L"\"" + actualDll +
+            L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"" +
+            kModeArguments[i] + L" --tc-launch";
+        if (!AcpRoundTrip(arguments[i])) {
+            status = L"This plugin path is not representable in the active bar's INI encoding. "
+                     L"Install the WDX under COMMANDER_PATH or the TC INI folder.";
+            return false;
+        }
     }
-    wchar_t systemDir[32768]{};
+     wchar_t systemDir[32768]{};
     const UINT sysLen = GetSystemDirectoryW(systemDir, 32768);
     if (!sysLen || sysLen >= 32768) { status = L"Cannot find system rundll32.exe."; return false; }
     const auto host = Join(systemDir, L"rundll32.exe");
@@ -256,22 +286,38 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         status = L"Active button count is invalid or too large.";
         return false;
     }
-    int slot = 0;
+    std::array<int, 3> slots{};
     for (int i = 1; i <= count; ++i) {
         const auto n = std::to_wstring(i);
         const auto cmd = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
         const auto menu = ReadIni(sourceBar, L"Buttonbar", (L"menu" + n).c_str());
-        if (menu == kButtonLabel) {
-            // Treat only a command created by our versions as ours.
-            if (_wcsicmp(cmd.c_str(), L"em_TCSymbolicLinks_Create") != 0 &&
-                (_wcsicmp(cmd.c_str(), host.c_str()) != 0 ||
-                 ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str()).find(L"SymlinkInspector.wdx") == std::wstring::npos)) {
-                status = L"An unrelated button has the same label; refusing to replace it.";
+        for (std::size_t mode = 0; mode < slots.size(); ++mode) {
+            if (menu != kButtonLabels[mode]) continue;
+            const auto param = ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str());
+            const bool legacy = mode == 0 &&
+                _wcsicmp(cmd.c_str(), L"em_TCSymbolicLinks_Create") == 0;
+            const bool thisWdx = IsSystemRundll32(cmd) &&
+                param.find(L"SymlinkInspector.wdx") != std::wstring::npos &&
+                param.find(L",TCLinkCreate ") != std::wstring::npos;
+            const bool matchingMode = mode == 0 ?
+                (param.find(L"--mode file") == std::wstring::npos &&
+                 param.find(L"--mode directory") == std::wstring::npos) :
+                param.find(kModeArguments[mode]) != std::wstring::npos;
+            if (!legacy && !(thisWdx && matchingMode)) {
+                status = L"A toolbar button has a plugin label but does not belong "
+                         L"to this WDX mode. No settings changed.";
                 return false;
             }
-            slot = i;
-            break;
+            // Duplicate legacy entries are preserved, not overwritten or
+            // deleted. We repair only the first recognized plugin entry.
+            if (!slots[mode]) slots[mode] = i;
         }
+    }
+    int missing = 0;
+    for (int slot : slots) if (!slot) ++missing;
+    if (count + missing >= 10000) {
+        status = L"Not enough free slots in the existing toolbar.";
+        return false;
     }
     if (!CanOpenForWrite(barFile) || !CanOpenForWrite(tcIni) ||
         (columnsIni != tcIni && !CanOpenForWrite(columnsIni))) {
@@ -326,17 +372,22 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             if (!WriteBytes(it->path, it->original)) okay = false;
         return okay;
     };
-    const int targetSlot = slot ? slot : static_cast<int>(count) + 1;
-    const auto number = std::to_wstring(targetSlot);
-    bool ok = WriteIni(barFile, L"Buttonbar", L"cmd" + number, host) &&
-        WriteIni(barFile, L"Buttonbar", L"param" + number, arguments) &&
-        WriteIni(barFile, L"Buttonbar", L"button" + number, actualDll + L",0") &&
-        WriteIni(barFile, L"Buttonbar", L"menu" + number, kButtonLabel);
-    if (ok && !slot) ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", number);
-    // Test the exact reader used by our toolbar parser. Quote-loss is a
-    // dangerous no-op-button regression and must fail transactionally.
-    if (ok && ReadIni(barFile, L"Buttonbar", (L"param" + number).c_str()) != arguments)
-        ok = false;
+    int nextSlot = static_cast<int>(count);
+    bool ok = true;
+    for (std::size_t mode = 0; mode < slots.size() && ok; ++mode) {
+        const int targetSlot = slots[mode] ? slots[mode] : ++nextSlot;
+        const auto number = std::to_wstring(targetSlot);
+        ok = WriteIni(barFile, L"Buttonbar", L"cmd" + number, host) &&
+             WriteIni(barFile, L"Buttonbar", L"param" + number, arguments[mode]) &&
+             WriteIni(barFile, L"Buttonbar", L"button" + number,
+                      actualDll + L"," + std::to_wstring(mode)) &&
+             WriteIni(barFile, L"Buttonbar", L"menu" + number, kButtonLabels[mode]);
+        // Verify the serialized command before continuing to the next mode.
+        if (ok && ReadIni(barFile, L"Buttonbar", (L"param" + number).c_str()) != arguments[mode])
+            ok = false;
+    }
+    if (ok && nextSlot != count)
+        ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", std::to_wstring(nextSlot));
     const auto suffix = std::to_wstring(preset);
     constexpr wchar_t headers[] = L"Name\\nExt\\nLink type\\nLink target\\nExists\\nHardlinks";
     constexpr wchar_t widths[] = L"160,60,140,310,62,-85";
@@ -364,13 +415,12 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         return false;
     }
     status = implicitDefaultBar ?
-        L"One Create Links button was appended to the writable DEFAULT.BAR. "
-        L"The active toolbar selection was NOT changed. Your original "
-        L"DEFAULT.BAR has a .tcslinks.bak snapshot. WDX columns are enabled "
-        L"in both panels. Restart all Total Commander windows." :
-        L"One Create Links button was appended to your existing startup .bar. "
-        L"The toolbar selection and usercmd.ini were NOT changed. "
-        L"WDX columns are enabled in both panels. Restart Total Commander.";
+        L"Three symlink buttons (Auto / File / Directory) were configured in "
+        L"the writable DEFAULT.BAR without switching toolbars. An original "
+        L"and pre-update backup exist; WDX columns are enabled. Restart TC." :
+        L"Three symlink buttons (Auto / File / Directory) were configured "
+        L"in the existing startup bar. The toolbar selection and usercmd.ini "
+        L"were NOT changed. WDX columns are enabled. Restart TC.";
     return true;
 }
 
@@ -406,18 +456,19 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     // one actual DLL; prompt for a safe rebind on architecture switches.
     if ((matchingLauncher &&
          GetPrivateProfileIntW(L"Setup", completedKey, 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 212) ||
+         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 214) ||
         GetPrivateProfileIntW(L"Setup", declinedKey, 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
     const bool ru = PRIMARYLANGID(lang) == LANG_RUSSIAN;
     const bool he = PRIMARYLANGID(lang) == LANG_HEBREW;
     const wchar_t* prompt = he ?
-        L"להוסיף כפתור קישורים לפאנל הנוכחי ולהציג עמודות בשני הצדדים? נשמור גיבוי." :
-        ru ? L"Добавить кнопку в стартовую панель без переключения и настроить колонки в обеих панелях? "
-             L"Будут сделаны резервные копии." :
-             L"Append one button to your STARTUP toolbar WITHOUT SWITCHING toolbars and enable WDX columns "
-             L"in both panes? Original files will be backed up.";
+        L"להוסיף שלושה כפתורי קישורים (אוטומטי/קובץ/תיקייה) לסרגל הקיים? "
+        L"ההגדרות והכפתורים הקיימים יגובו." :
+        ru ? L"Добавить три кнопки (универсальная / файл / папка) в стартовую панель, "
+             L"не заменяя её? Сохраним резервные копии кнопок и настроек." :
+             L"Add three symlink buttons (Auto / File / Directory) to the existing "
+             L"startup toolbar without replacing it? Backups will be preserved.";
     if (MessageBoxW(owner, prompt, L"TC Symbolic Links", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         WriteIni(marker, L"Setup", declinedKey, L"1");
         return;
@@ -433,7 +484,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
         WriteIni(marker, L"Setup", completedKey, L"1");
-        WriteIni(marker, L"Setup", versionKey, L"212");
+        WriteIni(marker, L"Setup", versionKey, L"214");
         WriteIni(marker, L"Setup", L"LastConfiguredArchitecture",
                  is64 ? L"64" : L"32");
     }

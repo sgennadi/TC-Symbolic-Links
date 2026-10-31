@@ -110,6 +110,9 @@ struct Ui {
     std::vector<std::wstring> selected;
     std::wstring initialDestination;
     bool creating = false;
+    // The toolbar may start the Maker in Automatic, File or Directory mode.
+    // Users can still change the combo before pressing F5.
+    int initialMode = 0;
     bool privilegeError = false;
     bool hasRun = false;
     bool unsafeDestination = false;
@@ -889,7 +892,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         s.Choose(L"File hardlink", L"Hardlink файла", L"קישור קשיח לקובץ")
     }) SendMessageW(s.kind, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label));
 
-    SendMessageW(s.kind, CB_SETCURSEL, 0, 0);
+    SendMessageW(s.kind, CB_SETCURSEL, static_cast<WPARAM>(s.initialMode), 0);
     SendMessageW(s.relative, BM_SETCHECK, BST_UNCHECKED, 0);
     SetWindowSubclass(s.create, ActionButtonProc, ID_CREATE,
                       reinterpret_cast<DWORD_PTR>(&s));
@@ -1421,6 +1424,7 @@ std::vector<std::wstring> ReadSelectedList(const std::wstring& fileName) {
 int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, int show) {
     std::wstring listFile;
     std::wstring destination;
+    int requestedMode = 0; // 0=automatic, 1=file, 2=directory
     int count = 0;
     // rundll32 passes only arguments after the exported entry point, not an EXE path.
     // Add a synthetic argv[0] so CommandLineToArgvW can safely process quoting.
@@ -1432,6 +1436,12 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
             const std::wstring_view argument = commandLine[i];
             if (argument == L"--list" && i + 1 < count) listFile = commandLine[++i];
             else if (argument == L"--dest" && i + 1 < count) destination = commandLine[++i];
+            else if (argument == L"--mode" && i + 1 < count) {
+                const std::wstring_view mode = commandLine[++i];
+                if (mode == L"file") requestedMode = 1;
+                else if (mode == L"directory") requestedMode = 2;
+                else requestedMode = 0;
+            }
         }
         LocalFree(commandLine);
     }
@@ -1461,6 +1471,7 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     state->he = PRIMARYLANGID(uiLanguage) == LANG_HEBREW;
     state->selected = std::move(selected);
     state->initialDestination = std::move(destination);
+    state->initialMode = requestedMode;
     INITCOMMONCONTROLSEX common{sizeof(common), ICC_LISTVIEW_CLASSES};
     if (!InitCommonControlsEx(&common)) { delete state; return 5; }
     GdiPlusScope graphics;

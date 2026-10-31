@@ -1,3 +1,18 @@
+## 0.2.14 (Preview) — restore three distinct Total Commander symlink buttons
+
+- Configure Auto, File and Directory symlink actions together in the
+  original user .bar, each with an embedded color icon and a mode-specific
+  native Maker launch. No companion EXE or external scripts are needed.
+- Existing Auto button is repaired in place; only missing File/Directory
+  commands are appended. Reconfiguration is idempotent and transactional.
+- Recognize both System32 and SysWOW64 rundll32 hosts to support x86/x64
+  shared profiles. Never touch unrelated buttons, toolbar selection or
+  usercmd.ini; keep snapshots and bytewise rollback.
+- Enforce correct file/folder selection with the existing Maker preflight;
+  avoid empty / placeholder links when an incorrect mode is clicked.
+- Extend Windows CI for three buttons, icon extraction and Directory-mode
+  preselection, while retaining real x86/x64 SMB loopback regression tests.
+
 ## 0.2.13 (Preview) — real SMB loopback tests and traversal diagnostics
 
 - Add read-only target-open verification to distinguish a successfully

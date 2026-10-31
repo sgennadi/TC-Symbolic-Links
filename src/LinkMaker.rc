@@ -1,2 +1,4 @@
 // Native toolbar icon inside the single WDX module (resource index 0).
 101 ICON "LinkMaker.ico"
+102 ICON "FileSymlink.ico"
+103 ICON "DirectorySymlink.ico"
