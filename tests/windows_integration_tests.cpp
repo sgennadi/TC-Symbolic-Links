@@ -62,7 +62,9 @@ int wmain(int argc, wchar_t** argv) {
                 FindResourceW(resourceModule, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(14)) != nullptr;
             HICON byId = resourceModule ? static_cast<HICON>(LoadImageW(
                 resourceModule, MAKEINTRESOURCEW(resourceId), IMAGE_ICON, 32, 32, 0)) : nullptr;
-            if (count != 1 || (!iconBig && !iconSmall) || !byId || !hasGroup) {
+            // ExtractIconExW can count BOTH large/small icon handles when
+            // both output arrays are requested, even with nIcons == 1.
+            if (count == 0 || (!iconBig && !iconSmall) || !byId || !hasGroup) {
                 std::wcerr << L"WDX_ICON_DIAGNOSTIC index=" << index
                            << L" total=" << totalIcons
                            << L" extracted=" << count
@@ -70,7 +72,7 @@ int wmain(int argc, wchar_t** argv) {
                            << L" groupExists=" << hasGroup
                            << L" directLoad=" << (byId != nullptr) << L"\\n";
             }
-            const bool present = count == 1 && (iconBig || iconSmall) && hasGroup && byId;
+            const bool present = count > 0 && (iconBig || iconSmall) && hasGroup && byId;
             if (iconBig) DestroyIcon(iconBig);
             if (iconSmall) DestroyIcon(iconSmall);
             if (byId) DestroyIcon(byId);
