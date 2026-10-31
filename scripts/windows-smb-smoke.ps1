@@ -32,8 +32,12 @@ $report = [ordered]@{
     win64 = 'not-started'
     win32 = 'not-started'
     cleanup = 'not-started'
+    test_errors = @()
+    cleanup_errors = @()
 }
-$allErrors = [System.Collections.Generic.List[string]]::new()
+# Test failure and cleanup failure must be tracked separately.
+$testErrors = [System.Collections.Generic.List[string]]::new()
+$cleanupErrors = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-SmbBinary {
     param([string]$Label, [string]$Binary)
@@ -89,36 +93,51 @@ try {
                     }
                 }
 
-                $report.win64 = Invoke-SmbBinary -Label 'win64' -Binary $Win64Test
-                $report.win32 = Invoke-SmbBinary -Label 'win32' -Binary $Win32Test
+                # Even if one architecture fails, test the other and
+                # preserve both outputs before running the full cleanup.
+                foreach ($arch in @(
+                    @{ Label = 'win64'; Binary = $Win64Test },
+                    @{ Label = 'win32'; Binary = $Win32Test }
+                )) {
+                    try {
+                        $report[$arch.Label] = Invoke-SmbBinary -Label $arch.Label -Binary $arch.Binary
+                    } catch {
+                        $report[$arch.Label] = 'failed'
+                        $testErrors.Add("$($arch.Label): $($_.Exception.Message)")
+                        Write-Warning "$($arch.Label): SMB executable failed; checking the other architecture."
+                    }
+                }
             }
         }
     }
 } catch {
-    $allErrors.Add($_.Exception.Message)
+    $testErrors.Add($_.Exception.Message)
     Write-Warning $_.Exception.Message
 } finally {
     Remove-Item Env:\TC_SMB_SMOKE_ROOT -ErrorAction SilentlyContinue
     Remove-Item Env:\TC_SMB_MAPPED_ROOT -ErrorAction SilentlyContinue
     if ($mappedDrive) {
         & net.exe use $mappedDrive /delete /y *> $null
-        if ($LASTEXITCODE -ne 0) { $allErrors.Add('Could not remove temporary network drive.') }
+        if ($LASTEXITCODE -ne 0) { $cleanupErrors.Add('Could not remove temporary network drive.') }
     }
     if ($createdShare) {
         try {
             Remove-SmbShare -Name $shareName -Force -Confirm:$false -ErrorAction Stop
-        } catch { $allErrors.Add("Could not remove temporary SMB share: $($_.Exception.Message)") }
+        } catch { $cleanupErrors.Add("Could not remove temporary SMB share: $($_.Exception.Message)") }
     }
     if (Test-Path -LiteralPath $folder) {
         try {
             Remove-Item -LiteralPath $folder -Force -Recurse -ErrorAction Stop
-        } catch { $allErrors.Add("Could not remove temporary SMB folder: $($_.Exception.Message)") }
+        } catch { $cleanupErrors.Add("Could not remove temporary SMB folder: $($_.Exception.Message)") }
     }
-    $report.cleanup = if ($allErrors.Count -eq 0) { 'passed' } else { 'failed' }
+    $report.cleanup = if ($cleanupErrors.Count -eq 0) { 'passed' } else { 'failed' }
+    $report.test_errors = @($testErrors)
+    $report.cleanup_errors = @($cleanupErrors)
     $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (
         Join-Path $OutputDirectory 'result.json') -Encoding utf8
     Write-Host ('SMB smoke status: ' + ($report | ConvertTo-Json -Compress))
 }
-if ($allErrors.Count -gt 0) {
-    throw ('SMB smoke test/cleanup failed: ' + ($allErrors -join '; '))
+if ($testErrors.Count -gt 0 -or $cleanupErrors.Count -gt 0) {
+    throw ('SMB smoke test errors: ' + ($testErrors -join '; ') +
+           ' | cleanup errors: ' + ($cleanupErrors -join '; '))
 }

@@ -125,7 +125,14 @@ int wmain() {
                 L"Links קישורים" / L"mapped-file שלום.txt";
             const std::wstring target = tcs::RelativeTarget(
                 mappedTarget.wstring(), original.wstring());
-            Require(target == L"..\\Hebrew שלום source\\file שלום.txt",
+            const std::wstring expected = L"..\\Hebrew שלום source\\file שלום.txt";
+            if (target != expected) {
+                std::wcerr << L"SMB_MAPPING_DIAGNOSTIC: source=" << original.wstring()
+                           << L"; destination=" << mappedTarget.wstring()
+                           << L"; actual_target=" << target
+                           << L"; expected_target=" << expected << L'\n';
+            }
+            Require(target == expected,
                 "Mapped-drive to UNC source did not produce same-share relative path");
             own.mappedFileLink = mappedTarget;
             const Result mapped = TestLink(original, mappedTarget,

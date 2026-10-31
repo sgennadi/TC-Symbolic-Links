@@ -43,6 +43,30 @@ std::wstring NetworkAwarePath(const std::wstring& path) {
     if (path.size() < 3 || path[1] != L':' || path[2] != L'\\') return path;
     const auto driveRoot = path.substr(0, 3);
     if (GetDriveTypeW(driveRoot.c_str()) != DRIVE_REMOTE) return path;
+    // Query the mapping by drive LETTER, not the future link filename.
+    // WNetGetUniversalNameW(fullPath) can fail when the destination file
+    // does not yet exist, which is the normal symlink-creation case.
+    // WNetGetConnectionW(X:) needs no existing leaf and returns the root
+    // \\server\share, allowing reliable mixed UNC/mapped relative paths.
+    const std::wstring driveName = path.substr(0, 2);
+    DWORD capacity = 32768; // Win32 maximum path buffer, in WCHARs.
+    std::wstring mappedRoot(capacity, L'\0');
+    if (WNetGetConnectionW(driveName.c_str(), mappedRoot.data(),
+                           &capacity) == NO_ERROR) {
+        const auto terminator = mappedRoot.find(L'\0');
+        if (terminator != std::wstring::npos) {
+            mappedRoot.resize(terminator);
+            if (!tcs::smb::ShareRoot(mappedRoot).empty()) {
+                // Source and destination can use different syntaxes while
+                // referencing the same SMB share. Never store this client's
+                // arbitrary X: drive letter in an absolute symlink target.
+                const auto mapped = FullPath(mappedRoot + path.substr(2));
+                if (!mapped.empty()) return mapped;
+            }
+        }
+    }
+    // Fallback for network providers that expose a universal filename but
+    // not a drive mapping through WNetGetConnectionW.
     DWORD length = 0;
     if (WNetGetUniversalNameW(path.c_str(), UNIVERSAL_NAME_INFO_LEVEL,
                               nullptr, &length) != ERROR_MORE_DATA ||
