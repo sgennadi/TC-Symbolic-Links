@@ -971,9 +971,29 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             AppendLine(state.results, L"OK   " + link + L"  ->  " + tcs::FullPath(source));
             if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated)
                 AppendLine(state.results, state.Choose(
-                    L"NOTE: SMB symlink points to this PC. Verify that it opens: remote-to-local traversal can be blocked and other PCs may not have this C: path.",
-                    L"ВНИМАНИЕ: ссылка SMB указывает на этот ПК. Проверьте открытие: переход с сервера на локальный диск может быть запрещён; на других ПК путь C: может отсутствовать.",
-                    L"שים לב: קישור SMB מצביע למחשב המקומי. יש לבדוק גישה גם ממחשבים אחרים."));
+                    L"NOTE: SMB link targets a local PC path. R2L traversal may be disabled; other computers may not have the same drive.",
+                    L"ВНИМАНИЕ: SMB-ссылка ведёт на локальный диск ПК. Переход R2L может быть запрещён, а на других ПК такого диска может не быть.",
+                    L"שים לב: קישור SMB מצביע לנתיב מקומי. מעבר R2L עלול להיות חסום."));
+            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteToRemoteCreated)
+                AppendLine(state.results, state.Choose(
+                    L"NOTE: SMB link crosses shares or servers. Check R2R traversal and access to the target share on each client.",
+                    L"ВНИМАНИЕ: ссылка ведёт на другую SMB-шару или сервер. Проверьте R2R и права доступа к целевой шаре.",
+                    L"שים לב: הקישור עובר לשיתוף אחר. בדוק הרשאות ומדיניות R2R."));
+            // A successful Win32 return is not proof that the endpoint exposes
+            // the expected reparse data. Verify without modifying the new link.
+            if (tcs::IsRemoteSmbPath(link) &&
+                (state.batchKind == tcs::LinkKind::Automatic ||
+                 state.batchKind == tcs::LinkKind::FileSymbolic ||
+                 state.batchKind == tcs::LinkKind::DirectorySymbolic)) {
+                const auto verified = tcs::InspectLink(link);
+                const auto expected = sourceDirectory ? tcs::ReparseKind::SymbolicDirectory :
+                    tcs::ReparseKind::SymbolicFile;
+                if (verified.kind != expected)
+                    AppendLine(state.results, state.Choose(
+                        L"NOTE: Created, but SMB reparse-point type could not be verified on readback.",
+                        L"ВНИМАНИЕ: Windows сообщила об успехе, но SMB-сервер не подтвердил тип ссылки при чтении.",
+                        L"שים לב: הקישור נוצר, אך סוגו לא אומת בקריאה חוזרת."));
+            }
         } else {
             ++state.failed;
             if (error == ERROR_PRIVILEGE_NOT_HELD) state.privilegeError = true;
@@ -981,14 +1001,24 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                 tcs::WindowsErrorMessage(error) + L" (" + std::to_wstring(error) + L")");
             if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied)
                 AppendLine(state.results, state.Choose(
-                    L"HINT: The SMB server rejected a directory symlink. Check Samba symlink support, share permissions and server policy. Run a local NTFS test to distinguish server refusal from a Windows privilege issue.",
-                    L"ПОДСКАЗКА: SMB-сервер отклонил ссылку на папку. Проверьте поддержку symlink в Samba, права на ресурс и настройки сервера. Сравните с созданием на локальном NTFS.",
-                    L"רמז: שרת SMB סירב לקישור לתיקייה. בדוק הרשאות ותמיכת Samba."));
+                    L"HINT: Folder symlink access denied. Check share/ACL permissions, server reparse support and Windows symlink privilege. Error 5 alone cannot identify the cause.",
+                    L"ПОДСКАЗКА: отказ при создании ссылки на папку SMB. Проверьте ACL, поддержку reparse points и привилегию Windows. Ошибка 5 не определяет причину.",
+                    L"רמז: הגישה נדחתה. בדוק הרשאות, תמיכת שרת והרשאות Windows."));
             else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteFileAccessDenied)
                 AppendLine(state.results, state.Choose(
-                    L"HINT: The SMB server denied the file-link operation. Check share permissions and server policy.",
-                    L"ПОДСКАЗКА: SMB-сервер запретил файловую ссылку. Проверьте права и политику ресурса.",
-                    L"רמז: שרת SMB דחה קישור לקובץ."));
+                    L"HINT: SMB file symlink access denied. Check share/ACL permissions and Windows symlink privilege.",
+                    L"ПОДСКАЗКА: отказ при создании файловой ссылки SMB. Проверьте права шары, ACL и разрешения Windows.",
+                    L"רמז: הגישה לקישור קובץ נדחתה. בדוק הרשאות."));
+            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteOperationUnsupported)
+                AppendLine(state.results, state.Choose(
+                    L"HINT: This SMB endpoint does not support the requested operation. No .lnk shortcut was substituted.",
+                    L"ПОДСКАЗКА: SMB-ресурс не поддерживает эту операцию. Подмена ссылкой .lnk не выполнялась.",
+                    L"רמז: שרת SMB אינו תומך בפעולה. לא נוצר קיצור דרך."));
+            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteNetworkUnavailable)
+                AppendLine(state.results, state.Choose(
+                    L"HINT: SMB path is unavailable. Check the UNC name, network connection and credentials.",
+                    L"ПОДСКАЗКА: SMB-путь недоступен. Проверьте UNC, соединение и учётные данные.",
+                    L"רמז: נתיב SMB אינו זמין. בדוק חיבור והרשאות."));
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }

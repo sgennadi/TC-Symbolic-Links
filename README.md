@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.10 Preview
+# TC Symbolic Links 0.2.11 Preview
 
 **All-in-one Total Commander x64 WDX for inspecting and creating Windows links.**
 The installer package contains `SymlinkInspector.wdx64` (link inspector and
@@ -10,6 +10,38 @@ the installed DLL through the system `rundll32.exe`.
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.11 Preview: generic SMB file and directory symlinks
+
+Create native Windows file and directory symlinks *inside* UNC SMB shares or
+connected mapped drives using the existing single-WDX `CreateSymbolicLinkW`
+implementation. No SSH, extra EXE, hard-coded NAS/Samba vendor, or `.lnk`
+substitution is required.
+
+- **Same share:** calculate optional relative targets within the same
+  `\\server\share` only. Different SMB shares are separate volumes.
+- **Mapped drives:** resolve `Z:\path` to UNC through
+  `WNetGetUniversalNameW` when the network provider supports it.
+- **Different shares/servers:** store an absolute UNC target and warn about
+  Windows Remote-to-Remote symlink evaluation and target-share permissions.
+- **Remote-to-local:** warn that another client may not have the local disk,
+  and Remote-to-Local evaluation may be blocked.
+- **Errors:** distinguish denied access, unavailable shares, unsupported
+  operations, and insufficient Windows symlink privileges. Error 5 alone
+  does not prove a server-side permission problem.
+- **Verification:** after successful remote creation, attempt to inspect
+  the reparse point read-only and warn if type verification is unavailable.
+- **Remote junctions:** reject before creating a potentially orphaned
+  placeholder folder; use Directory Symlink instead.
+- **No policy changes:** never silently set `SymlinkEvaluation`, edit
+  Samba options, or replace a real symlink with a shortcut.
+- A Windows SMB reparse-point symlink and a Unix server's native
+  POSIX `ln -s` symlink are not necessarily the same on-disk object.
+
+Automated regression tests cover UNC share boundaries, relative paths,
+network diagnostics, and existing Unicode/TC behaviour. Real SMB creation
+must still be verified against each server type; SMB endpoints that do not
+implement reparse-point creation cannot be made to support it by the client.
 
 ## 0.2.10 Preview: faithful Nipkg-Creator form controls
 

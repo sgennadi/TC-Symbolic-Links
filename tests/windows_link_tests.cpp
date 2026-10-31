@@ -144,6 +144,19 @@ int main() {
         Require(ready.unavailable == 0 && ready.folders == 1 && ready.files == 1,
                 "Preflight rejected valid Automatic selection");
 
+        // Relative paths must stay within a UNC share, not merely
+        // the same host. These tests require no live SMB server.
+        Require(tcs::RelativeTarget(L"\\\\HOST\\Share\\Links\\file.txt",
+                                    L"\\\\host\\share\\Sources\\file.txt") ==
+                    L"..\\Sources\\file.txt",
+                "Same SMB share should use a relative symlink target");
+        Require(tcs::RelativeTarget(L"\\\\HOST\\Share\\Links\\file.txt",
+                                    L"\\\\host\\Other\\Sources\\file.txt") ==
+                    L"\\\\host\\Other\\Sources\\file.txt",
+                "Different SMB shares must use absolute UNC target");
+        Require(tcs::RelativeTarget(L"\\\\HOST\\Share\\Links\\file.txt",
+                                    L"C:\\Temp\\file.txt") == L"C:\\Temp\\file.txt",
+                "Remote-to-local target must never become relative");
         // SMB error diagnostics are pure classification: no network server
         // is required and no permissions or symlink policies are changed.
         Require(tcs::IsRemoteSmbPath(L"\\\\fedora\\Programs\\ScientificTools\\NI"),
@@ -162,6 +175,26 @@ int main() {
                     tcs::LinkKind::Automatic, false, ERROR_SUCCESS) ==
                     tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated,
                 "Successful SMB file symlinks to local drives need a traversal warning");
+        Require(tcs::DiagnoseLinkOutcome(L"\\\\srv\\share\\file",
+                    L"\\\\srv\\share\\links\\file", tcs::LinkKind::FileSymbolic,
+                    false, ERROR_NOT_SUPPORTED) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteOperationUnsupported,
+                "Unsupported SMB reparse operation must be classified");
+        Require(tcs::DiagnoseLinkOutcome(L"\\\\srv\\share\\file",
+                    L"\\\\srv\\share\\links\\file", tcs::LinkKind::FileSymbolic,
+                    false, ERROR_BAD_NETPATH) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteNetworkUnavailable,
+                "Unavailable SMB network path must be classified");
+        Require(tcs::DiagnoseLinkOutcome(L"\\\\srv\\share\\file",
+                    L"\\\\srv\\other\\links\\file", tcs::LinkKind::FileSymbolic,
+                    false, ERROR_SUCCESS) ==
+                    tcs::LinkOutcomeDiagnostic::RemoteToRemoteCreated,
+                "Cross-share successful links should warn R2R");
+        Require(tcs::DiagnoseLinkOutcome(L"\\\\srv\\share\\file",
+                    L"\\\\srv\\share\\links\\file", tcs::LinkKind::FileSymbolic,
+                    false, ERROR_SUCCESS) ==
+                    tcs::LinkOutcomeDiagnostic::None,
+                "Same-share successful link has no cross-share warning");
         Require(tcs::DiagnoseLinkOutcome(L"C:\\Temp", L"C:\\LocalLinks\\Temp",
                     tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
                     tcs::LinkOutcomeDiagnostic::None,

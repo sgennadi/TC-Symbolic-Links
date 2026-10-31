@@ -29,7 +29,10 @@ enum class LinkOutcomeDiagnostic {
     None,
     RemoteDirectoryAccessDenied,
     RemoteFileAccessDenied,
-    RemoteToLocalCreated
+    RemoteOperationUnsupported,
+    RemoteNetworkUnavailable,
+    RemoteToLocalCreated,
+    RemoteToRemoteCreated
 };
 bool IsRemoteSmbPath(std::wstring_view path);
 LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,

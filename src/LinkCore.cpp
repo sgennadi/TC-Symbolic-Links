@@ -1,5 +1,7 @@
 #include "LinkCore.h"
 #include "ReparseData.h"
+#include "SmbPath.h"
+#include <winnetwk.h>
 #include <winioctl.h>
 #include <algorithm>
 #include <array>
@@ -35,6 +37,26 @@ std::wstring Unprefix(std::wstring path) {
     return path;
 }
 
+// Resolve a mapped network drive to a portable UNC path before recording
+// a symbolic-link target. No vendor-specific SMB assumptions or writes.
+std::wstring NetworkAwarePath(const std::wstring& path) {
+    if (path.size() < 3 || path[1] != L':' || path[2] != L'\\') return path;
+    const auto driveRoot = path.substr(0, 3);
+    if (GetDriveTypeW(driveRoot.c_str()) != DRIVE_REMOTE) return path;
+    DWORD length = 0;
+    if (WNetGetUniversalNameW(path.c_str(), UNIVERSAL_NAME_INFO_LEVEL,
+                              nullptr, &length) != ERROR_MORE_DATA ||
+        length < sizeof(UNIVERSAL_NAME_INFOW) || length > 65536) return path;
+    std::vector<BYTE> buffer(length);
+    if (WNetGetUniversalNameW(path.c_str(), UNIVERSAL_NAME_INFO_LEVEL,
+                             buffer.data(), &length) != NO_ERROR) return path;
+    const auto* info = reinterpret_cast<const UNIVERSAL_NAME_INFOW*>(buffer.data());
+    if (!info->lpUniversalName || !*info->lpUniversalName ||
+        tcs::smb::ShareRoot(info->lpUniversalName).empty()) return path;
+    const auto unc = FullPath(info->lpUniversalName);
+    return unc.empty() ? path : unc;
+}
+
 bool IsAbsolute(std::wstring_view p) {
     return (p.size() >= 3 && ((p[0] >= L'A' && p[0] <= L'Z') || (p[0] >= L'a' && p[0] <= L'z'))
             && p[1] == L':' && (p[2] == L'\\' || p[2] == L'/')) ||
@@ -66,6 +88,9 @@ bool ReadReparse(const std::wstring& path, DWORD& tag,
 }
 
 DWORD MakeJunction(const std::wstring& source, const std::wstring& destination) {
+    // Junctions are local mount points, not SMB directory symlinks.
+    // Refuse before creating a remote placeholder folder.
+    if (IsRemoteSmbPath(destination)) return ERROR_NOT_SUPPORTED;
     // Directory junctions must point to a local, fully qualified volume path.
     const auto actual = FullPath(source);
     if (actual.size() < 3 || actual[1] != L':' || actual[2] != L'\\')
@@ -184,38 +209,50 @@ std::wstring WindowsErrorMessage(DWORD error) {
 }
 
 bool IsRemoteSmbPath(std::wstring_view path) {
-    // Normal UNC and extended-length UNC, including the NT object path form.
-    return path.starts_with(L"\\\\") && !path.starts_with(L"\\\\?\\") &&
-           !path.starts_with(L"\\\\.\\") ||
-           path.starts_with(L"\\\\?\\UNC\\") ||
-           path.starts_with(L"\\??\\UNC\\");
+    if (!tcs::smb::ShareRoot(path).empty()) return true;
+    const auto absolute = FullPath(path);
+    return !absolute.empty() &&
+        !tcs::smb::ShareRoot(NetworkAwarePath(absolute)).empty();
 }
 
 LinkOutcomeDiagnostic DiagnoseLinkOutcome(std::wstring_view source,
     std::wstring_view destination, LinkKind kind, bool sourceIsDirectory,
     DWORD windowsResult) {
-    const bool remoteTarget = IsRemoteSmbPath(destination);
-    const bool localSource = !IsRemoteSmbPath(source);
-    if (!remoteTarget) return LinkOutcomeDiagnostic::None;
+    if (!IsRemoteSmbPath(destination) || kind == LinkKind::Hardlink)
+        return LinkOutcomeDiagnostic::None;
     const bool linkDirectory = kind == LinkKind::DirectorySymbolic ||
         kind == LinkKind::Junction || (kind == LinkKind::Automatic && sourceIsDirectory);
-    const bool linkFile = kind == LinkKind::FileSymbolic ||
-        (kind == LinkKind::Automatic && !sourceIsDirectory);
+    if (windowsResult == ERROR_NOT_SUPPORTED || windowsResult == ERROR_INVALID_FUNCTION)
+        return LinkOutcomeDiagnostic::RemoteOperationUnsupported;
+    if (windowsResult == ERROR_BAD_NETPATH || windowsResult == ERROR_BAD_NET_NAME ||
+        windowsResult == ERROR_NETWORK_UNREACHABLE)
+        return LinkOutcomeDiagnostic::RemoteNetworkUnavailable;
     if (windowsResult == ERROR_ACCESS_DENIED)
         return linkDirectory ? LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied :
             LinkOutcomeDiagnostic::RemoteFileAccessDenied;
-    if (windowsResult == ERROR_SUCCESS && localSource && (linkDirectory || linkFile))
-        return LinkOutcomeDiagnostic::RemoteToLocalCreated;
+    if (windowsResult == ERROR_SUCCESS) {
+        if (!IsRemoteSmbPath(source)) return LinkOutcomeDiagnostic::RemoteToLocalCreated;
+        const auto src = NetworkAwarePath(FullPath(source));
+        const auto dst = NetworkAwarePath(FullPath(destination));
+        if (!tcs::smb::SameShare(src, dst))
+            return LinkOutcomeDiagnostic::RemoteToRemoteCreated;
+    }
     return LinkOutcomeDiagnostic::None;
 }
 
 std::wstring RelativeTarget(const std::wstring& destinationLink, const std::wstring& source) {
     namespace fs = std::filesystem;
-    const fs::path from(FullPath(ParentPath(destinationLink)));
-    const fs::path to(FullPath(source));
-    if (from.empty() || to.empty() ||
+    const fs::path from(NetworkAwarePath(FullPath(ParentPath(destinationLink))));
+    const fs::path to(NetworkAwarePath(FullPath(source)));
+    if (from.empty() || to.empty()) return source;
+    const bool fromRemote = !tcs::smb::ShareRoot(from.wstring()).empty();
+    const bool toRemote = !tcs::smb::ShareRoot(to.wstring()).empty();
+    // Relative symlinks must stay inside a single volume. On SMB the
+    // boundary is \\host\share, not the host's root_name alone.
+    if (fromRemote != toRemote ||
+        (fromRemote && !tcs::smb::SameShare(from.wstring(), to.wstring())) ||
         _wcsicmp(from.root_name().c_str(), to.root_name().c_str()) != 0 ||
-        from.has_root_directory() != to.has_root_directory()) return source;
+        from.has_root_directory() != to.has_root_directory()) return to.wstring();
     const auto fromRelative = from.relative_path();
     const auto toRelative = to.relative_path();
     auto a = fromRelative.begin();
@@ -291,7 +328,7 @@ DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
     }
     if (kind == LinkKind::Junction) return MakeJunction(src, dst);
     const bool dirlink = kind == LinkKind::DirectorySymbolic;
-    const std::wstring target = preferRelative ? RelativeTarget(dst, src) : src;
+    const std::wstring target = preferRelative ? RelativeTarget(dst, src) : NetworkAwarePath(src);
     const DWORD flags = (dirlink ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0) |
                          SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
     if (CreateSymbolicLinkW(ApiPath(dst).c_str(),

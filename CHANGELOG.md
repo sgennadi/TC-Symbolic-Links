@@ -1,3 +1,15 @@
+## 0.2.11 (Preview) — generic SMB symlink support
+
+- Normalize UNC and connected mapped-drive paths without assuming a specific
+  SMB server/vendor or requiring an auxiliary EXE.
+- Prevent relative symlink targets from crossing SMB share boundaries.
+- Add R2R/R2L warnings and separate unsupported, unavailable and access-denied
+  outcomes in the English/Russian/Hebrew maker.
+- Read back new SMB reparse points where supported; prevent remote junctions
+  from leaving empty destination folders.
+- Add cross-platform share-path tests and Windows link regressions. Keep
+  TC toolbars, icons, custom commands and the single native WDX unchanged.
+
 ## 0.2.10 (Preview) — faithful Nipkg Creator controls and DPI polish
 
 - Add clear vector play, folder, close, stop and chain glyphs rendered

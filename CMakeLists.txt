@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.10 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.11 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,9 @@ if(BUILD_TESTING)
   add_executable(tc_custom_view_tests tests/tc_custom_view_tests.cpp)
   target_include_directories(tc_custom_view_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME tc_custom_view_indices COMMAND tc_custom_view_tests)
+  add_executable(smb_path_tests tests/smb_path_tests.cpp)
+  target_include_directories(smb_path_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME smb_unc_share_boundaries COMMAND smb_path_tests)
 endif()
 
 # Portable, bounded parser of raw FSCTL_GET_REPARSE_POINT data.
@@ -70,7 +73,7 @@ if(WIN32)
 
   add_library(tc_link_core STATIC src/LinkCore.cpp)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse)
+  target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse mpr)
 
   add_library(tc_integration STATIC src/TcIntegration.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
