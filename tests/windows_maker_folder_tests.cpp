@@ -81,7 +81,24 @@ int wmain(int argc, wchar_t** argv) {
             HWND test = FindWindowW(L"TCSymbolicLinksMakerWindow", nullptr);
             DWORD owner = 0;
             if (test) GetWindowThreadProcessId(test, &owner);
-            if (test && owner == process.dwProcessId) { window = test; break; }
+            if (test && owner == process.dwProcessId) {
+                // The top-level window becomes visible during WM_CREATE,
+                // before x86 rundll32 has necessarily created all controls.
+                // Wait for the native list and source row before inspecting
+                // geometry or sending an F5 command to the Maker.
+                window = test;
+                const HWND source = GetDlgItem(test, 100);
+                const HWND results = GetDlgItem(test, 104);
+                if (source && results && GetDlgItem(test, 101) &&
+                    GetDlgItem(test, 105) && GetDlgItem(test, 111) &&
+                    SendMessageW(source, LVM_GETITEMCOUNT, 0, 0) == 1) {
+                    RECT leftPane{}, rightPane{};
+                    if (GetWindowRect(source, &leftPane) &&
+                        GetWindowRect(results, &rightPane) &&
+                        leftPane.right <= rightPane.left &&
+                        leftPane.top == rightPane.top) break;
+                }
+            }
             if (WaitForSingleObject(process.hProcess, 0) == WAIT_OBJECT_0) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -109,6 +126,13 @@ int wmain(int argc, wchar_t** argv) {
             HWND statusGlyph = GetDlgItem(window, 114);
             HWND browseFolder = GetDlgItem(window, 115);
             HWND closeAction = GetDlgItem(window, 106);
+            if (!sourceList || !sourcePath || !destinationPath ||
+                !resultPane || !action)
+                std::wcerr << L"Maker controls not ready: src=" << (sourceList != nullptr)
+                    << L", srcPath=" << (sourcePath != nullptr)
+                    << L", destPath=" << (destinationPath != nullptr)
+                    << L", results=" << (resultPane != nullptr)
+                    << L", action=" << (action != nullptr) << L"\n";
             RECT folderBounds{}, buttonBounds{};
             if (folderGlyph && linkGlyph && statusGlyph && browseFolder &&
                 closeAction && action &&
