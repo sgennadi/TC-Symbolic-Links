@@ -345,6 +345,12 @@ bool NativeManualCheck(HWND owner) {
     const HINSTANCE instance=GetModuleHandleW(nullptr);
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
     WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
+    // Use the same embedded chain-link icon as the main Link Maker window.
+    // GetModuleHandle(nullptr) points to rundll32.exe, not to our WDX.
+    const HMODULE iconModule=OwnModule();
+    cls.hIcon=iconModule ? LoadIconW(iconModule,MAKEINTRESOURCEW(101)) : nullptr;
+    cls.hIconSm=iconModule ? static_cast<HICON>(LoadImageW(
+        iconModule,MAKEINTRESOURCEW(101),IMAGE_ICON,16,16,LR_DEFAULTCOLOR)) : nullptr;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
     cls.lpszClassName=klass;
