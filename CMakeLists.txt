@@ -159,6 +159,17 @@ if(WIN32)
       target_compile_options(windows_native_install_tests PRIVATE /W4 /utf-8)
     endif()
 
+    add_executable(windows_native_network_tests tests/windows_native_network_tests.cpp)
+    target_include_directories(windows_native_network_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_native_network_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_github_release_download_sha256
+      COMMAND windows_native_network_tests)
+    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES TIMEOUT 90)
+    if(MSVC)
+      target_compile_options(windows_native_network_tests PRIVATE /W4 /utf-8)
+    endif()
+
     add_executable(windows_link_tests tests/windows_link_tests.cpp)
     target_link_libraries(windows_link_tests PRIVATE tc_link_core)
     add_test(NAME win32_hebrew_links COMMAND windows_link_tests)
