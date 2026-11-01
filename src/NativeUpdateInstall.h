@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tcs::update {
 struct NativeStage {
@@ -9,6 +10,9 @@ struct NativeStage {
     std::wstring tag;
     std::wstring description;
 };
+// Read-only offline validation of the strict three-file x86/x64 ZIP format.
+// Used by CI to reject malformed headers, wrong PE machines and unknown paths.
+bool VerifyNativeZipBytes(const std::vector<unsigned char>& zip);
 // Download only from the canonical GitHub Release; require its HTTPS API
 // SHA-256 asset digest and validate all three ZIP entries before staging.
 // WM_APP+250 reports approximate percentage from 0..100.
