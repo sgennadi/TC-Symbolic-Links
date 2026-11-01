@@ -128,7 +128,7 @@ bool Launch(HMODULE module, bool automatic) {
     const std::wstring psHost = std::wstring(windowsDir) +
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
-    const std::wstring version = L"0.2.15-preview." +
+    const std::wstring version = L"0.2.16-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
     std::wstring command = L"\"" + psHost +
         L"\" -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File \"" +

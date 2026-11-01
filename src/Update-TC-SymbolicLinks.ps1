@@ -5,7 +5,7 @@
 param(
     [ValidateSet('Manual','Auto','Apply','SelfTest')][string]$Mode='Manual',
     [string]$PluginPath,
-    [string]$CurrentVersion='0.2.15-preview.0',
+    [string]$CurrentVersion='0.2.16-preview.0',
     [string]$StageDirectory,
     [string]$TestX86,
     [string]$TestX64
@@ -199,7 +199,17 @@ function Apply-Staged([string]$folder,[string]$installedPath) {
     Verify-Stage $folder
     $install=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($installedPath))
     if (-not $install -or -not (Test-Path -LiteralPath $installedPath -PathType Leaf)) { throw 'Installed WDX not found.' }
-    $names=@('SymlinkInspector.wdx','SymlinkInspector.wdx64','pluginst.inf')
+    # The ZIP carries BOTH architectures for backwards compatibility with
+    # 0.2.15 updaters, but only the architecture of the installed plugin is
+    # replaced. pluginst.inf and the other DLL are never created or modified.
+    $moduleName=[IO.Path]::GetFileName($installedPath)
+    if ($moduleName -ieq 'SymlinkInspector.wdx64') {
+        $names=@('SymlinkInspector.wdx64')
+    } elseif ($moduleName -ieq 'SymlinkInspector.wdx') {
+        $names=@('SymlinkInspector.wdx')
+    } else {
+        throw 'Refusing to update a path other than the known WDX module.'
+    }
     $backup=Join-Path $install ('.tcslinks-update-backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' +
         [Guid]::NewGuid().ToString('N').Substring(0,6))
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
@@ -406,15 +416,15 @@ function Assert([bool]$condition,[string]$reason) {
     if (-not $condition) {throw ('SELFTEST FAIL: '+$reason)}
 }
 function Run-SelfTest {
-    Assert ((Compare-Version (Parse-Version 'v0.2.15-preview.3') (Parse-Version 'v0.2.15-preview.0')) -gt 0) 'preview comparison'
-    Assert ((Compare-Version (Parse-Version 'v0.2.15') (Parse-Version 'v0.2.15-preview.99')) -gt 0) 'stable beats preview'
+    Assert ((Compare-Version (Parse-Version 'v0.2.16-preview.3') (Parse-Version 'v0.2.15-preview.0')) -gt 0) 'preview comparison'
+    Assert ((Compare-Version (Parse-Version 'v0.2.15') (Parse-Version 'v0.2.16-preview.99')) -gt 0) 'stable beats preview'
     Assert ((Compare-Version (Parse-Version 'v0.2.14') (Parse-Version 'v0.2.15-preview.0')) -lt 0) 'downgrade prevented'
-    Assert ($null -eq (Parse-Version 'v0.2.15-preview.bad')) 'invalid tags rejected'
+    Assert ($null -eq (Parse-Version 'v0.2.16-preview.bad')) 'invalid tags rejected'
     $goodAsset=[pscustomobject]@{
         name=$script:Package;digest=('sha256:'+('a'*64))
-        browser_download_url='https://github.com/sgennadi/TC-Symbolic-Links/releases/download/v0.2.16-preview.1/TC-Symbolic-Links-win32-win64.zip'
+        browser_download_url='https://github.com/sgennadi/TC-Symbolic-Links/releases/download/v0.2.17-preview.1/TC-Symbolic-Links-win32-win64.zip'
     }
-    $candidate=[pscustomobject]@{tag_name='v0.2.16-preview.1';prerelease=$true;draft=$false;assets=@($goodAsset)}
+    $candidate=[pscustomobject]@{tag_name='v0.2.17-preview.1';prerelease=$true;draft=$false;assets=@($goodAsset)}
     Assert ($null -ne (Select-Release @($candidate) 'Preview' '0.2.15-preview.0')) 'preview update selection'
     Assert ($null -eq (Select-Release @($candidate) 'Stable' '0.2.15-preview.0')) 'stable channel filtering'
     $evil=[pscustomobject]@{name=$script:Package;digest=('sha256:'+('a'*64));browser_download_url='https://evil.example/unknown.zip'}
@@ -447,7 +457,11 @@ function Run-SelfTest {
             foreach($name in @('SymlinkInspector.wdx','SymlinkInspector.wdx64','pluginst.inf')) {
                 Copy-Item -LiteralPath (Join-Path $input $name) -Destination (Join-Path $installed $name)
             }
+            # Simulate an old installation carrying BOTH DLLs. The modern
+            # updater must change the active x64 DLL only.
             Set-Content -LiteralPath (Join-Path $installed 'pluginst.inf') -Encoding ASCII -Value @('[plugininstall]','type=wdx','file=SymlinkInspector.wdx','version=0.2.14-preview')
+            [IO.File]::WriteAllText((Join-Path $installed 'SymlinkInspector.wdx'), 'OLD-X86-DO-NOT-TOUCH')
+            $oldX86=(Get-FileHash -LiteralPath (Join-Path $installed 'SymlinkInspector.wdx') -Algorithm SHA256).Hash.ToLowerInvariant()
             $oldInfo=(Get-FileHash -LiteralPath (Join-Path $installed 'pluginst.inf') -Algorithm SHA256).Hash.ToLowerInvariant()
             $custom=Join-Path $installed 'usercmd.ini'
             Set-Content -LiteralPath $custom -Encoding UTF8 -Value 'Keep my custom commands unchanged'
@@ -461,13 +475,28 @@ function Run-SelfTest {
             Assert $didRollback 'mid-copy failure simulated'
             Verify-Hash (Join-Path $installed 'pluginst.inf') $oldInfo
             Verify-Hash $custom $oldCustom
-            foreach($name in @('SymlinkInspector.wdx','SymlinkInspector.wdx64')) {
-                Verify-Hash (Join-Path $installed $name) (Get-FileHash -LiteralPath (Join-Path $input $name) -Algorithm SHA256).Hash.ToLowerInvariant()
-            }
+            Verify-Hash (Join-Path $installed 'SymlinkInspector.wdx') $oldX86
+            Verify-Hash (Join-Path $installed 'SymlinkInspector.wdx64') (Get-FileHash -LiteralPath (Join-Path $input 'SymlinkInspector.wdx64') -Algorithm SHA256).Hash.ToLowerInvariant()
             $backup=Apply-Staged $out (Join-Path $installed 'SymlinkInspector.wdx64')
             Assert (Test-Path -LiteralPath $backup -PathType Container) 'backup created'
-            Verify-Hash (Join-Path $installed 'pluginst.inf') ([string]$files['pluginst.inf'])
+            Verify-Hash (Join-Path $installed 'pluginst.inf') $oldInfo
+            Verify-Hash (Join-Path $installed 'SymlinkInspector.wdx') $oldX86
             Verify-Hash $custom $oldCustom
+            # A clean x86-only install must remain x86-only after update.
+            $x86Only=Join-Path $temp 'x86-only'
+            New-Item -ItemType Directory -Path $x86Only | Out-Null
+            Copy-Item -LiteralPath (Join-Path $input 'SymlinkInspector.wdx') -Destination (Join-Path $x86Only 'SymlinkInspector.wdx')
+            $x86Backup=Apply-Staged $out (Join-Path $x86Only 'SymlinkInspector.wdx')
+            Assert (Test-Path -LiteralPath $x86Backup -PathType Container) 'x86 backup created'
+            Assert (-not (Test-Path -LiteralPath (Join-Path $x86Only 'SymlinkInspector.wdx64'))) 'x86 update must not install x64'
+            Assert (-not (Test-Path -LiteralPath (Join-Path $x86Only 'pluginst.inf'))) 'x86 update must not add pluginst.inf'
+            $x64Only=Join-Path $temp 'x64-only'
+            New-Item -ItemType Directory -Path $x64Only | Out-Null
+            Copy-Item -LiteralPath (Join-Path $input 'SymlinkInspector.wdx64') -Destination (Join-Path $x64Only 'SymlinkInspector.wdx64')
+            $x64Backup=Apply-Staged $out (Join-Path $x64Only 'SymlinkInspector.wdx64')
+            Assert (Test-Path -LiteralPath $x64Backup -PathType Container) 'x64 backup created'
+            Assert (-not (Test-Path -LiteralPath (Join-Path $x64Only 'SymlinkInspector.wdx'))) 'x64 update must not install x86'
+            Assert (-not (Test-Path -LiteralPath (Join-Path $x64Only 'pluginst.inf'))) 'x64 update must not add pluginst.inf'
             $wrong='0'+$hash.Substring(1)
             if ($wrong -eq $hash) { $wrong='1'+$hash.Substring(1) }
             $rejected=$false

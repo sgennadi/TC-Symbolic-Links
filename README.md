@@ -1,15 +1,62 @@
-# TC Symbolic Links 0.2.15 Preview
+# TC Symbolic Links 0.2.16 Preview
 
 **All-in-one Total Commander x86/x64 WDX for inspecting and creating Windows links.**
-The installer package contains `SymlinkInspector.wdx64` (link inspector and
-Unicode link-creation UI). **No companion EXE is needed.** The button calls
-the installed DLL through the system `rundll32.exe`.
+The single **TC-Symbolic-Links-Installer.zip** contains a selective
+PowerShell installer and separate x86/x64 WDX payload directories. It installs
+**only the DLL matching the running Total Commander**; no permanent companion
+EXE is needed. Native buttons call that WDX through system `rundll32.exe`.
 
 > **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
 > could switch the active button bar and hide existing icons. Version 0.2.4
 > also wrote `%COMMANDER_PATH%` in a TC button parameter; TC expanded `%C`
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
+
+## 0.2.16 Preview — one ZIP, installation matches Total Commander architecture
+
+**Resolved:** 0.2.15 shipped a `pluginst.inf` root ZIP containing both
+`SymlinkInspector.wdx` and `SymlinkInspector.wdx64`. Total Commander's
+native ZIP installer extracts **every** file, even when running only x64 TC.
+
+Download **`TC-Symbolic-Links-Installer.zip`**, extract it **completely**,
+then launch **`Install_TC_Symbolic_Links.cmd`** (preferably from TC itself).
+The installer detects the **invoking Total Commander process**, not whether
+the operating system is 64-bit. When both TC architectures are open, or
+the invoking TC cannot be identified, it asks the user rather than guessing.
+
+- TC x64 -> install and register **only** `SymlinkInspector.wdx64`.
+- TC x86 -> install and register **only** `SymlinkInspector.wdx`.
+- Explicit `-Architecture x64` / `x86`, `-IniPath`, `-Destination`
+  overrides are supported for portable/multi-profile environments.
+- Separate architecture-specific directories prevent the old wrong-bitness
+  DLL from being copied by the new installer. Existing unrelated modules
+  are never deleted. An old pair of DLL files can safely remain in its
+  original, now **unregistered**, directory until the user removes it.
+- Existing WDX registration is reused; otherwise only the first free
+  `[ContentPlugins]` slot is added. x64 sets the matching
+  `[ContentPlugins64]` flag; x86 clears that flag for its own slot.
+- The installer creates an **immutable timestamped backup** of
+  `wincmd.ini` before writing, backs up any replaced WDX, verifies
+  SHA-256 after copying and rolls back on an error. It does **not**
+  overwrite custom buttons, `.bar` files, `usercmd.ini`, custom
+  columns, or unrelated plugin registration.
+- Restart TC, then allow the native WDX to safely rebind its three
+  existing buttons to the selected architecture. The first-load setup
+  marker moves to 216 so 0.2.15 profiles are offered this rebind.
+
+**Important:** the outer selective-installer archive has deliberately
+**no root `pluginst.inf`**. Total Commander has no built-in file filter
+by architecture in that format. The older
+`TC-Symbolic-Links-win32-win64.zip` still exists ONLY as a
+backward-compatible **Update Manager transport** for versions 0.2.15+;
+**do not manually install this legacy ZIP** through TC. The new WDX
+Update Manager verifies the complete transport ZIP but replaces
+**only the installed DLL architecture** after Total Commander closes,
+leaving the other module and `pluginst.inf` untouched.
+
+Windows CI verifies clean x64-only / x86-only installation, repeated
+installation, correct TC INI registration, preserving personal
+toolbars/columns/commands and architecture-only embedded updates.
 
 ## 0.2.15 Preview — built-in Update Manager (no companion EXE)
 

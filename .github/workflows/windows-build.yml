@@ -52,6 +52,11 @@ jobs:
         run: |
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File src/Update-TC-SymbolicLinks.ps1 -Mode SelfTest -TestX86 build-win32/Release/SymlinkInspector.wdx -TestX64 build/Release/SymlinkInspector.wdx64
           if ($LASTEXITCODE -ne 0) { throw 'Update Manager offline security regression failed' }
+      - name: Verify installer selects ONLY the matching Total Commander WDX architecture
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test_selective_installer.ps1 -Win32 build-win32/Release/SymlinkInspector.wdx -Win64 build/Release/SymlinkInspector.wdx64
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture-selective installation test failed' }
       - name: Exercise a real temporary SMB share with x64 and x86
         shell: pwsh
         run: |
@@ -140,6 +145,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist/Recovery | Out-Null
           Copy-Item toolbar-recovery/* dist/Recovery/
           Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win32-win64.zip -Force
+          # The legacy transport ZIP is required ONLY so 0.2.15 can update
+          # itself. Never recommend opening it directly with TC: it expands
+          # both architectures by design. The new user-facing single ZIP
+          # contains a launcher that installs only the detected TC bitness.
+          $selective='dist-selective'
+          New-Item -ItemType Directory -Force -Path $selective, "$selective/Payload/x64", "$selective/Payload/x86", "$selective/Recovery" | Out-Null
+          Copy-Item build/Release/SymlinkInspector.wdx64 "$selective/Payload/x64/"
+          Copy-Item build-win32/Release/SymlinkInspector.wdx "$selective/Payload/x86/"
+          Copy-Item installer/Install_TC_Symbolic_Links.cmd, installer/Install_TC_Symbolic_Links.ps1, installer/README-START.txt -Destination $selective
+          Copy-Item README.md, docs/MANUAL-TESTS.md -Destination $selective
+          Copy-Item toolbar-recovery/* "$selective/Recovery/"
+          Compress-Archive -Path "$selective/*" -DestinationPath TC-Symbolic-Links-Installer.zip -Force
+          $selectiveHash = (Get-FileHash TC-Symbolic-Links-Installer.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$selectiveHash  TC-Symbolic-Links-Installer.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-Installer.zip.sha256
           $hash = (Get-FileHash TC-Symbolic-Links-win32-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  TC-Symbolic-Links-win32-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win32-win64.zip.sha256
       - uses: actions/upload-artifact@v7
@@ -148,6 +167,8 @@ jobs:
           path: |
             TC-Symbolic-Links-win32-win64.zip
             TC-Symbolic-Links-win32-win64.zip.sha256
+            TC-Symbolic-Links-Installer.zip
+            TC-Symbolic-Links-Installer.zip.sha256
           if-no-files-found: error
 
   linux-wdx-unicode:
@@ -213,8 +234,8 @@ jobs:
           path: release
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.2.15-preview.${{ github.run_number }}
-          name: TC Symbolic Links 0.2.15 Preview build ${{ github.run_number }}
+          tag_name: v0.2.16-preview.${{ github.run_number }}
+          name: TC Symbolic Links 0.2.16 Preview build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: false
@@ -222,11 +243,17 @@ jobs:
           body: |
             Preview build from successful Visual Studio 2026 Windows x86/x64,
             Linux WDX, sanitizers and isolated Windows SMB tests.
-            The single ZIP includes both WDX architectures and native
-            Update Manager (manual / automatic / never / verified SHA-256).
+            Download TC-Symbolic-Links-Installer.zip. Its INSTALL.CMD
+            detects the invoking Total Commander architecture and installs
+            only x64 WDX on x64 TC or only x86 WDX on x86 TC.
+            The other ZIP (win32-win64.zip) is a backwards-compatible
+            transport for Update Manager 0.2.15 and MUST NOT be installed
+            manually through the native TC ZIP installer.
             Manual Total Commander GUI and third-party NAS/Samba tests remain
             recommended before Stable.
           files: |
+            release/TC-Symbolic-Links-Installer.zip
+            release/TC-Symbolic-Links-Installer.zip.sha256
             release/TC-Symbolic-Links-win32-win64.zip
             release/TC-Symbolic-Links-win32-win64.zip.sha256
             release/TC-Symbolic-Links-Linux-WDX-x64.zip

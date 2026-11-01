@@ -1,3 +1,24 @@
+## 0.2.16 (Preview) — architecture-selective installer, one user ZIP
+
+- Replace manual root-`pluginst.inf` installation with one
+  `TC-Symbolic-Links-Installer.zip` containing a PowerShell/.cmd
+  architecture selector and isolated Payload/x64 + Payload/x86.
+- Detect the actual invoking Total Commander (parent process ancestry).
+  When ambiguous, ask; never infer from 64-bit Windows alone.
+- x64 TC installs only SymlinkInspector.wdx64; x86 TC installs only
+  SymlinkInspector.wdx. Create/read registration under ContentPlugins
+  and ContentPlugins64, reuse only our matching WDX slot.
+- Back up wincmd.ini and existing DLL before any update; preserve unrelated
+  buttons, custom commands, personalized bars and WDX columns.
+- Upgrade the native toolbar first-load rebind marker to 216.
+- Embedded Update Manager now replaces **only the active architecture**,
+  never creating the other WDX or pluginst.inf when updating a single-
+  architecture installation; keep rollback backups and verified payloads.
+- Publish one recommended selective Installer ZIP and keep legacy dual
+  architecture transport ZIP separately for existing 0.2.15 updaters.
+- Add Windows CI regression testing both selective installations and
+  repeated installer runs with hash verification.
+
 ## 0.2.15 (Preview) — embedded Update Manager, verified ZIP and rollback
 
 - Embed the trusted Update Manager script as WDX RCDATA and provide

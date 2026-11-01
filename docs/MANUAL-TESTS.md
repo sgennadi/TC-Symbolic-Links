@@ -1,3 +1,30 @@
+## 0.2.16 — install one architecture only
+
+1. Extract the entire **TC-Symbolic-Links-Installer.zip**. Run
+   `Install_TC_Symbolic_Links.cmd` from Total Commander 64-bit.
+   Verify installation includes **only** SymlinkInspector.wdx64.
+2. Repeat under Total Commander 32-bit with a separate profile.
+   Verify only SymlinkInspector.wdx is installed.
+3. Keep both TC bitnesses open; launch installer outside either.
+   Verify it **asks** which architecture, instead of assuming OS bitness.
+4. Verify the chosen wincmd.ini [ContentPlugins] entry points to the
+   selected WDX and [ContentPlugins64] marks only x64.
+5. Check untouched usercmd.ini, original toolbar buttons/subbars,
+   personalized icons, WDX custom columns and unrelated registrations.
+6. Verify a timestamped wincmd.ini backup exists and rollback works
+   if the destination is read-only, full or otherwise inaccessible.
+7. Run installation again: no duplicate WDX entries and no wrong-
+   architecture DLL appears in the architecture-specific destination.
+8. Upgrade from a legacy 0.2.15 folder containing both DLLs. The new
+   destination contains only the selected architecture; the legacy
+   folder is left intact for rollback and can be cleaned manually
+   after confirming no 32-bit TC uses the shared profile.
+9. Use Check for Updates from the new WDX. The transport ZIP may hold
+   both binaries, but only the installed variant must be replaced.
+   x64-only installs must **not acquire** SymlinkInspector.wdx.
+10. Do not try to install the legacy win32-win64 transport ZIP manually
+    through TC; it exists only for backward-compatible automatic update.
+
 ## 0.2.15 — Update Manager interactive and safety checks
 
 1. Verify the Maker now has **Check for Updates**, and that it fits at DPI
