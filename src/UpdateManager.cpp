@@ -9,6 +9,7 @@
 #include <thread>
 #include <memory>
 #include <vector>
+#include <algorithm>
 #pragma comment(lib, "winhttp.lib")
 
 #ifndef TC_PREVIEW_ITERATION
@@ -344,6 +345,10 @@ bool NativeManualCheck(HWND owner) {
     const HINSTANCE instance=GetModuleHandleW(nullptr);
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
     WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
+    // Use the same embedded chain-link icon as the main Link Maker window.
+    // GetModuleHandle(nullptr) points to rundll32.exe, not to our WDX.
+    const HMODULE iconModule=OwnModule();
+    cls.hIcon=iconModule ? LoadIconW(iconModule,MAKEINTRESOURCEW(101)) : nullptr;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
     cls.lpszClassName=klass;
@@ -352,6 +357,36 @@ bool NativeManualCheck(HWND owner) {
         L"TC Symbolic Links - Checking GitHub...",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
         CW_USEDEFAULT,CW_USEDEFAULT,525,205,owner,nullptr,instance,nullptr);
     if(!window) return false;
+    if (iconModule) {
+        HICON smallIcon=static_cast<HICON>(LoadImageW(iconModule,
+            MAKEINTRESOURCEW(101), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+        if (smallIcon) SendMessageW(window, WM_SETICON, ICON_SMALL,
+            reinterpret_cast<LPARAM>(smallIcon));
+    }
+    // Center over the maker, not at Windows' default cascaded position.
+    // Clamp to the work area of the monitor containing the owner window.
+    RECT wr{}, anchor{};
+    GetWindowRect(window, &wr);
+    if (!owner || !IsWindow(owner) || !GetWindowRect(owner, &anchor)) {
+        const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFO info{sizeof(info)};
+        if (GetMonitorInfoW(monitor, &info)) anchor = info.rcWork;
+    }
+    const HMONITOR monitor = MonitorFromWindow(
+        owner && IsWindow(owner) ? owner : window, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info{sizeof(info)};
+    if (GetMonitorInfoW(monitor, &info)) {
+        const int width = wr.right - wr.left;
+        const int height = wr.bottom - wr.top;
+        const int x = (std::max)(info.rcWork.left, (std::min)(
+            anchor.left + ((anchor.right - anchor.left) - width) / 2,
+            info.rcWork.right - width));
+        const int y = (std::max)(info.rcWork.top, (std::min)(
+            anchor.top + ((anchor.bottom - anchor.top) - height) / 2,
+            info.rcWork.bottom - height));
+        SetWindowPos(window, nullptr, x, y, 0, 0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
     auto check=std::make_shared<UpdateCheck>();
     check->window=window;
     CreateWindowW(L"STATIC",L"  TC Symbolic Links  |  Update Check",
