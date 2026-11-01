@@ -297,7 +297,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     std::array<std::wstring, 1> arguments;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
         arguments[i] = L"\"" + actualDll +
-            L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"" +
+            L"\",TCLinkCreate --list \"%WL\" %Z --dest \"%T.\"" +
             kModeArguments[i] + L" --tc-launch";
         if (!AcpRoundTrip(arguments[i])) {
             status = L"This plugin path is not representable in the active bar's INI encoding. "
@@ -564,19 +564,19 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     // one actual DLL; prompt for a safe rebind on architecture switches.
     if ((matchingLauncher &&
          GetPrivateProfileIntW(L"Setup", completedKey, 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 216) ||
+         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 217) ||
         GetPrivateProfileIntW(L"Setup", declinedKey, 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
     const bool ru = PRIMARYLANGID(lang) == LANG_RUSSIAN;
     const bool he = PRIMARYLANGID(lang) == LANG_HEBREW;
     const wchar_t* prompt = he ?
-        L"להוסיף שלושה כפתורי קישורים (אוטומטי/קובץ/תיקייה) לסרגל הקיים? "
+        L"להתקין או לעדכן כפתור קישורים אחד בסרגל הקיים? "
         L"ההגדרות והכפתורים הקיימים יגובו." :
-        ru ? L"Добавить три кнопки (универсальная / файл / папка) в стартовую панель, "
-             L"не заменяя её? Сохраним резервные копии кнопок и настроек." :
-             L"Add three symlink buttons (Auto / File / Directory) to the existing "
-             L"startup toolbar without replacing it? Backups will be preserved.";
+        ru ? L"Добавить или обновить одну универсальную кнопку создания ссылок "
+             L"в существующей панели? Исправим обработку WIM/WCX и сохраним резервные копии." :
+             L"Add or update the one universal symlink button in the existing "
+             L"toolbar with archive/WCX destination safety? Backups will be preserved.";
     if (MessageBoxW(owner, prompt, L"TC Symbolic Links", MB_YESNO | MB_ICONQUESTION) != IDYES) {
         WriteIni(marker, L"Setup", declinedKey, L"1");
         return;
@@ -592,7 +592,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
         WriteIni(marker, L"Setup", completedKey, L"1");
-        WriteIni(marker, L"Setup", versionKey, L"216");
+        WriteIni(marker, L"Setup", versionKey, L"217");
         WriteIni(marker, L"Setup", L"LastConfiguredArchitecture",
                  is64 ? L"64" : L"32");
     }
