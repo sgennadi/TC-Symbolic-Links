@@ -15,6 +15,9 @@
 #ifndef TC_PREVIEW_ITERATION
 #define TC_PREVIEW_ITERATION 0
 #endif
+#ifndef TC_STABLE_RELEASE
+#define TC_STABLE_RELEASE 0
+#endif
 
 namespace {
 constexpr int kResourceUpdater = 220;
@@ -136,8 +139,12 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
     const std::wstring psHost = std::wstring(windowsDir) +
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
+#if TC_STABLE_RELEASE
+    const std::wstring version = L"0.2.16";
+#else
     const std::wstring version = L"0.2.16-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
+#endif
     std::wstring command = L"\"" + psHost +
         L"\" -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File \"" +
         scriptFile + L"\" -Mode " + (!repairIni.empty() ? L"Repair" : (automatic ? L"Auto" : L"Manual")) +
@@ -254,15 +261,27 @@ bool Newer(const Version& v,const Version& old) {
 }
 bool UsePreviewChannel() {
     HKEY key=nullptr;
+#if TC_STABLE_RELEASE
+    if(RegOpenKeyExW(HKEY_CURRENT_USER,kRegistryPath,0,KEY_QUERY_VALUE,&key)!=ERROR_SUCCESS) return false;
+#else
     if(RegOpenKeyExW(HKEY_CURRENT_USER,kRegistryPath,0,KEY_QUERY_VALUE,&key)!=ERROR_SUCCESS) return true;
+#endif
     wchar_t buffer[32]{}; DWORD type=REG_SZ,bytes=sizeof(buffer);
     const bool ok=RegQueryValueExW(key,L"Channel",nullptr,&type,
         reinterpret_cast<BYTE*>(buffer),&bytes)==ERROR_SUCCESS && type==REG_SZ;
     RegCloseKey(key);
+#if TC_STABLE_RELEASE
+    return ok && _wcsicmp(buffer,L"Preview")==0;
+#else
     return !ok || _wcsicmp(buffer,L"Stable")!=0;
+#endif
 }
 void InspectReleases(UpdateCheck& check) {
+#if TC_STABLE_RELEASE
+    const Version installed=ParseVersion("0.2.16");
+#else
     const Version installed=ParseVersion("0.2.16-preview."+std::to_string(TC_PREVIEW_ITERATION));
+#endif
     std::string data;
     if(!GetReleases(data)) {
         check.result=L"Unable to check GitHub releases (network, proxy, API or TLS error).";
