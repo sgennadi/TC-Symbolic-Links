@@ -111,7 +111,7 @@ if(WIN32)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_compile_definitions(tc_integration PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION} TC_STABLE_RELEASE=${TC_STABLE_RELEASE_DEFINE})
   target_include_directories(tc_integration PRIVATE ${tc_updater_zlib_SOURCE_DIR} ${tc_updater_zlib_BINARY_DIR})
-  target_link_libraries(tc_integration PUBLIC user32 advapi32 winhttp bcrypt shell32 ole32 zlibstatic)
+  target_link_libraries(tc_integration PUBLIC user32 advapi32 winhttp bcrypt shell32 ole32 comctl32 zlibstatic)
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
     src/TcLauncher.cpp src/LinkMaker.rc)
   # The updater is raw data embedded in this same WDX, not a companion EXE.
