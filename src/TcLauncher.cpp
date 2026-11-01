@@ -6,6 +6,7 @@
 #include "TcIntegration.h"
 #include "TcMakerGui.h"
 #include "UpdateManager.h"
+#include "NativeUpdateInstall.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <string>
@@ -90,5 +91,17 @@ extern "C" __declspec(dllexport) void CALLBACK TCLinkUpdateW(
     catch (...) {
         MessageBoxW(parent, L"Update Manager failed.", L"TC Symbolic Links",
                     MB_OK | MB_ICONERROR);
+    }
+}
+
+// Standalone native updater phase runner. The trusted installed WDX runs
+// through the system rundll32.exe; the updater never executes an unsigned
+// downloaded DLL from LOCALAPPDATA and never needs a companion EXE/PS1.
+extern "C" __declspec(dllexport) void CALLBACK TCLinkApplyUpdateW(
+    HWND, HINSTANCE, LPWSTR args, int) {
+    try { tcs::update::NativeInstallerWorker(args ? args : L""); }
+    catch (...) {
+        MessageBoxW(nullptr,L"Native installer failed. Original files were not intentionally removed.",
+            L"TC Symbolic Links",MB_OK|MB_ICONERROR);
     }
 }
