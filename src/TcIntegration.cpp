@@ -294,7 +294,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     // silently open an error dialog instead of our Maker window. Finish with
     // an ignored but harmless marker so the final character is not a quote.
     // RunMakerFromArguments deliberately ignores unknown --tc-launch tokens.
-    std::array<std::wstring, 3> arguments;
+    std::array<std::wstring, 1> arguments;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
         arguments[i] = L"\"" + actualDll +
             L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"" +
@@ -318,7 +318,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         status = L"Active button count is invalid or too large.";
         return false;
     }
-    std::array<int, 3> slots{};
+    std::array<int, 1> slots{};
     for (int i = 1; i <= count; ++i) {
         const auto n = std::to_wstring(i);
         const auto cmd = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
@@ -447,10 +447,10 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         return false;
     }
     status = implicitDefaultBar ?
-        L"Three symlink buttons (Auto / File / Directory) were configured in "
+        L"One universal symlink button was configured in "
         L"the writable DEFAULT.BAR without switching toolbars. An original "
         L"and pre-update backup exist; WDX columns are enabled. Restart TC." :
-        L"Three symlink buttons (Auto / File / Directory) were configured "
+        L"One universal symlink button was configured "
         L"in the existing startup bar. The toolbar selection and usercmd.ini "
         L"were NOT changed. WDX columns are enabled. Restart TC.";
     return true;
