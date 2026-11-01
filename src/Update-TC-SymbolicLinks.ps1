@@ -687,9 +687,16 @@ try {
             $now=[DateTime]::UtcNow.ToFileTimeUtc()
             [long]$last=Get-Setting 'LastCheckUtc' ([long]0)
             if ($last -gt 0 -and ($now-$last) -lt [long]864000000000) {exit 0}
-            Set-Setting 'LastCheckUtc' ([long]$now) ([Microsoft.Win32.RegistryValueKind]::QWord)
+            Write-Log ('AUTO_CHECK_STARTED: current='+$CurrentVersion)
             $release=Find-Release ([string](Get-Setting 'Channel' 'Preview'))
-            if ($null -eq $release) {exit 0}
+            # Mark an automatic check complete only after a successful API response.
+            # A network error must not suppress retries for another 24 hours.
+            Set-Setting 'LastCheckUtc' ([long]$now) ([Microsoft.Win32.RegistryValueKind]::QWord)
+            if ($null -eq $release) {
+                Write-Log ('AUTO_CHECK_COMPLETED: no newer release for selected channel; current='+$CurrentVersion)
+                exit 0
+            }
+            Write-Log ('AUTO_UPDATE_AVAILABLE: '+$release.Tag)
             Add-Type -AssemblyName System.Windows.Forms
             $answer=[Windows.Forms.MessageBox]::Show(
                 ((Say 'Update available: ' 'Доступно обновление: ' 'גרסה חדשה: ')+$release.Tag+
