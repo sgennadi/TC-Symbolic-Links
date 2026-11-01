@@ -1,13 +1,16 @@
 #include "UpdateManager.h"
+#include "NativeUpdateInstall.h"
 #include <windows.h>
 #include <atomic>
 #include <cwchar>
 #include <string>
 #include <winhttp.h>
+#include <commctrl.h>
 #include <shellapi.h>
 #include <regex>
 #include <thread>
 #include <memory>
+#include <mutex>
 #include <vector>
 #include <algorithm>
 #pragma comment(lib, "winhttp.lib")
@@ -140,9 +143,9 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
 #if TC_STABLE_RELEASE
-    const std::wstring version = L"0.2.16";
+    const std::wstring version = L"0.2.17";
 #else
-    const std::wstring version = L"0.2.16-preview." +
+    const std::wstring version = L"0.2.17-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
 #endif
     std::wstring command = L"\"" + psHost +
@@ -170,13 +173,25 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
 
 namespace {
 constexpr UINT WM_TCS_UPDATE_DONE = WM_APP + 220;
+constexpr UINT WM_TCS_UPDATE_STAGE_DONE = WM_APP + 221;
+constexpr UINT WM_TCS_UPDATE_PROGRESS = WM_APP + 250;
+constexpr int ID_UPDATE_INSTALL = 405;
+constexpr int ID_UPDATE_PROGRESS = 406;
+constexpr int ID_UPDATE_BRAND = 407;
 struct UpdateCheck {
     HWND window = nullptr;
     HWND status = nullptr;
+    HWND progress = nullptr;
     std::wstring result;
     std::wstring url;
+    std::wstring tag;
+    tcs::update::NativeStage stage;
     bool newer = false;
+    bool canReinstall = false;
     bool success = false;
+    bool busy = false;
+    bool installationStarted = false;
+    bool stageOkay = false;
     bool automatic = false;
 };
 
@@ -199,7 +214,7 @@ struct NetHandle {
     ~NetHandle() { if (h) WinHttpCloseHandle(h); }
 };
 bool GetReleases(std::string& body) {
-    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.16",
+    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.17",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h) return false;
@@ -278,9 +293,9 @@ bool UsePreviewChannel() {
 }
 void InspectReleases(UpdateCheck& check) {
 #if TC_STABLE_RELEASE
-    const Version installed=ParseVersion("0.2.16");
+    const Version installed=ParseVersion("0.2.17");
 #else
-    const Version installed=ParseVersion("0.2.16-preview."+std::to_string(TC_PREVIEW_ITERATION));
+    const Version installed=ParseVersion("0.2.17-preview."+std::to_string(TC_PREVIEW_ITERATION));
 #endif
     std::string data;
     if(!GetReleases(data)) {
@@ -292,10 +307,13 @@ void InspectReleases(UpdateCheck& check) {
     const std::regex tags(R"TAG("tag_name"\s*:\s*"(v?[0-9]+\.[0-9]+\.[0-9]+(?:-preview\.[0-9]+)?)")TAG");
     Version best=installed;
     std::string bestTag;
+    std::string currentTag;
     const bool preview=UsePreviewChannel();
     for(std::sregex_iterator it(data.begin(),data.end(),tags),end;it!=end;++it) {
         const std::string tag=(*it)[1].str();
         const Version v=ParseVersion(tag);
+        if(v.valid && !Newer(v,installed) && !Newer(installed,v))
+            currentTag=tag;
         if(v.valid && (preview||!v.preview) && Newer(v,best)) {
             best=v;bestTag=tag;
         }
@@ -304,9 +322,16 @@ void InspectReleases(UpdateCheck& check) {
     RecordCheck(true);
     if(bestTag.empty()) {
         check.result=L"No newer release found for the selected channel.";
+        if(!currentTag.empty()) {
+            check.canReinstall=true;
+            check.tag=std::wstring(currentTag.begin(),currentTag.end());
+            check.url=L"https://github.com/sgennadi/TC-Symbolic-Links/releases/tag/"+check.tag;
+            check.result+=L" The verified current release can be reinstalled.";
+        }
     } else {
         check.newer=true;
-        check.result=L"New version available: "+std::wstring(bestTag.begin(),bestTag.end());
+        check.tag=std::wstring(bestTag.begin(),bestTag.end());
+        check.result=L"New version available: "+check.tag;
         check.url=L"https://github.com/sgennadi/TC-Symbolic-Links/releases/tag/"+
             std::wstring(bestTag.begin(),bestTag.end());
     }
@@ -315,21 +340,150 @@ constexpr int ID_UPDATE_CLOSE = 401;
 constexpr int ID_UPDATE_OPEN = 402;
 constexpr int ID_UPDATE_RESULT = 403;
 constexpr int ID_UPDATE_TITLE = 404;
+
+void DrawUpdateButton(const DRAWITEMSTRUCT& item) {
+    RECT rect=item.rcItem;
+    const UINT dpi=GetDpiForWindow(item.hwndItem);
+    const auto dp=[dpi](int v){return MulDiv(v,static_cast<int>(dpi),96);};
+    const bool disabled=(item.itemState & ODS_DISABLED)!=0;
+    const bool selected=(item.itemState & ODS_SELECTED)!=0;
+    const bool primary=item.CtlID==ID_UPDATE_INSTALL;
+    const COLORREF fill=disabled?RGB(227,233,242):
+        primary?(selected?RGB(10,137,81):RGB(16,170,93)):
+        (selected?RGB(222,234,250):RGB(247,250,255));
+    const COLORREF ink=disabled?RGB(126,140,160):
+        primary?RGB(255,255,255):RGB(20,57,100);
+    const COLORREF border=primary?fill:RGB(198,215,239);
+    HBRUSH b=CreateSolidBrush(fill);
+    HPEN pen=CreatePen(PS_SOLID,1,border);
+    HGDIOBJ oldPen=SelectObject(item.hDC,pen);
+    HGDIOBJ oldBrush=SelectObject(item.hDC,b);
+    RoundRect(item.hDC,rect.left+1,rect.top+1,rect.right-1,rect.bottom-1,dp(13),dp(13));
+    SelectObject(item.hDC,oldBrush);SelectObject(item.hDC,oldPen);
+    DeleteObject(b);DeleteObject(pen);
+    SetTextColor(item.hDC,ink);SetBkMode(item.hDC,TRANSPARENT);
+    wchar_t text[160]{};
+    GetWindowTextW(item.hwndItem,text,160);
+    RECT label=rect;
+    label.left+=dp(34);
+    label.right-=dp(8);
+    DrawTextW(item.hDC,text,-1,&label,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
+    // Draw vector icons using Win32 GDI: no font glyph/emoji fallback.
+    const int cx=rect.left+dp(20),cy=(rect.top+rect.bottom)/2;
+    HPEN lines=CreatePen(PS_SOLID,(std::max)(1,dp(2)),ink);
+    HGDIOBJ prior=SelectObject(item.hDC,lines);
+    if(item.CtlID==ID_UPDATE_INSTALL) {
+        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx,cy+dp(4));
+        MoveToEx(item.hDC,cx-dp(5),cy,nullptr);LineTo(item.hDC,cx,cy+dp(5));
+        LineTo(item.hDC,cx+dp(5),cy);
+        MoveToEx(item.hDC,cx-dp(7),cy+dp(9),nullptr);LineTo(item.hDC,cx+dp(7),cy+dp(9));
+    } else if(item.CtlID==ID_UPDATE_OPEN) {
+        MoveToEx(item.hDC,cx-dp(7),cy+dp(6),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
+        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
+        LineTo(item.hDC,cx+dp(7),cy-dp(1));
+    } else {
+        MoveToEx(item.hDC,cx-dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx+dp(5),cy+dp(5));
+        MoveToEx(item.hDC,cx+dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx-dp(5),cy+dp(5));
+    }
+    SelectObject(item.hDC,prior);DeleteObject(lines);
+    if(item.itemState & ODS_FOCUS) {
+        RECT ring=rect;InflateRect(&ring,-4,-4);
+        DrawFocusRect(item.hDC,&ring);
+    }
+}
+std::shared_ptr<UpdateCheck> CheckFor(HWND hwnd) {
+    auto* value=reinterpret_cast<std::shared_ptr<UpdateCheck>*>(
+        GetWindowLongPtrW(hwnd,GWLP_USERDATA));
+    return value?*value:nullptr;
+}
+void UpdateStatus(HWND hwnd,const std::wstring& text) {
+    if(HWND target=GetDlgItem(hwnd,ID_UPDATE_RESULT))
+        SetWindowTextW(target,text.c_str());
+}
 LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam) {
-    auto* check=reinterpret_cast<UpdateCheck*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
+    const auto check=CheckFor(hwnd);
     if(message==WM_TCS_UPDATE_DONE) {
         if(check) {
-            SetWindowTextW(check->status,check->result.c_str());
-            HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN);
-            if(open) ShowWindow(open,check->newer?SW_SHOW:SW_HIDE);
-            HWND close=GetDlgItem(hwnd,ID_UPDATE_CLOSE);
-            if(close) SetWindowTextW(close,L"Close");
-            SetWindowTextW(hwnd,L"TC Symbolic Links - Update Check");
+            UpdateStatus(hwnd,check->result);
+            if(HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN))
+                ShowWindow(open,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
+            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)) {
+                ShowWindow(install,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
+                SetWindowTextW(install,check->canReinstall?L"Download & Reinstall":
+                                                L"Download & Install");
+                EnableWindow(install,check->newer||check->canReinstall);
+            }
+            SetWindowTextW(hwnd,L"TC Symbolic Links - Update Manager");
         }
-        return 0; // Keep dialog open, no second MessageBox.
+        return 0;
+    }
+    if(message==WM_TCS_UPDATE_PROGRESS) {
+        if(check && check->busy) {
+            if(check->progress)SendMessageW(check->progress,PBM_SETPOS,wParam,0);
+            UpdateStatus(hwnd,L"Downloading verified release... "+
+                std::to_wstring(wParam)+L"%");
+        }
+        return 0;
+    }
+    if(message==WM_TCS_UPDATE_STAGE_DONE) {
+        if(check) {
+            check->busy=false;
+            if(!check->stageOkay) {
+                UpdateStatus(hwnd,check->stage.description);
+                if(check->progress)ShowWindow(check->progress,SW_HIDE);
+                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))
+                    EnableWindow(install,TRUE);
+            } else {
+                UpdateStatus(hwnd,L"SHA-256 verified. Starting protected native installer...");
+                const auto module=ModuleFile(OwnModule());
+                std::wstring error;
+                const bool launched=tcs::update::BeginNativeInstall(check->stage,module,
+                                                        GetCurrentProcessId(),error);
+                check->installationStarted=launched;
+                if(launched) {
+                    UpdateStatus(hwnd,L"Verified ZIP staged. Close Total Commander and the "+
+                        std::wstring(L"Link Maker window to finish installation."));
+                    if(check->progress)SendMessageW(check->progress,PBM_SETPOS,100,0);
+                } else {
+                    UpdateStatus(hwnd,L"Update could not start: "+error);
+                }
+                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))
+                    EnableWindow(install,!launched);
+            }
+        }
+        return 0;
+    }
+    if(message==WM_DRAWITEM && lParam) {
+        const auto& item=*reinterpret_cast<const DRAWITEMSTRUCT*>(lParam);
+        if(item.CtlID==ID_UPDATE_INSTALL || item.CtlID==ID_UPDATE_OPEN ||
+           item.CtlID==ID_UPDATE_CLOSE) {
+            DrawUpdateButton(item);return TRUE;
+        }
     }
     if(message==WM_COMMAND) {
-        if(LOWORD(wParam)==ID_UPDATE_OPEN && check && check->newer && !check->url.empty()) {
+        if(LOWORD(wParam)==ID_UPDATE_INSTALL && check &&
+           (check->newer||check->canReinstall) && !check->busy &&
+           !check->installationStarted) {
+            check->busy=true;
+            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))EnableWindow(install,FALSE);
+            if(check->progress) {
+                ShowWindow(check->progress,SW_SHOW);
+                SendMessageW(check->progress,PBM_SETPOS,0,0);
+            }
+            UpdateStatus(hwnd,L"Downloading and verifying official GitHub ZIP...");
+            std::thread([check] {
+                try {check->stageOkay=tcs::update::StageNativeUpdate(check->tag,check->window,
+                                                        check->stage);}
+                catch (...) {
+                    check->stageOkay=false;
+                    check->stage.description=L"Download failed unexpectedly.";
+                }
+                PostMessageW(check->window,WM_TCS_UPDATE_STAGE_DONE,0,0);
+            }).detach();
+            return 0;
+        }
+        if(LOWORD(wParam)==ID_UPDATE_OPEN && check &&
+           (check->newer||check->canReinstall) && !check->url.empty()) {
             ShellExecuteW(hwnd,L"open",check->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
             return 0;
         }
@@ -340,7 +494,8 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     if(message==WM_CTLCOLORSTATIC) {
         HDC dc=reinterpret_cast<HDC>(wParam);
         HWND control=reinterpret_cast<HWND>(lParam);
-        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE) {
+        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE ||
+           GetDlgCtrlID(control)==ID_UPDATE_BRAND) {
             SetTextColor(dc,RGB(255,255,255));
             SetBkColor(dc,RGB(14,76,154));
             static HBRUSH blue=CreateSolidBrush(RGB(14,76,154));
@@ -351,12 +506,13 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
         static HBRUSH pale=CreateSolidBrush(RGB(245,248,253));
         return reinterpret_cast<LRESULT>(pale);
     }
-    if(message==WM_CLOSE) { DestroyWindow(hwnd);return 0; }
-    // Never PostQuitMessage here: this is a secondary window hosted by the
-    // link maker, and WM_QUIT would close the entire parent UI.
+    if(message==WM_CLOSE){DestroyWindow(hwnd);return 0;}
+    // Secondary window must not issue WM_QUIT to the Link Maker.
     if(message==WM_NCDESTROY) {
+        auto* holder=reinterpret_cast<std::shared_ptr<UpdateCheck>*>(
+            GetWindowLongPtrW(hwnd,GWLP_USERDATA));
         SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);
-        return DefWindowProcW(hwnd,message,wParam,lParam);
+        delete holder;
     }
     return DefWindowProcW(hwnd,message,wParam,lParam);
 }
@@ -364,80 +520,101 @@ bool NativeManualCheck(HWND owner) {
     const HINSTANCE instance=GetModuleHandleW(nullptr);
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
     WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
-    // Use the same embedded chain-link icon as the main Link Maker window.
-    // GetModuleHandle(nullptr) points to rundll32.exe, not to our WDX.
     const HMODULE iconModule=OwnModule();
-    cls.hIcon=iconModule ? LoadIconW(iconModule,MAKEINTRESOURCEW(101)) : nullptr;
+    cls.hIcon=iconModule?LoadIconW(iconModule,MAKEINTRESOURCEW(101)):nullptr;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
     cls.lpszClassName=klass;
     RegisterClassW(&cls);
+    const UINT dpi=owner&&IsWindow(owner)?GetDpiForWindow(owner):GetDpiForSystem();
+    const auto dp=[dpi](int value){return MulDiv(value,static_cast<int>(dpi),96);};
+    const int width=dp(610),height=dp(252);
     HWND window=CreateWindowExW(WS_EX_DLGMODALFRAME,klass,
-        L"TC Symbolic Links - Checking GitHub...",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
-        CW_USEDEFAULT,CW_USEDEFAULT,525,205,owner,nullptr,instance,nullptr);
-    if(!window) return false;
-    if (iconModule) {
-        HICON smallIcon=static_cast<HICON>(LoadImageW(iconModule,
-            MAKEINTRESOURCEW(101), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
-        if (smallIcon) SendMessageW(window, WM_SETICON, ICON_SMALL,
-            reinterpret_cast<LPARAM>(smallIcon));
+        L"TC Symbolic Links - Update Manager",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
+        CW_USEDEFAULT,CW_USEDEFAULT,width,height,owner,nullptr,instance,nullptr);
+    if(!window)return false;
+    if(iconModule) {
+        HICON small=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+            IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
+        if(small)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(small));
     }
-    // Center over the maker, not at Windows' default cascaded position.
-    // Clamp to the work area of the monitor containing the owner window.
-    RECT wr{}, anchor{};
-    GetWindowRect(window, &wr);
-    if (!owner || !IsWindow(owner) || !GetWindowRect(owner, &anchor)) {
-        const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY);
-        MONITORINFO info{sizeof(info)};
-        if (GetMonitorInfoW(monitor, &info)) anchor = info.rcWork;
+    RECT wr{},anchor{};
+    GetWindowRect(window,&wr);
+    if(!owner || !IsWindow(owner) || !GetWindowRect(owner,&anchor)) {
+        MONITORINFO mi{sizeof(mi)};
+        if(GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTOPRIMARY),&mi))
+            anchor=mi.rcWork;
     }
-    const HMONITOR monitor = MonitorFromWindow(
-        owner && IsWindow(owner) ? owner : window, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO info{sizeof(info)};
-    if (GetMonitorInfoW(monitor, &info)) {
-        const int width = wr.right - wr.left;
-        const int height = wr.bottom - wr.top;
-        const int x = (std::max)(info.rcWork.left, (std::min)(
-            anchor.left + ((anchor.right - anchor.left) - width) / 2,
-            info.rcWork.right - width));
-        const int y = (std::max)(info.rcWork.top, (std::min)(
-            anchor.top + ((anchor.bottom - anchor.top) - height) / 2,
-            info.rcWork.bottom - height));
-        SetWindowPos(window, nullptr, x, y, 0, 0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(MonitorFromWindow(owner&&IsWindow(owner)?owner:window,
+        MONITOR_DEFAULTTONEAREST),&mi)) {
+        const int x=(std::max)(mi.rcWork.left,(std::min)(
+            anchor.left+(anchor.right-anchor.left-width)/2,mi.rcWork.right-width));
+        const int y=(std::max)(mi.rcWork.top,(std::min)(
+            anchor.top+(anchor.bottom-anchor.top-height)/2,mi.rcWork.bottom-height));
+        SetWindowPos(window,nullptr,x,y,0,0,
+            SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
     }
     auto check=std::make_shared<UpdateCheck>();
     check->window=window;
-    CreateWindowW(L"STATIC",L"  TC Symbolic Links  |  Update Check",
-        WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,525,54,window,
+    SetWindowLongPtrW(window,GWLP_USERDATA,
+        reinterpret_cast<LONG_PTR>(new std::shared_ptr<UpdateCheck>(check)));
+    // Embedded icon + branded header, no generic Windows icon or emoji fonts.
+    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links  |  Update Manager",
+        WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,width,dp(57),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_TITLE)),instance,nullptr);
+    if(iconModule) {
+        HWND brand=CreateWindowW(L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            dp(14),dp(13),dp(32),dp(32),window,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_BRAND)),instance,nullptr);
+        HICON large=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+            IMAGE_ICON,dp(32),dp(32),LR_SHARED));
+        if(large)SendMessageW(brand,STM_SETICON,reinterpret_cast<WPARAM>(large),0);
+    }
+    const HFONT body=CreateFontW(-dp(16),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
+        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    if(body)SendMessageW(head,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
     check->status=CreateWindowW(L"STATIC",L"Checking GitHub releases...",
-        WS_CHILD|WS_VISIBLE|SS_LEFT,20,76,480,42,window,
+        WS_CHILD|WS_VISIBLE|SS_LEFT,dp(22),dp(73),dp(555),dp(52),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_RESULT)),instance,nullptr);
-    CreateWindowW(L"BUTTON",L"Open release",WS_CHILD|BS_PUSHBUTTON,
-        220,124,130,29,window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_OPEN)),instance,nullptr);
-    CreateWindowW(L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,
-        365,124,130,29,window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
-    SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(check.get()));
+    if(body)SendMessageW(check->status,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
+    INITCOMMONCONTROLSEX c{sizeof(c),ICC_PROGRESS_CLASS};
+    InitCommonControlsEx(&c);
+    check->progress=CreateWindowW(PROGRESS_CLASSW,nullptr,WS_CHILD|PBS_SMOOTH,
+        dp(22),dp(126),dp(555),dp(12),window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_PROGRESS)),instance,nullptr);
+    if(check->progress)SendMessageW(check->progress,PBM_SETRANGE,0,MAKELPARAM(0,100));
+    CreateWindowW(L"BUTTON",L"Download & Install",WS_CHILD|BS_OWNERDRAW,
+        dp(20),dp(155),dp(230),dp(40),window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_INSTALL)),instance,nullptr);
+    CreateWindowW(L"BUTTON",L"Release page",WS_CHILD|BS_OWNERDRAW,
+        dp(263),dp(155),dp(151),dp(40),window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_OPEN)),instance,nullptr);
+    CreateWindowW(L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+        dp(428),dp(155),dp(154),dp(40),window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
+    if(body) {
+        for(int id : {ID_UPDATE_INSTALL,ID_UPDATE_OPEN,ID_UPDATE_CLOSE}) {
+            if(HWND button=GetDlgItem(window,id))
+                SendMessageW(button,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
+        }
+    }
     ShowWindow(window,SW_SHOW);
     std::thread([check]{
-        try {InspectReleases(*check);}
-        catch (...) {check->result=L"Update check failed."; }
+        try{InspectReleases(*check);}
+        catch(...){check->result=L"Update check failed.";}
         PostMessageW(check->window,WM_TCS_UPDATE_DONE,0,0);
     }).detach();
     MSG msg{};
-    // Private local loop, no PostQuitMessage. If the owner has been destroyed,
-    // close only this dialog. Other windows remain functional.
     while(IsWindow(window)) {
-        const BOOL result=GetMessageW(&msg,nullptr,0,0);
-        if(result<=0) {
-            if(result==0) PostQuitMessage(static_cast<int>(msg.wParam));
-            break;
-        }
+        const BOOL rc=GetMessageW(&msg,nullptr,0,0);
+        if(rc<=0){if(rc==0)PostQuitMessage(static_cast<int>(msg.wParam));break;}
         if(!IsDialogMessageW(window,&msg)) {
             TranslateMessage(&msg);DispatchMessageW(&msg);
         }
     }
+    if(body)DeleteObject(body);
     return true;
 }
 void NativeAutomaticCheck() {

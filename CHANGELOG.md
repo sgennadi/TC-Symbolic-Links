@@ -1,3 +1,15 @@
+## 0.2.17 Stable — native download and install UI (pending verification)
+
+- Native Download & Install action and transfer progress, with vector button icons.
+- Release ZIP verification using GitHub's SHA-256 digest, bounded ZIP extraction,
+  CRC verification, and x86/x64 PE checks; pinned statically linked zlib.
+- Two-phase native installation via the trusted installed WDX and system
+  rundll32; UAC for protected plugin directories, staged copies inside the
+  protected directory, backup/rollback, and wait for Total Commander exit.
+- No temporary PowerShell script for downloading or installing plugin DLLs.
+- Legacy PowerShell is retained only for optional duplicate-registration repair.
+- Tests and real TC UI acceptance required before publishing as Stable.
+
 ## 0.2.16 Stable — first stable all-in-one WDX release (2026-11-01)
 
 - Publish **one native Total Commander ZIP**, including `SymlinkInspector.wdx`

@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.16 Stable
+# TC Symbolic Links 0.2.17 Stable
 
 **Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
 `TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total
@@ -23,7 +23,7 @@ check natively via WinHTTP. It displays progress and a result in one
 blue/white dialog centered over the Maker, with the same WDX icon.
 No `tcu*.ps1` is extracted for this version check. A newer release
 can be opened in GitHub for installation through Total Commander.
-Automatic installation from the new native UI is **not yet implemented**.
+Native **Download & Install** verifies the official ZIP, then runs the trusted installed WDX for a deferred update once Total Commander and Maker windows are closed. Windows UAC is requested when the plugin directory needs administrator rights. No downloaded DLL is executed from LOCALAPPDATA. If UAC is declined or installation cannot finish, existing installed files remain recoverable from backups.
 The conservative legacy repair of duplicate WDX registrations is a
 separate opt-in operation and still uses the embedded PowerShell helper.
 
@@ -33,7 +33,7 @@ Older versions may have left duplicate numbered WDX registrations;
 the WDX offers a backed-up repair after TC closes, and refuses
 ambiguous changes that could affect other plugins.
 
-## Previous Preview release notes (historical behavior)
+## Previous 0.2.16 stable and Preview release notes (historical behavior)
 
 > **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
 > could switch the active button bar and hide existing icons. Version 0.2.4

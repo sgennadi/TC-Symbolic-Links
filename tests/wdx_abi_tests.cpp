@@ -73,6 +73,7 @@ int wmain(int argc, wchar_t** argv) {
         (void)module.Export<FARPROC>("ContentGetValue");
         // The updater lives in the SAME WDX with no separately installed EXE.
         (void)module.Export<FARPROC>("TCLinkUpdateW");
+        (void)module.Export<FARPROC>("TCLinkApplyUpdateW"); // native installer, both bitnesses
         HRSRC script = FindResourceW(module.handle, MAKEINTRESOURCEW(220),
                                     MAKEINTRESOURCEW(10)); // RT_RCDATA
         Require(script != nullptr, "Embedded Update Manager resource missing");

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.16 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.17 LANGUAGES CXX)
 # CI preview releases use the matching GitHub workflow run number.
 set(TC_PREVIEW_ITERATION 0 CACHE STRING "Preview build serial; 0 for local builds")
 option(TC_STABLE_RELEASE "Compile the official stable release version" OFF)
@@ -82,6 +82,17 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(WIN32)
+  # The native updater verifies GitHub's SHA-256 digest and extracts the exact
+  # three files in our standard ZIP using pinned, statically linked zlib.
+  # No extra runtime DLL, helper EXE, cmd, or PowerShell updater is distributed.
+  include(FetchContent)
+  set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(tc_updater_zlib
+    URL https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
+    URL_HASH SHA256=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  FetchContent_MakeAvailable(tc_updater_zlib)
   # Both x86 and x64 WDX modules are built from identical source.
   # Total Commander chooses the matching module by .wdx/.wdx64 suffix.
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -96,10 +107,11 @@ if(WIN32)
 
   # Both native Maker and startup registration diagnosis use UpdateManager.
   # Keep it in tc_integration so test executables link the same code as WDX.
-  add_library(tc_integration STATIC src/TcIntegration.cpp src/UpdateManager.cpp)
+  add_library(tc_integration STATIC src/TcIntegration.cpp src/UpdateManager.cpp src/NativeUpdateInstall.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_compile_definitions(tc_integration PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION} TC_STABLE_RELEASE=${TC_STABLE_RELEASE_DEFINE})
-  target_link_libraries(tc_integration PUBLIC user32 advapi32)
+  target_include_directories(tc_integration PRIVATE ${tc_updater_zlib_SOURCE_DIR} ${tc_updater_zlib_BINARY_DIR})
+  target_link_libraries(tc_integration PUBLIC user32 advapi32 winhttp bcrypt shell32 ole32 comctl32 zlibstatic)
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
     src/TcLauncher.cpp src/LinkMaker.rc)
   # The updater is raw data embedded in this same WDX, not a companion EXE.
@@ -122,6 +134,40 @@ if(WIN32)
     add_test(NAME tc_nipkg_theme_offscreen COMMAND windows_visual_theme_tests)
     if(MSVC)
       target_compile_options(windows_visual_theme_tests PRIVATE /W4 /utf-8)
+    endif()
+
+    # Security acceptance for native GitHub ZIP download/extraction:
+    # strictly three root files, raw DEFLATE, CRC and correct WDX machines.
+    add_executable(windows_native_update_tests tests/windows_native_update_tests.cpp)
+    target_include_directories(windows_native_update_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+      "${tc_updater_zlib_SOURCE_DIR}"
+      "${tc_updater_zlib_BINARY_DIR}")
+    target_link_libraries(windows_native_update_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_update_zip_security COMMAND windows_native_update_tests)
+    if(MSVC)
+      target_compile_options(windows_native_update_tests PRIVATE /W4 /utf-8)
+    endif()
+
+    add_executable(windows_native_install_tests tests/windows_native_install_tests.cpp)
+    target_include_directories(windows_native_install_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_native_install_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_update_transaction_and_rollback
+      COMMAND windows_native_install_tests)
+    if(MSVC)
+      target_compile_options(windows_native_install_tests PRIVATE /W4 /utf-8)
+    endif()
+
+    add_executable(windows_native_network_tests tests/windows_native_network_tests.cpp)
+    target_include_directories(windows_native_network_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_native_network_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_github_release_download_sha256
+      COMMAND windows_native_network_tests)
+    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES TIMEOUT 90)
+    if(MSVC)
+      target_compile_options(windows_native_network_tests PRIVATE /W4 /utf-8)
     endif()
 
     add_executable(windows_link_tests tests/windows_link_tests.cpp)

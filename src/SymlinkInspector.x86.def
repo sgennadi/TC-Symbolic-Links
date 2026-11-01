@@ -9,3 +9,4 @@ EXPORTS
     TCLinkSetupW=_TCLinkSetupW@16
     TCLinkProbeW=_TCLinkProbeW@16
     TCLinkUpdateW=_TCLinkUpdateW@16
+    TCLinkApplyUpdateW=_TCLinkApplyUpdateW@16
