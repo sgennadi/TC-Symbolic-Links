@@ -1,3 +1,27 @@
+## 0.2.16 Stable — first stable all-in-one WDX release (2026-11-01)
+
+- Publish **one native Total Commander ZIP**, including `SymlinkInspector.wdx`
+  (32-bit), `SymlinkInspector.wdx64` (64-bit), and `pluginst.inf`;
+  no launcher EXE, install CMD, or install PowerShell scripts.
+- Use a **single universal Create Links button** and preserve existing
+  button bars and custom commands. Existing buttons can be updated in
+  place after a safe backup; migration marker 217 upgrades the TC
+  destination placeholder to `%Z ... %T.`.
+- Refuse to create filesystem links into virtual WIM/WCX archive panels;
+  never silently substitute the archive's containing directory.
+  Guard against source/destination identity and Windows error 183.
+- Native WinHTTP **Check for Updates** in the existing WDX with a
+  centered, single themed dialog, WDX icon, explicit results and
+  no temporary PowerShell script for checking.
+- Stable builds embed their **actual stable version 0.2.16** and default
+  to the Stable update channel unless Preview was explicitly selected.
+- Windows x86/x64 builds and tests use VS 2026; Linux WDX, sanitizers,
+  isolated SMB and safe toolbar recovery are tested in CI.
+- **Known limitations:** WIM contents are not writable by normal NTFS
+  symlink APIs. New update checks open a release page rather than
+  silently installing it. The conservative WDX-registration repair
+  still uses the embedded PowerShell mechanism if invoked.
+
 ## 0.2.16 Preview — unified WDX registration fix
 
 - Return to **one normal Total Commander installer ZIP** containing
