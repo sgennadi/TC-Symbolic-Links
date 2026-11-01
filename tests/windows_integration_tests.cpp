@@ -165,7 +165,8 @@ int wmain(int argc, wchar_t** argv) {
         Require(buttonParams.find(L",TCLinkCreate --list") != std::wstring::npos,
                 "incorrect rundll32 Unicode export invocation");
         Require(buttonParams.find(L"%WL") != std::wstring::npos &&
-                buttonParams.find(L"%T.") != std::wstring::npos,
+                buttonParams.find(L"%T.") != std::wstring::npos &&
+                buttonParams.find(L"%Z") != std::wstring::npos,
                 "Total Commander source/destination placeholders missing");
         Require(ReadText(usercmd) == originalUserCommands,
                 "REGRESSION: usercmd.ini was changed or re-encoded");
