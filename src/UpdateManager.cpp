@@ -185,7 +185,7 @@ struct UpdateCheck {
     std::wstring result;
     std::wstring url;
     std::wstring tag;
-    NativeStage stage;
+    tcs::update::NativeStage stage;
     bool newer = false;
     bool success = false;
     bool busy = false;
@@ -423,7 +423,7 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
                 UpdateStatus(hwnd,L"SHA-256 verified. Starting protected native installer...");
                 const auto module=ModuleFile(OwnModule());
                 std::wstring error;
-                const bool launched=BeginNativeInstall(check->stage,module,
+                const bool launched=tcs::update::BeginNativeInstall(check->stage,module,
                                                         GetCurrentProcessId(),error);
                 check->installationStarted=launched;
                 if(launched) {
@@ -457,7 +457,7 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
             }
             UpdateStatus(hwnd,L"Downloading and verifying official GitHub ZIP...");
             std::thread([check] {
-                try {check->stageOkay=StageNativeUpdate(check->tag,check->window,
+                try {check->stageOkay=tcs::update::StageNativeUpdate(check->tag,check->window,
                                                         check->stage);}
                 catch (...) {
                     check->stageOkay=false;
@@ -569,7 +569,7 @@ bool NativeManualCheck(HWND owner) {
         dp(22),dp(126),dp(555),dp(12),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_PROGRESS)),instance,nullptr);
     if(check->progress)SendMessageW(check->progress,PBM_SETRANGE,0,MAKELPARAM(0,100));
-    CreateWindowW(L"BUTTON",L"Download && Install",WS_CHILD|BS_OWNERDRAW,
+    CreateWindowW(L"BUTTON",L"Download & Install",WS_CHILD|BS_OWNERDRAW,
         dp(20),dp(155),dp(230),dp(40),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_INSTALL)),instance,nullptr);
     CreateWindowW(L"BUTTON",L"Release page",WS_CHILD|BS_OWNERDRAW,
