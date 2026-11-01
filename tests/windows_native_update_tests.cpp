@@ -93,7 +93,7 @@ int main() {
         Require(tcs::update::VerifyNativeZipBytes(valid),
                 "Valid x86/x64/INF archive unexpectedly rejected");
         auto corrupt=valid;
-        corrupt[40]^=0x2f;
+        corrupt[30+clean[0].name.size()+4]^=0x2f;
         Require(!tcs::update::VerifyNativeZipBytes(corrupt),
                 "Corrupted compressed member or CRC was accepted");
         auto duplicate=clean;
