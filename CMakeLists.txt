@@ -136,6 +136,19 @@ if(WIN32)
       target_compile_options(windows_visual_theme_tests PRIVATE /W4 /utf-8)
     endif()
 
+    # Security acceptance for native GitHub ZIP download/extraction:
+    # strictly three root files, raw DEFLATE, CRC and correct WDX machines.
+    add_executable(windows_native_update_tests tests/windows_native_update_tests.cpp)
+    target_include_directories(windows_native_update_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+      "${tc_updater_zlib_SOURCE_DIR}"
+      "${tc_updater_zlib_BINARY_DIR}")
+    target_link_libraries(windows_native_update_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_update_zip_security COMMAND windows_native_update_tests)
+    if(MSVC)
+      target_compile_options(windows_native_update_tests PRIVATE /W4 /utf-8)
+    endif()
+
     add_executable(windows_link_tests tests/windows_link_tests.cpp)
     target_link_libraries(windows_link_tests PRIVATE tc_link_core)
     add_test(NAME win32_hebrew_links COMMAND windows_link_tests)
