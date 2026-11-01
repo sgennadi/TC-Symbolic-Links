@@ -271,11 +271,21 @@ bool DirectoryAtOrInside(std::wstring child, std::wstring parent) {
     return _wcsnicmp(child.c_str(), parent.c_str(), parent.size()) == 0;
 }
 std::wstring InvalidDestinationReason(const Ui& state, const std::wstring& dest) {
-    if (dest.empty() || !tcs::IsExistingDirectory(dest))
+    if (dest.empty() || !tcs::IsExistingDirectory(dest)) {
+        // %Z lets TC pass the real *virtual* path of a WCX/WIM panel.
+        // A path containing an existing regular file (boot.wim\\image1)
+        // cannot be a Windows filesystem directory. Never fall back to the
+        // archive's parent, where we could overwrite the selected source.
+        if (!dest.empty() && !tcs::ExistingFileAncestor(dest).empty())
+            return state.Choose(
+                L"Target panel is inside an archive or file (WIM/WCX). Select a real filesystem folder.",
+                L"Целевая панель внутри файла/архива WIM/WCX. Выберите обычную папку на диске.",
+                L"חלונית היעד בתוך קובץ או ארכיון WIM/WCX. בחר תיקייה רגילה בדיסק.");
         return state.Choose(
-            L"Choose an existing destination folder.",
-            L"Выберите существующую папку назначения.",
-            L"יש לבחור תיקיית יעד קיימת.");
+            L"Target is not a real filesystem folder. Choose an existing disk or SMB directory, not a virtual panel.",
+            L"Назначение не является обычной папкой. Выберите каталог на диске или SMB, а не виртуальную панель.",
+            L"היעד אינו תיקיית מערכת קבצים. בחר תיקיית דיסק או SMB קיימת.");
+    }
     for (const auto& selected : state.selected) {
         const auto source = tcs::FullPath(selected);
         const auto name = tcs::BaseName(selected);
