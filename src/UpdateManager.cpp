@@ -333,6 +333,8 @@ constexpr int ID_UPDATE_TITLE = 404;
 
 void DrawUpdateButton(const DRAWITEMSTRUCT& item) {
     RECT rect=item.rcItem;
+    const UINT dpi=GetDpiForWindow(item.hwndItem);
+    const auto dp=[dpi](int v){return MulDiv(v,static_cast<int>(dpi),96);};
     const bool disabled=(item.itemState & ODS_DISABLED)!=0;
     const bool selected=(item.itemState & ODS_SELECTED)!=0;
     const bool primary=item.CtlID==ID_UPDATE_INSTALL;
@@ -346,32 +348,32 @@ void DrawUpdateButton(const DRAWITEMSTRUCT& item) {
     HPEN pen=CreatePen(PS_SOLID,1,border);
     HGDIOBJ oldPen=SelectObject(item.hDC,pen);
     HGDIOBJ oldBrush=SelectObject(item.hDC,b);
-    RoundRect(item.hDC,rect.left+1,rect.top+1,rect.right-1,rect.bottom-1,13,13);
+    RoundRect(item.hDC,rect.left+1,rect.top+1,rect.right-1,rect.bottom-1,dp(13),dp(13));
     SelectObject(item.hDC,oldBrush);SelectObject(item.hDC,oldPen);
     DeleteObject(b);DeleteObject(pen);
     SetTextColor(item.hDC,ink);SetBkMode(item.hDC,TRANSPARENT);
     wchar_t text[160]{};
     GetWindowTextW(item.hwndItem,text,160);
     RECT label=rect;
-    label.left+=34;
-    label.right-=8;
+    label.left+=dp(34);
+    label.right-=dp(8);
     DrawTextW(item.hDC,text,-1,&label,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
     // Draw vector icons using Win32 GDI: no font glyph/emoji fallback.
-    const int cx=rect.left+20,cy=(rect.top+rect.bottom)/2;
-    HPEN lines=CreatePen(PS_SOLID,2,ink);
+    const int cx=rect.left+dp(20),cy=(rect.top+rect.bottom)/2;
+    HPEN lines=CreatePen(PS_SOLID,(std::max)(1,dp(2)),ink);
     HGDIOBJ prior=SelectObject(item.hDC,lines);
     if(item.CtlID==ID_UPDATE_INSTALL) {
-        MoveToEx(item.hDC,cx,cy-8,nullptr);LineTo(item.hDC,cx,cy+4);
-        MoveToEx(item.hDC,cx-5,cy,nullptr);LineTo(item.hDC,cx,cy+5);
-        LineTo(item.hDC,cx+5,cy);
-        MoveToEx(item.hDC,cx-7,cy+9,nullptr);LineTo(item.hDC,cx+7,cy+9);
+        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx,cy+dp(4));
+        MoveToEx(item.hDC,cx-dp(5),cy,nullptr);LineTo(item.hDC,cx,cy+dp(5));
+        LineTo(item.hDC,cx+dp(5),cy);
+        MoveToEx(item.hDC,cx-dp(7),cy+dp(9),nullptr);LineTo(item.hDC,cx+dp(7),cy+dp(9));
     } else if(item.CtlID==ID_UPDATE_OPEN) {
-        MoveToEx(item.hDC,cx-7,cy+6,nullptr);LineTo(item.hDC,cx+7,cy-8);
-        MoveToEx(item.hDC,cx,cy-8,nullptr);LineTo(item.hDC,cx+7,cy-8);
-        LineTo(item.hDC,cx+7,cy-1);
+        MoveToEx(item.hDC,cx-dp(7),cy+dp(6),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
+        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
+        LineTo(item.hDC,cx+dp(7),cy-dp(1));
     } else {
-        MoveToEx(item.hDC,cx-5,cy-5,nullptr);LineTo(item.hDC,cx+5,cy+5);
-        MoveToEx(item.hDC,cx+5,cy-5,nullptr);LineTo(item.hDC,cx-5,cy+5);
+        MoveToEx(item.hDC,cx-dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx+dp(5),cy+dp(5));
+        MoveToEx(item.hDC,cx+dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx-dp(5),cy+dp(5));
     }
     SelectObject(item.hDC,prior);DeleteObject(lines);
     if(item.itemState & ODS_FOCUS) {
@@ -579,6 +581,12 @@ bool NativeManualCheck(HWND owner) {
     CreateWindowW(L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
         dp(428),dp(155),dp(154),dp(40),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
+    if(body) {
+        for(int id : {ID_UPDATE_INSTALL,ID_UPDATE_OPEN,ID_UPDATE_CLOSE}) {
+            if(HWND button=GetDlgItem(window,id))
+                SendMessageW(button,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
+        }
+    }
     ShowWindow(window,SW_SHOW);
     std::thread([check]{
         try{InspectReleases(*check);}
