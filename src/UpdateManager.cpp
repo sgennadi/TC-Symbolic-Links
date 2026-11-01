@@ -9,6 +9,7 @@
 #include <thread>
 #include <memory>
 #include <vector>
+#include <algorithm>
 #pragma comment(lib, "winhttp.lib")
 
 #ifndef TC_PREVIEW_ITERATION
