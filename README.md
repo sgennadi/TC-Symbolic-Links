@@ -32,6 +32,10 @@ the invoking TC cannot be identified, it asks the user rather than guessing.
   DLL from being copied by the new installer. Existing unrelated modules
   are never deleted. An old pair of DLL files can safely remain in its
   original, now **unregistered**, directory until the user removes it.
+- The bootstrapper identifies the target TC architecture *before*
+  requesting closure, then **waits for every TC process to exit** before
+  modifying wincmd.ini (bounded timeout; no forced termination). This
+  avoids TC's normal shutdown save overwriting the new registration.
 - Existing WDX registration is reused; otherwise only the first free
   `[ContentPlugins]` slot is added. x64 sets the matching
   `[ContentPlugins64]` flag; x86 clears that flag for its own slot.

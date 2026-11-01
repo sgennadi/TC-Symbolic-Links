@@ -144,6 +144,17 @@ function Check-PE([string]$path,[int]$machine) {
         if($reader.ReadUInt16() -ne $machine){throw 'Wrong WDX machine architecture.'}
     }finally{$file.Dispose()}
 }
+function Wait-For-TcExit {
+    $running=@(Get-Process -Name 'TOTALCMD64','TOTALCMD' -ErrorAction SilentlyContinue)
+    if($running.Count -eq 0){return}
+    if($NonInteractive){throw 'Close all Total Commander windows before modifying wincmd.ini.'}
+    Dialog (Txt 'Please close ALL Total Commander windows now. The installer will then write the plugin registration safely.' 'Закройте ВСЕ окна Total Commander. Только после выхода TC установщик безопасно запишет регистрацию плагина.' 'סגור את כל חלונות Total Commander לפני עדכון ההגדרות.')
+    for($attempt=0;$attempt -lt 90;$attempt++){
+        if(@(Get-Process -Name 'TOTALCMD64','TOTALCMD' -ErrorAction SilentlyContinue).Count -eq 0){return}
+        Start-Sleep -Seconds 2
+    }
+    throw 'Total Commander remains open. Installation cancelled without changing settings.'
+}
 function Install-Architecture([string]$arch,[string]$ini){
     Prepare-INI
     $name=if($arch -eq 'x64'){'SymlinkInspector.wdx64'}else{'SymlinkInspector.wdx'}
@@ -203,6 +214,7 @@ try{
     $chosen=Select-Architecture
     $ini=Find-INI
     if($TestOnly){Write-Output ('SELECTED_ARCHITECTURE='+$chosen);Write-Output ('TC_INI='+$ini);exit 0}
+    Wait-For-TcExit
     $result=Install-Architecture $chosen $ini
     $text=(Txt 'Installed only the selected WDX architecture.' 'Установлена только подходящая разрядность WDX.' 'הותקנה גרסת WDX המתאימה בלבד.')
     $text+=[Environment]::NewLine+'Architecture: '+$result.Architecture

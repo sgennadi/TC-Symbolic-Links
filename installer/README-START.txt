@@ -9,11 +9,14 @@
    32-битный Total Commander -> только SymlinkInspector.wdx.
 3. Если запущены обе версии TC, либо установщик не видит TC, выберите
    нужную разрядность в диалоге. Никаких догадок по разрядности Windows.
-4. Укажите wincmd.ini при запросе. Перед изменением создается отдельная
+4. При запросе закройте ВСЕ окна Total Commander. Настройки будут
+   записаны только после полного закрытия TC, чтобы он не перезаписал их
+   обратно при выходе. При закрытии TC инсталлятор НЕ завершается.
+5. Укажите wincmd.ini при запросе. Перед изменением создается отдельная
    резервная копия. Личные кнопки, usercmd.ini и другие плагины сохраняются.
-5. Перезапустите Total Commander и подтвердите безопасную настройку
+6. Перезапустите Total Commander и подтвердите безопасную настройку
    трех кнопок Symlink. Плагин предложит изменить только свои команды.
-6. Для последующих обновлений используйте встроенную кнопку
+7. Для последующих обновлений используйте встроенную кнопку
    Check for Updates. Она обновляет только установленную архитектуру.
 
 Внимание: в архиве НЕ имеется корневого pluginst.inf. Это специально,
@@ -34,11 +37,13 @@ ENGLISH
    The installer detects the invoking TC process, not the Windows OS bitness.
 3. Only SymlinkInspector.wdx64 is installed for x64 TC; only
    SymlinkInspector.wdx is installed for x86 TC.
-4. If TC architecture or wincmd.ini is ambiguous, choose explicitly.
+4. Close ALL Total Commander windows when prompted; the installer writes
+   wincmd.ini only after TC has exited so TC cannot overwrite it on exit.
+5. If TC architecture or wincmd.ini is ambiguous, choose explicitly.
    The original INI is backed up before any registration edits. Existing
    toolbar bars, custom commands, columns and unrelated plugins are kept.
-5. Restart TC and accept the native plugin's safe three-button setup.
-6. Later updates only touch the already installed architecture, with rollback.
+6. Restart TC and accept the native plugin's safe three-button setup.
+7. Later updates only touch the already installed architecture, with rollback.
 
 The legacy win32-win64 ZIP is retained exclusively for updater compatibility.
 Do not manually install the legacy ZIP in Total Commander.

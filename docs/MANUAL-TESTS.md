@@ -2,7 +2,8 @@
 
 1. Extract the entire **TC-Symbolic-Links-Installer.zip**. Run
    `Install_TC_Symbolic_Links.cmd` from Total Commander 64-bit.
-   Verify installation includes **only** SymlinkInspector.wdx64.
+   Close all Total Commander windows when prompted; verify installation
+   includes **only** SymlinkInspector.wdx64.
 2. Repeat under Total Commander 32-bit with a separate profile.
    Verify only SymlinkInspector.wdx is installed.
 3. Keep both TC bitnesses open; launch installer outside either.
