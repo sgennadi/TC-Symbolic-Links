@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.26)
 project(TCSymbolicLinks VERSION 0.2.16 LANGUAGES CXX)
 # CI preview releases use the matching GitHub workflow run number.
 set(TC_PREVIEW_ITERATION 0 CACHE STRING "Preview build serial; 0 for local builds")
+option(TC_STABLE_RELEASE "Compile the official stable release version" OFF)
+if(TC_STABLE_RELEASE)
+  set(TC_STABLE_RELEASE_DEFINE 1)
+else()
+  set(TC_STABLE_RELEASE_DEFINE 0)
+endif()
 if(NOT TC_PREVIEW_ITERATION MATCHES "^[0-9]+$")
   message(FATAL_ERROR "TC_PREVIEW_ITERATION must be a decimal integer")
 endif()
@@ -92,14 +98,14 @@ if(WIN32)
   # Keep it in tc_integration so test executables link the same code as WDX.
   add_library(tc_integration STATIC src/TcIntegration.cpp src/UpdateManager.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_compile_definitions(tc_integration PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION})
+  target_compile_definitions(tc_integration PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION} TC_STABLE_RELEASE=${TC_STABLE_RELEASE_DEFINE})
   target_link_libraries(tc_integration PUBLIC user32 advapi32)
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
     src/TcLauncher.cpp src/LinkMaker.rc)
   # The updater is raw data embedded in this same WDX, not a companion EXE.
   set_property(SOURCE src/LinkMaker.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Update-TC-SymbolicLinks.ps1")
-  target_compile_definitions(SymlinkInspector PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION})
+  target_compile_definitions(SymlinkInspector PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION} TC_STABLE_RELEASE=${TC_STABLE_RELEASE_DEFINE})
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     # Undecorated WDX and rundll32 names for MSVC x86 __stdcall.
     target_sources(SymlinkInspector PRIVATE src/SymlinkInspector.x86.def)
