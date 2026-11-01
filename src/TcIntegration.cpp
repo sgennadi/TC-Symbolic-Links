@@ -345,6 +345,30 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             if (!slots[mode]) slots[mode] = i;
         }
     }
+    // Prior releases appended File and Directory shortcuts after the universal
+    // shortcut. Remove only an exact trailing pair that we own; never shift or
+    // renumber somebody else's toolbar commands.
+    std::vector<int> trailingLegacy;
+    int effectiveCount = static_cast<int>(count);
+    for (int i = effectiveCount; i >= 1; --i) {
+        const auto n = std::to_wstring(i);
+        const auto label = ReadIni(sourceBar, L"Buttonbar", (L"menu" + n).c_str());
+        const bool isExtra = label == L"TC Symbolic Links - File symlink" ||
+                             label == L"TC Symbolic Links - Directory symlink";
+        if (!isExtra) break;
+        const auto command = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
+        const auto params = ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str());
+        const auto icon = ReadIni(sourceBar, L"Buttonbar", (L"button" + n).c_str());
+        const bool expectedMode = label == L"TC Symbolic Links - File symlink" ?
+            params.find(L"--mode file") != std::wstring::npos :
+            params.find(L"--mode directory") != std::wstring::npos;
+        if (!IsSystemRundll32(command) || !expectedMode ||
+            params.find(L"SymlinkInspector.wdx") == std::wstring::npos ||
+            params.find(L",TCLinkCreate ") == std::wstring::npos ||
+            icon.find(L"SymlinkInspector.wdx") == std::wstring::npos) break;
+        trailingLegacy.push_back(i);
+        --effectiveCount;
+    }
     int missing = 0;
     for (int slot : slots) if (!slot) ++missing;
     if (count + missing >= 10000) {
@@ -406,6 +430,20 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     };
     int nextSlot = static_cast<int>(count);
     bool ok = true;
+    // Only compact verified plugin-owned entries at the very end. Keep all
+    // user slots and their relative order untouched.
+    for (const int oldSlot : trailingLegacy) {
+        const auto n = std::to_wstring(oldSlot);
+        for (const wchar_t* key : {L"cmd", L"param", L"button", L"menu"}) {
+            if (!WritePrivateProfileStringW(L"Buttonbar",
+                    (std::wstring(key) + n).c_str(), nullptr, barFile.c_str()))
+                ok = false;
+        }
+    }
+    if (ok && !trailingLegacy.empty()) {
+        nextSlot = effectiveCount;
+        ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", std::to_wstring(nextSlot));
+    }
     for (std::size_t mode = 0; mode < slots.size() && ok; ++mode) {
         const int targetSlot = slots[mode] ? slots[mode] : ++nextSlot;
         const auto number = std::to_wstring(targetSlot);
