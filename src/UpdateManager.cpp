@@ -291,29 +291,53 @@ void InspectReleases(UpdateCheck& check) {
             std::wstring(bestTag.begin(),bestTag.end());
     }
 }
+constexpr int ID_UPDATE_CLOSE = 401;
+constexpr int ID_UPDATE_OPEN = 402;
+constexpr int ID_UPDATE_RESULT = 403;
+constexpr int ID_UPDATE_TITLE = 404;
 LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam) {
+    auto* check=reinterpret_cast<UpdateCheck*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
     if(message==WM_TCS_UPDATE_DONE) {
-        auto* check=reinterpret_cast<UpdateCheck*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
         if(check) {
-            if(check->status) SetWindowTextW(check->status,check->result.c_str());
+            SetWindowTextW(check->status,check->result.c_str());
+            HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN);
+            if(open) ShowWindow(open,check->newer?SW_SHOW:SW_HIDE);
+            HWND close=GetDlgItem(hwnd,ID_UPDATE_CLOSE);
+            if(close) SetWindowTextW(close,L"Close");
             SetWindowTextW(hwnd,L"TC Symbolic Links - Update Check");
-            const int answer=MessageBoxW(hwnd,
-                (check->result+ (check->newer ? L"\nOpen GitHub release page?" : L"")).c_str(),
-                L"TC Symbolic Links - Update Check",
-                check->newer ? MB_YESNO|MB_ICONINFORMATION :
-                    (check->success ? MB_OK|MB_ICONINFORMATION : MB_OK|MB_ICONWARNING));
-            if(check->newer && answer==IDYES && !check->url.empty())
-                ShellExecuteW(hwnd,L"open",check->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
         }
-        DestroyWindow(hwnd);
-        return 0;
+        return 0; // Keep dialog open, no second MessageBox.
     }
-    if(message==WM_CLOSE) {
-        // Background worker may still be running; allow it to finish without
-        // accessing a destroyed window (PostMessage will harmlessly fail).
-        DestroyWindow(hwnd);return 0;
+    if(message==WM_COMMAND) {
+        if(LOWORD(wParam)==ID_UPDATE_OPEN && check && check->newer && !check->url.empty()) {
+            ShellExecuteW(hwnd,L"open",check->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+            return 0;
+        }
+        if(LOWORD(wParam)==ID_UPDATE_CLOSE) {
+            DestroyWindow(hwnd);return 0;
+        }
     }
-    if(message==WM_DESTROY) {PostQuitMessage(0);return 0;}
+    if(message==WM_CTLCOLORSTATIC) {
+        HDC dc=reinterpret_cast<HDC>(wParam);
+        HWND control=reinterpret_cast<HWND>(lParam);
+        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE) {
+            SetTextColor(dc,RGB(255,255,255));
+            SetBkColor(dc,RGB(14,76,154));
+            static HBRUSH blue=CreateSolidBrush(RGB(14,76,154));
+            return reinterpret_cast<LRESULT>(blue);
+        }
+        SetTextColor(dc,RGB(25,47,78));
+        SetBkColor(dc,RGB(245,248,253));
+        static HBRUSH pale=CreateSolidBrush(RGB(245,248,253));
+        return reinterpret_cast<LRESULT>(pale);
+    }
+    if(message==WM_CLOSE) { DestroyWindow(hwnd);return 0; }
+    // Never PostQuitMessage here: this is a secondary window hosted by the
+    // link maker, and WM_QUIT would close the entire parent UI.
+    if(message==WM_NCDESTROY) {
+        SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);
+        return DefWindowProcW(hwnd,message,wParam,lParam);
+    }
     return DefWindowProcW(hwnd,message,wParam,lParam);
 }
 bool NativeManualCheck(HWND owner) {
@@ -321,17 +345,25 @@ bool NativeManualCheck(HWND owner) {
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
     WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-    cls.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);
+    cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
     cls.lpszClassName=klass;
     RegisterClassW(&cls);
     HWND window=CreateWindowExW(WS_EX_DLGMODALFRAME,klass,
         L"TC Symbolic Links - Checking GitHub...",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
-        CW_USEDEFAULT,CW_USEDEFAULT,490,135,owner,nullptr,instance,nullptr);
+        CW_USEDEFAULT,CW_USEDEFAULT,525,205,owner,nullptr,instance,nullptr);
     if(!window) return false;
     auto check=std::make_shared<UpdateCheck>();
     check->window=window;
+    CreateWindowW(L"STATIC",L"  TC Symbolic Links  |  Update Check",
+        WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,525,54,window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_TITLE)),instance,nullptr);
     check->status=CreateWindowW(L"STATIC",L"Checking GitHub releases...",
-        WS_CHILD|WS_VISIBLE,20,25,445,45,window,nullptr,instance,nullptr);
+        WS_CHILD|WS_VISIBLE|SS_LEFT,20,76,480,42,window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_RESULT)),instance,nullptr);
+    CreateWindowW(L"BUTTON",L"Open release",WS_CHILD|BS_PUSHBUTTON,
+        220,124,130,29,window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_OPEN)),instance,nullptr);
+    CreateWindowW(L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,
+        365,124,130,29,window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
     SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(check.get()));
     ShowWindow(window,SW_SHOW);
     std::thread([check]{
@@ -340,8 +372,17 @@ bool NativeManualCheck(HWND owner) {
         PostMessageW(check->window,WM_TCS_UPDATE_DONE,0,0);
     }).detach();
     MSG msg{};
-    while(IsWindow(window) && GetMessageW(&msg,nullptr,0,0)>0) {
-        TranslateMessage(&msg);DispatchMessageW(&msg);
+    // Private local loop, no PostQuitMessage. If the owner has been destroyed,
+    // close only this dialog. Other windows remain functional.
+    while(IsWindow(window)) {
+        const BOOL result=GetMessageW(&msg,nullptr,0,0);
+        if(result<=0) {
+            if(result==0) PostQuitMessage(static_cast<int>(msg.wParam));
+            break;
+        }
+        if(!IsDialogMessageW(window,&msg)) {
+            TranslateMessage(&msg);DispatchMessageW(&msg);
+        }
     }
     return true;
 }
