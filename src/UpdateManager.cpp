@@ -187,6 +187,7 @@ struct UpdateCheck {
     std::wstring tag;
     tcs::update::NativeStage stage;
     bool newer = false;
+    bool canReinstall = false;
     bool success = false;
     bool busy = false;
     bool installationStarted = false;
@@ -306,10 +307,13 @@ void InspectReleases(UpdateCheck& check) {
     const std::regex tags(R"TAG("tag_name"\s*:\s*"(v?[0-9]+\.[0-9]+\.[0-9]+(?:-preview\.[0-9]+)?)")TAG");
     Version best=installed;
     std::string bestTag;
+    std::string currentTag;
     const bool preview=UsePreviewChannel();
     for(std::sregex_iterator it(data.begin(),data.end(),tags),end;it!=end;++it) {
         const std::string tag=(*it)[1].str();
         const Version v=ParseVersion(tag);
+        if(v.valid && !Newer(v,installed) && !Newer(installed,v))
+            currentTag=tag;
         if(v.valid && (preview||!v.preview) && Newer(v,best)) {
             best=v;bestTag=tag;
         }
@@ -318,6 +322,12 @@ void InspectReleases(UpdateCheck& check) {
     RecordCheck(true);
     if(bestTag.empty()) {
         check.result=L"No newer release found for the selected channel.";
+        if(!currentTag.empty()) {
+            check.canReinstall=true;
+            check.tag=std::wstring(currentTag.begin(),currentTag.end());
+            check.url=L"https://github.com/sgennadi/TC-Symbolic-Links/releases/tag/"+check.tag;
+            check.result+=L" The verified current release can be reinstalled.";
+        }
     } else {
         check.newer=true;
         check.tag=std::wstring(bestTag.begin(),bestTag.end());
@@ -396,10 +406,12 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
         if(check) {
             UpdateStatus(hwnd,check->result);
             if(HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN))
-                ShowWindow(open,check->newer?SW_SHOW:SW_HIDE);
+                ShowWindow(open,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
             if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)) {
-                ShowWindow(install,check->newer?SW_SHOW:SW_HIDE);
-                EnableWindow(install,check->newer);
+                ShowWindow(install,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
+                SetWindowTextW(install,check->canReinstall?L"Download & Reinstall":
+                                                L"Download & Install");
+                EnableWindow(install,check->newer||check->canReinstall);
             }
             SetWindowTextW(hwnd,L"TC Symbolic Links - Update Manager");
         }
@@ -450,7 +462,8 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     }
     if(message==WM_COMMAND) {
         if(LOWORD(wParam)==ID_UPDATE_INSTALL && check &&
-           check->newer && !check->busy && !check->installationStarted) {
+           (check->newer||check->canReinstall) && !check->busy &&
+           !check->installationStarted) {
             check->busy=true;
             if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))EnableWindow(install,FALSE);
             if(check->progress) {
@@ -470,7 +483,7 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
             return 0;
         }
         if(LOWORD(wParam)==ID_UPDATE_OPEN && check &&
-           check->newer && !check->url.empty()) {
+           (check->newer||check->canReinstall) && !check->url.empty()) {
             ShellExecuteW(hwnd,L"open",check->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
             return 0;
         }
