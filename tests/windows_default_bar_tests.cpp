@@ -117,8 +117,8 @@ int wmain(int argc, wchar_t** argv) {
               "Installer replaced default startup bar: user icons may disappear");
         Check(!fs::exists(configDir / L"TC-Symbolic-Links-Default.bar"),
               "Installer created an unrequested shadow toolbar");
-        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"6",
-              "Expected three buttons added to actual DEFAULT.BAR");
+        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"4",
+              "Expected one universal button added to actual DEFAULT.BAR");
         Check(Ini(defaultBar, L"Buttonbar", L"cmd1") == L"cm_Copy" &&
               Ini(defaultBar, L"Buttonbar", L"button1") == L"WCMICONS.DLL,1",
               "Copy button/icon changed");
@@ -162,21 +162,12 @@ int wmain(int argc, wchar_t** argv) {
         Check(params.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
               params.find(L"%COMMANDER_INI_PATH%") == std::wstring::npos,
               "Regression: TC expands %C in %COMMANDER_PATH% as the selected file name");
-        Check(Ini(defaultBar, L"Buttonbar", L"menu5") ==
-                  L"TC Symbolic Links - File symlink" &&
-              Ini(defaultBar, L"Buttonbar", L"menu6") ==
-                  L"TC Symbolic Links - Directory symlink",
-              "Missing dedicated File/Directory symlink buttons");
-        Check(Ini(defaultBar, L"Buttonbar", L"button5") ==
-                  dll.wstring() + L",1" &&
-              Ini(defaultBar, L"Buttonbar", L"button6") ==
-                  dll.wstring() + L",2",
-              "Mode-specific toolbar icons not embedded in WDX");
-        const auto fileModeArgs = Ini(defaultBar, L"Buttonbar", L"param5");
-        const auto dirModeArgs = Ini(defaultBar, L"Buttonbar", L"param6");
-        Check(fileModeArgs.find(L"--mode file --tc-launch") != std::wstring::npos &&
-              dirModeArgs.find(L"--mode directory --tc-launch") != std::wstring::npos,
-              "Dedicated buttons do not select Maker mode");
+        Check(Ini(defaultBar, L"Buttonbar", L"menu4") ==
+                  L"TC Symbolic Links - Create links",
+              "Universal symlink button missing");
+        Check(Ini(defaultBar, L"Buttonbar", L"menu5").empty() &&
+              Ini(defaultBar, L"Buttonbar", L"menu6").empty(),
+              "Unexpected dedicated symlink buttons");
         // Run the exact persisted WDX prefix through Windows rundll32.exe.
         const auto marker = configDir / L"wdx-probe.txt";
         const std::wstring host = Ini(defaultBar, L"Buttonbar", L"cmd4");
@@ -199,13 +190,12 @@ int wmain(int argc, wchar_t** argv) {
               "Saved button could not load the DLL from Total Commander plugins dir");
         Check(tcs::ConfigureForTotalCommander(ini.wstring(), dll.wstring(), status),
               "Idempotent reconfiguration failed");
-        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"6" &&
+        Check(Ini(defaultBar, L"Buttonbar", L"Buttoncount") == L"4" &&
               Ini(ini, L"Buttonbar", L"Buttonbar").empty(),
               "Reinstall duplicated buttons or switched toolbar");
         Check(Read(usercmd) == oldUsercmd, "Reinstall modified user commands");
-        Check(Ini(defaultBar, L"Buttonbar", L"param5") == fileModeArgs &&
-              Ini(defaultBar, L"Buttonbar", L"param6") == dirModeArgs,
-              "Reinstall modified File/Directory modes");
+        Check(Ini(defaultBar, L"Buttonbar", L"menu5").empty(),
+              "Reinstall created redundant buttons");
         Check(Read(defaultBar.wstring() + L".tcslinks.bak") == oldButtons,
               "Reinstall overwrote the original pre-plugin toolbar backup");
         Check(countPreupdateCopies() >= 2,
