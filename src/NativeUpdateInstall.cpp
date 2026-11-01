@@ -141,7 +141,12 @@ bool HttpsGet(const wchar_t* host,const std::wstring& path,
     Http request{WinHttpOpenRequest(connection.h,L"GET",path.c_str(),
         nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE)};
     if(!request.h) return false;
-    const wchar_t* headers=L"Accept: application/vnd.github+json\r\n";
+    DWORD redirect=WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
+    if(!WinHttpSetOption(request.h,WINHTTP_OPTION_REDIRECT_POLICY,
+        &redirect,sizeof(redirect)))return false;
+    const wchar_t* headers=(_wcsicmp(host,L"api.github.com")==0) ?
+        L"Accept: application/vnd.github+json\r\n" :
+        L"Accept: application/octet-stream\r\n";
     if(!WinHttpSendRequest(request.h,headers,static_cast<DWORD>(-1),
         WINHTTP_NO_REQUEST_DATA,0,0,0) ||
        !WinHttpReceiveResponse(request.h,nullptr)) return false;
