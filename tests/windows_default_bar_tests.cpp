@@ -157,6 +157,7 @@ int wmain(int argc, wchar_t** argv) {
         const auto exportAt = params.find(L",TCLinkCreate ");
         Check(!params.empty() && params.front() == L'"' && exportAt != std::wstring::npos &&
               params.ends_with(L" --tc-launch"), "Malformed persisted WDX command");
+        Check(params.find(L"%Z") != std::wstring::npos, "Missing archive-aware %Z target macro");
         Check(params.find(dll.wstring()) != std::wstring::npos,
               "Installer did not write the ABSOLUTE installed WDX path");
         Check(params.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
