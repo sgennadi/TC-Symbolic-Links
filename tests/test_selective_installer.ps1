@@ -54,16 +54,10 @@ try{
         Check (@(Get-ChildItem -LiteralPath $plugin -Filter 'SymlinkInspector.wdx*').Count -eq 1) 'Second install added wrong-arch DLL'
         Check ((Hash $bar) -eq $barOld -and (Hash $userCmd) -eq $userOld) 'Second install modified user files'
         $after=Get-Content -LiteralPath $ini -Raw
-        $ownRegistrations=[regex]::Matches($after,'(?im)^[ 	]*[0-9]+[ 	]*=.*SymlinkInspector[.]wdx(?:64)?[ 	]*\r?
-        Write-Host ('PASS: '+$arch+' installs ONLY '+$name+'; unrelated commands and columns unchanged; re-install idempotent')
-    }
-    Write-Host 'PASS: one outer installer, correct architecture for both TC variants, no extra DLL'
-} finally {
-    Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
-}
-)
-        Write-Host ('REGISTERED_WDX_COUNT='+$ownRegistrations.Count+' ARCH='+$arch)
-        Check ($ownRegistrations.Count -eq 1) ('Expected exactly one WDX registration for '+$arch)
+        $lines=$after.Split([char[]]@(13,10),[StringSplitOptions]::RemoveEmptyEntries)
+        $registrations=@($lines | Where-Object { $_ -match '^[0-9]+[ ]*=.*SymlinkInspector[.]wdx(?:64)?$' })
+        Write-Host ('REGISTERED_WDX_COUNT='+$registrations.Count+' ARCH='+$arch)
+        Check ($registrations.Count -eq 1) ('Expected only one registered plugin DLL on '+$arch)
         Write-Host ('PASS: '+$arch+' installs ONLY '+$name+'; unrelated commands and columns unchanged; re-install idempotent')
     }
     Write-Host 'PASS: one outer installer, correct architecture for both TC variants, no extra DLL'
