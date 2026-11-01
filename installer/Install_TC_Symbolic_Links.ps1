@@ -180,7 +180,9 @@ function Install-Architecture([string]$arch,[string]$ini){
     $previous=Test-Path -LiteralPath $target -PathType Leaf
     $moduleBackup=''
     if($previous){
-        $moduleBackup=$target+'.tcslinks.preinstall.'+[Guid]::NewGuid().ToString('N')+'.bak'
+        $backupDir=Join-Path $targetDir '.tcslinks-backups'
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        $moduleBackup=Join-Path $backupDir ($name+'.'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.'+[Guid]::NewGuid().ToString('N')+'.bak')
         Copy-Item -LiteralPath $target -Destination $moduleBackup -ErrorAction Stop
     }
     $touched=$false
