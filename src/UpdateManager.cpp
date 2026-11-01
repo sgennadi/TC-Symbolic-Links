@@ -479,7 +479,8 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     if(message==WM_CTLCOLORSTATIC) {
         HDC dc=reinterpret_cast<HDC>(wParam);
         HWND control=reinterpret_cast<HWND>(lParam);
-        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE) {
+        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE ||
+           GetDlgCtrlID(control)==ID_UPDATE_BRAND) {
             SetTextColor(dc,RGB(255,255,255));
             SetBkColor(dc,RGB(14,76,154));
             static HBRUSH blue=CreateSolidBrush(RGB(14,76,154));
