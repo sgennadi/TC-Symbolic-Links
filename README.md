@@ -1,42 +1,39 @@
-# TC Symbolic Links 0.2.16 Preview
+# TC Symbolic Links 0.2.16 Stable
 
-**One standard Total Commander ZIP for both x86 and x64:**
-`TC-Symbolic-Links-win32-win64.zip`. Select the archive in TC and
-press **Enter** to install via the built-in `pluginst.inf` dialog.
-The ZIP contains exactly these three root files:
-`SymlinkInspector.wdx` (x86), `SymlinkInspector.wdx64` (x64) and
-`pluginst.inf`. There are **no CMD, PS1 or external EXE files**.
+**Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
+`TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total
+Commander and confirm installation via the built-in `pluginst.inf` installer.
+The ZIP includes exactly three files: `SymlinkInspector.wdx` (x86),
+`SymlinkInspector.wdx64` (x64), and `pluginst.inf`. No standalone EXE,
+installer CMD, or PowerShell script is distributed.
 
-The native Total Commander installer **extracts both DLLs**, as in
-other combined x86/x64 plugins, but **registers one WDX plugin** under
-`[ContentPlugins]` with base path `SymlinkInspector.wdx`. The
-corresponding number in `[ContentPlugins64]` is a **64-bit availability
-flag, not a second independent plugin**. 64-bit TC loads `.wdx64`,
-32-bit TC loads `.wdx`.
+One logical WDX plugin is registered; the installed TC architecture
+chooses its matching DLL automatically. A single universal **Create Links**
+toolbar button is used. Existing user buttons and custom commands are
+preserved, with backups before safe toolbar configuration changes.
 
-**Important for upgrades:** Prior versions 0.2.15/0.2.16 that
-registered `.wdx64` separately may have left *two numbered*
-`[ContentPlugins]` entries. The new WDX detects legacy duplicates
-and offers cautious repair **after all TC windows are closed**, with
-a backup and an unchanged-user-plugin check. When a layout is
-ambiguous it refuses automatic changes and explains how to remove the
-old entry through Total Commander Options → Plugins → Content.
+**WCX/WIM target safety:** The TC button passes `%Z` so a virtual archive
+path is not silently converted into the archive's containing folder.
+The native Maker refuses filesystem symlink creation inside WIM/WCX
+and prevents source/link path identity (error 183) rather than replacing
+an existing file. Ordinary disk and SMB destinations remain supported.
 
-The three colored link buttons, automatic WDX custom columns and
-built-in Update Manager are still included **in the same DLL**.
-Existing personal buttonbars, subbars, `usercmd.ini` and unrelated
-WDX plugins must remain untouched.
+**Updates:** The **Check for Updates** button now performs the version
+check natively via WinHTTP. It displays progress and a result in one
+blue/white dialog centered over the Maker, with the same WDX icon.
+No `tcu*.ps1` is extracted for this version check. A newer release
+can be opened in GitHub for installation through Total Commander.
+Automatic installation from the new native UI is **not yet implemented**.
+The conservative legacy repair of duplicate WDX registrations is a
+separate opt-in operation and still uses the embedded PowerShell helper.
 
-## 0.2.16 Preview — unified pluginst.inf installation
+**Upgrading from Preview:** Accept the one-time configuration update
+to refresh the existing universal button with `%Z`, then restart TC.
+Older versions may have left duplicate numbered WDX registrations;
+the WDX offers a backed-up repair after TC closes, and refuses
+ambiguous changes that could affect other plugins.
 
-Install with **one** ZIP and **one** TC plugin registration. TC may put
-both architecture-specific binary files in the plugin directory;
-this is intentional, not equivalent to registering two plugins.
-
-The same official ZIP is used by the built-in Update Manager, which
-verifies release SHA-256 and stages replacement with backups after TC
-closes. The older selective CMD installer and separate TC32/TC64
-packages are superseded and no longer published in new releases.
+## Previous Preview release notes (historical behavior)
 
 > **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
 > could switch the active button bar and hide existing icons. Version 0.2.4
@@ -44,7 +41,7 @@ packages are superseded and no longer published in new releases.
 > as the selected filename, so the DLL could not load. Do not keep using
 > those broken generated buttons.
 
-## 0.2.15 Preview — built-in Update Manager (no companion EXE)
+## 0.2.15 Preview — older Update Manager (historical; replaced for checking)
 
 **Inside the existing native Maker**, use **Check for Updates** to open
 the Update Manager. There are no extra installation scripts, helper EXEs,
