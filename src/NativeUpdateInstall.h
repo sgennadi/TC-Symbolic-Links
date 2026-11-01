@@ -13,6 +13,12 @@ struct NativeStage {
 // Read-only offline validation of the strict three-file x86/x64 ZIP format.
 // Used by CI to reject malformed headers, wrong PE machines and unknown paths.
 bool VerifyNativeZipBytes(const std::vector<unsigned char>& zip);
+// CI-only C++ entrypoint for disposable-folder transaction/rollback tests.
+// Not a Win32 exported rundll32 action; production installation performs
+// separate trusted package validation and process-exit checks.
+bool ApplyNativeFilesForTest(const std::wstring& prepared,
+                             const std::wstring& installedFolder,
+                             std::wstring& error);
 // Download only from the canonical GitHub Release; require its HTTPS API
 // SHA-256 asset digest and validate all three ZIP entries before staging.
 // WM_APP+250 reports approximate percentage from 0..100.
