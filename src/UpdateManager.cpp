@@ -349,8 +349,6 @@ bool NativeManualCheck(HWND owner) {
     // GetModuleHandle(nullptr) points to rundll32.exe, not to our WDX.
     const HMODULE iconModule=OwnModule();
     cls.hIcon=iconModule ? LoadIconW(iconModule,MAKEINTRESOURCEW(101)) : nullptr;
-    cls.hIconSm=iconModule ? static_cast<HICON>(LoadImageW(
-        iconModule,MAKEINTRESOURCEW(101),IMAGE_ICON,16,16,LR_DEFAULTCOLOR)) : nullptr;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
     cls.lpszClassName=klass;
@@ -359,6 +357,12 @@ bool NativeManualCheck(HWND owner) {
         L"TC Symbolic Links - Checking GitHub...",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
         CW_USEDEFAULT,CW_USEDEFAULT,525,205,owner,nullptr,instance,nullptr);
     if(!window) return false;
+    if (iconModule) {
+        HICON smallIcon=static_cast<HICON>(LoadImageW(iconModule,
+            MAKEINTRESOURCEW(101), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+        if (smallIcon) SendMessageW(window, WM_SETICON, ICON_SMALL,
+            reinterpret_cast<LPARAM>(smallIcon));
+    }
     // Center over the maker, not at Windows' default cascaded position.
     // Clamp to the work area of the monitor containing the owner window.
     RECT wr{}, anchor{};
