@@ -137,7 +137,7 @@ int wmain(int argc, wchar_t** argv) {
                 "REGRESSION: active personal button bar was replaced");
         Require(!fs::exists(profile / L"TCSymbolicLinks.bar"),
                 "REGRESSION: must not create/activate a shadow toolbar");
-        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"6", "did not append three symlink buttons");
+        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4", "did not append universal symlink button");
         for (int n = 1; n <= 3; ++n) {
             const auto num = std::to_wstring(n);
             if (n == 1) Require(Ini(bar, L"Buttonbar", (L"cmd"+num).c_str()) == L"cm_Copy", "Copy changed");
@@ -154,24 +154,9 @@ int wmain(int argc, wchar_t** argv) {
         const auto iconSetting = Ini(bar, L"Buttonbar", L"button4");
         Require(iconSetting.find(module.filename().wstring() + L",0") != std::wstring::npos,
                 "new TC button must use the WDX embedded chain icon");
-        Require(Ini(bar, L"Buttonbar", L"menu5") == L"TC Symbolic Links - File symlink" &&
-                Ini(bar, L"Buttonbar", L"menu6") == L"TC Symbolic Links - Directory symlink",
-                "Missing distinct File and Directory buttons");
-        Require(Ini(bar, L"Buttonbar", L"button5").find(
-                    module.filename().wstring() + L",1") != std::wstring::npos &&
-                Ini(bar, L"Buttonbar", L"button6").find(
-                    module.filename().wstring() + L",2") != std::wstring::npos,
-                "File and Directory buttons must use distinct WDX icons");
-        const auto fileParam = Ini(bar, L"Buttonbar", L"param5");
-        const auto dirParam = Ini(bar, L"Buttonbar", L"param6");
-        Require(fileParam.find(L",TCLinkCreate --list") != std::wstring::npos &&
-                fileParam.find(L"--mode file --tc-launch") != std::wstring::npos &&
-                dirParam.find(L",TCLinkCreate --list") != std::wstring::npos &&
-                dirParam.find(L"--mode directory --tc-launch") != std::wstring::npos,
-                "File/Directory Maker mode flags missing");
-        Require(Ini(bar, L"Buttonbar", L"cmd5") == Ini(bar, L"Buttonbar", L"cmd4") &&
-                Ini(bar, L"Buttonbar", L"cmd6") == Ini(bar, L"Buttonbar", L"cmd4"),
-                "Different launcher architectures in same WDX package");
+        Require(Ini(bar, L"Buttonbar", L"menu5").empty() &&
+                Ini(bar, L"Buttonbar", L"menu6").empty(),
+                "Dedicated File/Directory buttons must not be added");
         Require(buttonParams.find(module.filename().wstring()) != std::wstring::npos,
                 "button missing WDX module");
         Require(buttonParams.find(L"%COMMANDER_PATH%") == std::wstring::npos &&
@@ -197,41 +182,36 @@ int wmain(int argc, wchar_t** argv) {
                 "original wincmd.ini backup mismatch");
         Require(tcs::ConfigureForTotalCommander(ini.wstring(), module.wstring(), status),
                 "idempotent integration failed");
-        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"6", "duplicate added on reinstall");
-        Require(Ini(bar, L"Buttonbar", L"param5") == fileParam &&
-                Ini(bar, L"Buttonbar", L"param6") == dirParam,
-                "Idempotent install changed File or Directory command");
+        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4", "duplicate added on reinstall");
         Require(Ini(ini, L"Buttonbar", L"Buttonbar") == selectedPath,
                 "second invocation replaced buttonbar");
         Require(ReadText(usercmd) == originalUserCommands, "usercmd changed on re-run");
-        // Simulate upgrading from 0.2.13 with just the automatic command:
-        // keep its existing slot, append only the two missing modes.
-        Require(WritePrivateProfileStringW(L"Buttonbar", L"Buttoncount",
-                  L"4", bar.c_str()) != FALSE,
-                "Could not simulate one-button older TC installation");
+        // A prior version may leave its two mode-specific shortcuts at the
+        // end of the bar. Verify those owned entries can be safely removed.
+        const auto addOldMode = [&](int index, const wchar_t* label, const wchar_t* mode, const wchar_t* icon) {
+            const auto n = std::to_wstring(index);
+            Require(WritePrivateProfileStringW(L"Buttonbar", (L"cmd" + n).c_str(),
+                Ini(bar, L"Buttonbar", L"cmd4").c_str(), bar.c_str()) != FALSE, "fixture command");
+            const auto params = buttonParams.substr(0, buttonParams.rfind(L" --tc-launch")) +
+                L" --mode " + mode + L" --tc-launch";
+            Require(WritePrivateProfileStringW(L"Buttonbar", (L"param" + n).c_str(),
+                params.c_str(), bar.c_str()) != FALSE, "fixture parameters");
+            Require(WritePrivateProfileStringW(L"Buttonbar", (L"button" + n).c_str(),
+                (module.wstring() + icon).c_str(), bar.c_str()) != FALSE, "fixture icon");
+            Require(WritePrivateProfileStringW(L"Buttonbar", (L"menu" + n).c_str(),
+                label, bar.c_str()) != FALSE, "fixture label");
+        };
+        addOldMode(5, L"TC Symbolic Links - File symlink", L"file", L",1");
+        addOldMode(6, L"TC Symbolic Links - Directory symlink", L"directory", L",2");
+        Require(WritePrivateProfileStringW(L"Buttonbar", L"Buttoncount", L"6", bar.c_str()) != FALSE,
+                "fixture count");
         Require(tcs::ConfigureForTotalCommander(ini.wstring(), module.wstring(), status),
-                "Upgrade from the one-button installation failed");
-        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"6" &&
-                Ini(bar, L"Buttonbar", L"param4") == buttonParams &&
-                Ini(bar, L"Buttonbar", L"param5") == fileParam &&
-                Ini(bar, L"Buttonbar", L"param6") == dirParam,
-                "One-button upgrade duplicated, moved or damaged symlink buttons");
-        // Users may share a .bar between x86 and x64 Total Commander.
-        // The other system loader must be recognized as our button; the
-        // next setup rebinds it without changing its position or label.
-        wchar_t windowsDir[MAX_PATH + 1]{};
-        Require(GetWindowsDirectoryW(windowsDir, MAX_PATH + 1) > 0,
-                "Cannot locate Windows directory for x86/x64 upgrade test");
-        const std::wstring x86Loader = std::wstring(windowsDir) +
-            L"\\SysWOW64\\rundll32.exe";
-        Require(WritePrivateProfileStringW(L"Buttonbar", L"cmd5",
-                 x86Loader.c_str(), bar.c_str()) != FALSE,
-                "Cannot simulate shared x86/x64 TC toolbar");
-        Require(tcs::ConfigureForTotalCommander(ini.wstring(), module.wstring(), status),
-                "Installer rejected its own x86 rundll32 button when rebinding x64");
-        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"6" &&
-                Ini(bar, L"Buttonbar", L"cmd5") == Ini(bar, L"Buttonbar", L"cmd4"),
-                "Shared TC profile architecture rebind damaged the buttonbar");
+                "Legacy cleanup configuration failed");
+        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4" &&
+                Ini(bar, L"Buttonbar", L"menu5").empty() &&
+                Ini(bar, L"Buttonbar", L"menu6").empty() &&
+                Ini(bar, L"Buttonbar", L"param4") == buttonParams,
+                "Legacy mode button cleanup failed or changed universal button");
         // Upgrade from 0.2.2: an existing button can have a malformed
         // parameters value with its outer quotes removed by the INI API.
         // Reconfiguration must repair that button in place, not create a
@@ -247,7 +227,7 @@ int wmain(int argc, wchar_t** argv) {
                 "in-place 0.2.2 button repair failed");
         Require(Ini(bar, L"Buttonbar", L"param4") == fixedParam,
                 "old broken button parameters were not repaired");
-        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"6" &&
+        Require(Ini(bar, L"Buttonbar", L"Buttoncount") == L"4" &&
                 Ini(ini, L"Buttonbar", L"Buttonbar") == selectedPath,
                 "upgrading broken button changed user's toolbar structure");
 

@@ -294,7 +294,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     // silently open an error dialog instead of our Maker window. Finish with
     // an ignored but harmless marker so the final character is not a quote.
     // RunMakerFromArguments deliberately ignores unknown --tc-launch tokens.
-    std::array<std::wstring, 3> arguments;
+    std::array<std::wstring, 1> arguments;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
         arguments[i] = L"\"" + actualDll +
             L"\",TCLinkCreate --list \"%WL\" --dest \"%T.\"" +
@@ -318,7 +318,7 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         status = L"Active button count is invalid or too large.";
         return false;
     }
-    std::array<int, 3> slots{};
+    std::array<int, 1> slots{};
     for (int i = 1; i <= count; ++i) {
         const auto n = std::to_wstring(i);
         const auto cmd = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
@@ -344,6 +344,30 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
             // deleted. We repair only the first recognized plugin entry.
             if (!slots[mode]) slots[mode] = i;
         }
+    }
+    // Prior releases appended File and Directory shortcuts after the universal
+    // shortcut. Remove only an exact trailing pair that we own; never shift or
+    // renumber somebody else's toolbar commands.
+    std::vector<int> trailingLegacy;
+    int effectiveCount = static_cast<int>(count);
+    for (int i = effectiveCount; i >= 1; --i) {
+        const auto n = std::to_wstring(i);
+        const auto label = ReadIni(sourceBar, L"Buttonbar", (L"menu" + n).c_str());
+        const bool isExtra = label == L"TC Symbolic Links - File symlink" ||
+                             label == L"TC Symbolic Links - Directory symlink";
+        if (!isExtra) break;
+        const auto command = ReadIni(sourceBar, L"Buttonbar", (L"cmd" + n).c_str());
+        const auto params = ReadIni(sourceBar, L"Buttonbar", (L"param" + n).c_str());
+        const auto icon = ReadIni(sourceBar, L"Buttonbar", (L"button" + n).c_str());
+        const bool expectedMode = label == L"TC Symbolic Links - File symlink" ?
+            params.find(L"--mode file") != std::wstring::npos :
+            params.find(L"--mode directory") != std::wstring::npos;
+        if (!IsSystemRundll32(command) || !expectedMode ||
+            params.find(L"SymlinkInspector.wdx") == std::wstring::npos ||
+            params.find(L",TCLinkCreate ") == std::wstring::npos ||
+            icon.find(L"SymlinkInspector.wdx") == std::wstring::npos) break;
+        trailingLegacy.push_back(i);
+        --effectiveCount;
     }
     int missing = 0;
     for (int slot : slots) if (!slot) ++missing;
@@ -406,6 +430,20 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
     };
     int nextSlot = static_cast<int>(count);
     bool ok = true;
+    // Only compact verified plugin-owned entries at the very end. Keep all
+    // user slots and their relative order untouched.
+    for (const int oldSlot : trailingLegacy) {
+        const auto n = std::to_wstring(oldSlot);
+        for (const wchar_t* key : {L"cmd", L"param", L"button", L"menu"}) {
+            if (!WritePrivateProfileStringW(L"Buttonbar",
+                    (std::wstring(key) + n).c_str(), nullptr, barFile.c_str()))
+                ok = false;
+        }
+    }
+    if (ok && !trailingLegacy.empty()) {
+        nextSlot = effectiveCount;
+        ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", std::to_wstring(nextSlot));
+    }
     for (std::size_t mode = 0; mode < slots.size() && ok; ++mode) {
         const int targetSlot = slots[mode] ? slots[mode] : ++nextSlot;
         const auto number = std::to_wstring(targetSlot);
@@ -447,10 +485,10 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         return false;
     }
     status = implicitDefaultBar ?
-        L"Three symlink buttons (Auto / File / Directory) were configured in "
+        L"One universal symlink button was configured in "
         L"the writable DEFAULT.BAR without switching toolbars. An original "
         L"and pre-update backup exist; WDX columns are enabled. Restart TC." :
-        L"Three symlink buttons (Auto / File / Directory) were configured "
+        L"One universal symlink button was configured "
         L"in the existing startup bar. The toolbar selection and usercmd.ini "
         L"were NOT changed. WDX columns are enabled. Restart TC.";
     return true;
