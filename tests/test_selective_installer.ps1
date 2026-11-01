@@ -54,7 +54,16 @@ try{
         Check (@(Get-ChildItem -LiteralPath $plugin -Filter 'SymlinkInspector.wdx*').Count -eq 1) 'Second install added wrong-arch DLL'
         Check ((Hash $bar) -eq $barOld -and (Hash $userCmd) -eq $userOld) 'Second install modified user files'
         $after=Get-Content -LiteralPath $ini -Raw
-        Check (@([regex]::Matches($after,'(?im)^1=.*SymlinkInspector.wdx(?:64)?$')).Count -eq 1) ('Duplicate WDX registration '+$arch)
+        $ownRegistrations=[regex]::Matches($after,'(?im)^[ 	]*[0-9]+[ 	]*=.*SymlinkInspector[.]wdx(?:64)?[ 	]*\r?
+        Write-Host ('PASS: '+$arch+' installs ONLY '+$name+'; unrelated commands and columns unchanged; re-install idempotent')
+    }
+    Write-Host 'PASS: one outer installer, correct architecture for both TC variants, no extra DLL'
+} finally {
+    Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+}
+)
+        Write-Host ('REGISTERED_WDX_COUNT='+$ownRegistrations.Count+' ARCH='+$arch)
+        Check ($ownRegistrations.Count -eq 1) ('Expected exactly one WDX registration for '+$arch)
         Write-Host ('PASS: '+$arch+' installs ONLY '+$name+'; unrelated commands and columns unchanged; re-install idempotent')
     }
     Write-Host 'PASS: one outer installer, correct architecture for both TC variants, no extra DLL'
