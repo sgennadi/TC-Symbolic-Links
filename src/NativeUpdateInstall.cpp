@@ -365,6 +365,8 @@ bool WaitProcess(DWORD id,DWORD ms) {
     return result==WAIT_OBJECT_0;
 }
 bool TotalCommanderRunning() {
+    DWORD ownSession=0;
+    if(!ProcessIdToSessionId(GetCurrentProcessId(),&ownSession))return true;
     HANDLE snap=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
     if(snap==INVALID_HANDLE_VALUE) return true;
     PROCESSENTRY32W item{sizeof(item)};
@@ -372,7 +374,11 @@ bool TotalCommanderRunning() {
     if(Process32FirstW(snap,&item)) do {
         if(_wcsicmp(item.szExeFile,L"TOTALCMD.EXE")==0 ||
            _wcsicmp(item.szExeFile,L"TOTALCMD64.EXE")==0) {
-            found=true;break;
+            DWORD processSession=0;
+            if(ProcessIdToSessionId(item.th32ProcessID,&processSession) &&
+               processSession==ownSession) {
+                found=true;break;
+            }
         }
     } while(Process32NextW(snap,&item));
     CloseHandle(snap);
@@ -417,11 +423,21 @@ bool PrepareInstall(const Arguments& a,std::wstring& error) {
     if(_wcsicmp(own.c_str(),a.install.c_str())!=0 || !TagValid(a.tag)) {
         error=L"Installer module or release tag does not match.";return false;
     }
-    const auto root=StageRoot();
-    if(root.empty()||a.stage.size()<=root.size()||
-       _wcsnicmp(a.stage.c_str(),root.c_str(),root.size())!=0 ||
-       a.stage[root.size()]!=L'\\') {
-        error=L"Staged ZIP is not inside the official per-user update folder.";return false;
+    // UAC with alternate administrator credentials can change LOCALAPPDATA.
+    // Validate the strict stage directory shape; the archive is always
+    // reauthenticated against GitHub's release SHA-256 before any use.
+    const fs::path staged(a.stage);
+    const auto stageName=staged.filename().wstring();
+    const auto nativeDir=staged.parent_path().filename().wstring();
+    const auto updatesDir=staged.parent_path().parent_path().filename().wstring();
+    const auto appDir=staged.parent_path().parent_path().parent_path().filename().wstring();
+    if(!staged.is_absolute() || staged.lexically_normal()!=staged ||
+       stageName.rfind(L".tcs-native-",0)!=0 ||
+       _wcsicmp(nativeDir.c_str(),L"Native")!=0 ||
+       _wcsicmp(updatesDir.c_str(),L"Updates")!=0 ||
+       _wcsicmp(appDir.c_str(),L"TCSymbolicLinks")!=0) {
+        error=L"Staged ZIP must be inside a TC Symbolic Links native update directory.";
+        return false;
     }
     std::vector<unsigned char> zip;
     if(!ReadBytes(Join(a.stage,kZipName),zip)) {
