@@ -1,3 +1,11 @@
+## 0.2.16 Preview — native TC ZIPs (no CMD / PS1 in packages)
+
+- Two architecture-specific, ordinary `pluginst.inf` ZIPs: `TC-Symbolic-Links-TC64.zip` has `SymlinkInspector.wdx64`, and `TC-Symbolic-Links-TC32.zip` has `SymlinkInspector.wdx`.
+- Install directly through Total Commander by pressing Enter on the matching archive and confirming the built-in WDX installer.
+- Verify each ZIP contains exactly one PE architecture, the matching `pluginst.inf`, and no scripts or launcher EXEs.
+- Keep the mixed-architecture ZIP only for backwards-compatible embedded Update Manager download; do not manually install it.
+- Keep native toolbar backup, idempotent buttons and WDX Update Manager behaviour. Existing stale old DLLs are not silently removed by a native TC install.
+
 ## 0.2.16 (Preview) — architecture-selective installer, one user ZIP
 
 - Replace manual root-`pluginst.inf` installation with one

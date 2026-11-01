@@ -1,30 +1,12 @@
-## 0.2.16 — install one architecture only
+## 0.2.16 — native ZIP installation, without CMD
 
-1. Extract the entire **TC-Symbolic-Links-Installer.zip**. Run
-   `Install_TC_Symbolic_Links.cmd` from Total Commander 64-bit.
-   Close all Total Commander windows when prompted; verify installation
-   includes **only** SymlinkInspector.wdx64.
-2. Repeat under Total Commander 32-bit with a separate profile.
-   Verify only SymlinkInspector.wdx is installed.
-3. Keep both TC bitnesses open; launch installer outside either.
-   Verify it **asks** which architecture, instead of assuming OS bitness.
-4. Verify the chosen wincmd.ini [ContentPlugins] entry points to the
-   selected WDX and [ContentPlugins64] marks only x64.
-5. Check untouched usercmd.ini, original toolbar buttons/subbars,
-   personalized icons, WDX custom columns and unrelated registrations.
-6. Verify a timestamped wincmd.ini backup exists and rollback works
-   if the destination is read-only, full or otherwise inaccessible.
-7. Run installation again: no duplicate WDX entries and no wrong-
-   architecture DLL appears in the architecture-specific destination.
-8. Upgrade from a legacy 0.2.15 folder containing both DLLs. The new
-   destination contains only the selected architecture; the legacy
-   folder is left intact for rollback and can be cleaned manually
-   after confirming no 32-bit TC uses the shared profile.
-9. Use Check for Updates from the new WDX. The transport ZIP may hold
-   both binaries, but only the installed variant must be replaced.
-   x64-only installs must **not acquire** SymlinkInspector.wdx.
-10. Do not try to install the legacy win32-win64 transport ZIP manually
-    through TC; it exists only for backward-compatible automatic update.
+1. Confirm `TC-Symbolic-Links-TC64.zip` contains **only** `SymlinkInspector.wdx64` and `pluginst.inf` at ZIP root.
+2. In 64-bit Total Commander, select the ZIP and press Enter. Confirm its standard native WDX install prompt; no manual extraction or CMD is required.
+3. Confirm `TC-Symbolic-Links-TC32.zip` contains **only** `SymlinkInspector.wdx` and `pluginst.inf`; repeat with 32-bit TC if installed.
+4. Restart TC and confirm installed plugin registration; accept the safe WDX setup for three buttons as needed. Existing personal toolbar and usercmd.ini must remain intact.
+5. If upgrading from 0.2.15, check registration paths before cleaning old dual-architecture plugin directories; installation must not silently delete unrelated DLLs.
+6. Run Check for Updates and verify it replaces only the installed WDX architecture after TC exits.
+7. Never manually install `TC-Symbolic-Links-win32-win64.zip`: the mixed ZIP is retained solely for legacy Update Manager compatibility.
 
 ## 0.2.15 — Update Manager interactive and safety checks
 
