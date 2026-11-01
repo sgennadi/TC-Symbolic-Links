@@ -3,9 +3,9 @@
 #include <string>
 
 namespace tcs::update {
-// Launch the trusted PowerShell updater embedded in this WDX as raw data.
-// The Windows PowerShell host is an OS component: no companion application.
-// Manual mode opens the Update Manager UI; Automatic runs at most daily.
+// Native WinHTTP GitHub release check: no temporary PS1 and no PowerShell host.
+// Manual mode displays progress and result; automatic runs at most daily.
+// Installation and conservative registration repair are separate operations.
 bool StartUpdateManager(HMODULE plugin, bool automatic, HWND owner = nullptr);
 // Used only from WDX ContentSetDefaultParams outside DllMain/loader lock.
 void StartAutomaticUpdateCheck();
