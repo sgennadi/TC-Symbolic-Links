@@ -175,6 +175,11 @@ jobs:
               $inf -notmatch '(?im)^\s*file=SymlinkInspector\.wdx\s*$') {
             throw 'Invalid pluginst.inf: standard x86 base name must register both WDX architectures'
           }
+          $fileDirectives = @([regex]::Matches($inf, '(?im)^\s*file\s*='))
+          if ($fileDirectives.Count -ne 1) { throw 'pluginst.inf must register exactly ONE WDX' }
+          if (@([regex]::Matches($inf, '(?im)^\s*file64\s*=')).Count -ne 0) {
+            throw 'Second independent DLL registration in pluginst.inf is forbidden'
+          }
           $hash = (Get-FileHash -LiteralPath $zipName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $zipName" | Set-Content -Encoding ascii "$zipName.sha256"
           Write-Host "PASS: one standard pluginst.inf ZIP; x86/x64 WDX, no CMD, no PS1, no EXE."

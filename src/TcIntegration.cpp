@@ -508,6 +508,12 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
                      std::to_wstring(registeredCopies));
         }
     }
+    if (registeredCopies > 1) {
+        // A repair is pending, refused, or unsafe. Never modify button bars,
+        // custom columns or wincmd.ini while two WDX entries are present.
+        // Ask about toolbar setup on the next TC launch after repair.
+        return;
+    }
     // Installers select one WDX architecture; setup remains architecture-
     // specific because TC x86 and x64 can share a user profile or toolbar.
     const wchar_t* completedKey = is64 ? L"Completed" : L"Completed32";
