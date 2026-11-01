@@ -149,6 +149,16 @@ if(WIN32)
       target_compile_options(windows_native_update_tests PRIVATE /W4 /utf-8)
     endif()
 
+    add_executable(windows_native_install_tests tests/windows_native_install_tests.cpp)
+    target_include_directories(windows_native_install_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_native_install_tests PRIVATE tc_integration)
+    add_test(NAME tc_native_update_transaction_and_rollback
+      COMMAND windows_native_install_tests)
+    if(MSVC)
+      target_compile_options(windows_native_install_tests PRIVATE /W4 /utf-8)
+    endif()
+
     add_executable(windows_link_tests tests/windows_link_tests.cpp)
     target_link_libraries(windows_link_tests PRIVATE tc_link_core)
     add_test(NAME win32_hebrew_links COMMAND windows_link_tests)
