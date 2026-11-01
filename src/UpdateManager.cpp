@@ -269,7 +269,7 @@ void InspectReleases(UpdateCheck& check) {
     }
     // Match only a complete release object with a tag, never arbitrary JSON text.
     // Scan candidate tag names; older or unsupported tags cannot cause a downgrade.
-    const std::regex tags(R"("tag_name"\s*:\s*"(v?[0-9]+\.[0-9]+\.[0-9]+(?:-preview\.[0-9]+)?)")");
+    const std::regex tags(R"TAG("tag_name"\s*:\s*"(v?[0-9]+\.[0-9]+\.[0-9]+(?:-preview\.[0-9]+)?)")TAG");
     Version best=installed;
     std::string bestTag;
     const bool preview=UsePreviewChannel();
