@@ -417,7 +417,7 @@ function Assert([bool]$condition,[string]$reason) {
 }
 function Run-SelfTest {
     Assert ((Compare-Version (Parse-Version 'v0.2.16-preview.3') (Parse-Version 'v0.2.15-preview.0')) -gt 0) 'preview comparison'
-    Assert ((Compare-Version (Parse-Version 'v0.2.15') (Parse-Version 'v0.2.16-preview.99')) -gt 0) 'stable beats preview'
+    Assert ((Compare-Version (Parse-Version 'v0.2.16') (Parse-Version 'v0.2.16-preview.99')) -gt 0) 'stable beats preview'
     Assert ((Compare-Version (Parse-Version 'v0.2.14') (Parse-Version 'v0.2.15-preview.0')) -lt 0) 'downgrade prevented'
     Assert ($null -eq (Parse-Version 'v0.2.16-preview.bad')) 'invalid tags rejected'
     $goodAsset=[pscustomobject]@{
