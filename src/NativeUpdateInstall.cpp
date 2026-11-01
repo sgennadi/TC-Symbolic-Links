@@ -474,27 +474,8 @@ bool PrepareInstall(const Arguments& a,std::wstring& error) {
         L" --bootstrap "+std::to_wstring(GetCurrentProcessId());
     return Spawn(runner,arguments,false,error);
 }
-bool InstallAfterExit(const Arguments& a,std::wstring& error) {
-    const auto installedFolder=fs::path(a.install).parent_path().wstring();
-    const auto stageParent=fs::path(a.prepared).parent_path().wstring();
-    if(a.prepared.empty() ||
-       _wcsicmp(installedFolder.c_str(),stageParent.c_str())!=0 ||
-       fs::path(a.prepared).filename().wstring().rfind(L".tcs-native-",0)!=0 ||
-       fs::path(OwnDll()).parent_path().wstring()!=a.prepared) {
-        error=L"Protected installer directory validation failed.";return false;
-    }
-    // Wait for the original TC window and both rundll32 processes to exit.
-    // The updater itself runs from a separate protected DLL copy.
-    bool closed=false;
-    for(unsigned i=0;i<600;i++) {
-        if(!TotalCommanderRunning() && WaitProcess(a.caller,0) &&
-           WaitProcess(a.bootstrap,0)) {closed=true;break;}
-        Sleep(500);
-    }
-    if(!closed) {
-        error=L"Timed out. Close every Total Commander and Link Maker window.";
-        return false;
-    }
+bool ApplyFiles(const std::wstring& prepared,const std::wstring& installedFolder,
+                std::wstring& error) {
     const auto id=L".tcsbackup-"+std::to_wstring(GetTickCount64());
     const std::array<std::wstring,3> names{
         L"SymlinkInspector.wdx",L"SymlinkInspector.wdx64",L"pluginst.inf"
@@ -504,7 +485,7 @@ bool InstallAfterExit(const Arguments& a,std::wstring& error) {
         const auto target=Join(installedFolder,name);
         if(GetFileAttributesW(target.c_str())==INVALID_FILE_ATTRIBUTES)
             continue; // Do not add a new architecture unexpectedly.
-        const auto payload=Join(a.prepared,name);
+        const auto payload=Join(prepared,name);
         if(GetFileAttributesW(payload.c_str())==INVALID_FILE_ATTRIBUTES) {
             error=L"Verified staged payload disappeared.";break;
         }
@@ -546,8 +527,38 @@ bool InstallAfterExit(const Arguments& a,std::wstring& error) {
     // remove itself; the next update may clean orphaned .tcs-native folders.
     return !backups.empty();
 }
+bool InstallAfterExit(const Arguments& a,std::wstring& error) {
+    const auto installedFolder=fs::path(a.install).parent_path().wstring();
+    const auto stageParent=fs::path(a.prepared).parent_path().wstring();
+    if(a.prepared.empty() ||
+       _wcsicmp(installedFolder.c_str(),stageParent.c_str())!=0 ||
+       fs::path(a.prepared).filename().wstring().rfind(L".tcs-native-",0)!=0 ||
+       fs::path(OwnDll()).parent_path().wstring()!=a.prepared) {
+        error=L"Protected installer directory validation failed.";return false;
+    }
+    // Wait for the original TC window and both rundll32 processes to exit.
+    // The updater itself runs from a separate protected DLL copy.
+    bool closed=false;
+    for(unsigned i=0;i<600;i++) {
+        if(!TotalCommanderRunning() && WaitProcess(a.caller,0) &&
+           WaitProcess(a.bootstrap,0)) {closed=true;break;}
+        Sleep(500);
+    }
+    if(!closed) {
+        error=L"Timed out. Close every Total Commander and Link Maker window.";
+        return false;
+    }
+    return ApplyFiles(a.prepared,installedFolder,error);
+}
 } // namespace
 
+bool ApplyNativeFilesForTest(const std::wstring& prepared,
+                             const std::wstring& installedFolder,
+                             std::wstring& error) {
+    // Only the local Windows integration test links this C++ helper; the
+    // rundll32 export always uses guarded Apply after trusted verification.
+    return ApplyFiles(prepared,installedFolder,error);
+}
 bool VerifyNativeZipBytes(const std::vector<unsigned char>& zip) {
     std::array<Entry,3> entries;
     return ExtractTrustedZip(zip,entries);
