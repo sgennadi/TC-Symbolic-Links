@@ -993,6 +993,21 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             continue;
         }
         const auto link = tcs::Join(state.batchDestination, filename);
+        const auto absoluteSource = tcs::FullPath(source);
+        const auto absoluteLink = tcs::FullPath(link);
+        // Never attempt to replace the selected source with a link to itself.
+        // Windows reports ERROR_ALREADY_EXISTS (183) in this situation,
+        // which is misleading without showing the two resulting paths.
+        if (!absoluteSource.empty() && !absoluteLink.empty() &&
+            _wcsicmp(absoluteSource.c_str(), absoluteLink.c_str()) == 0) {
+            ++state.failed;
+            AppendLine(state.results, std::wstring(L"ERR  ") + link + L": " +
+                state.Choose(
+                    L"Source and link path are identical. Choose a different destination folder.",
+                    L"Путь исходного файла совпадает с путём ссылки. Выберите другую папку назначения.",
+                    L"נתיב המקור והקישור זהים. יש לבחור תיקיית יעד אחרת."));
+            continue;
+        }
         const DWORD error = tcs::CreateLink(source, link, state.batchKind, state.batchRelative);
         const DWORD sourceAttrs = GetFileAttributesW(source.c_str());
         const bool sourceDirectory = sourceAttrs != INVALID_FILE_ATTRIBUTES &&
