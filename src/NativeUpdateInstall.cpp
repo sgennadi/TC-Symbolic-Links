@@ -532,6 +532,10 @@ bool InstallAfterExit(const Arguments& a,std::wstring& error) {
 }
 } // namespace
 
+bool VerifyNativeZipBytes(const std::vector<unsigned char>& zip) {
+    std::array<Entry,3> entries;
+    return ExtractTrustedZip(zip,entries);
+}
 bool StageNativeUpdate(const std::wstring& tag,HWND progressWindow,
                        NativeStage& stage) {
     if(!TagValid(tag)) {
