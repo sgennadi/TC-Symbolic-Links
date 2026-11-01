@@ -271,11 +271,21 @@ bool DirectoryAtOrInside(std::wstring child, std::wstring parent) {
     return _wcsnicmp(child.c_str(), parent.c_str(), parent.size()) == 0;
 }
 std::wstring InvalidDestinationReason(const Ui& state, const std::wstring& dest) {
-    if (dest.empty() || !tcs::IsExistingDirectory(dest))
+    if (dest.empty() || !tcs::IsExistingDirectory(dest)) {
+        // %Z lets TC pass the real *virtual* path of a WCX/WIM panel.
+        // A path containing an existing regular file (boot.wim\\image1)
+        // cannot be a Windows filesystem directory. Never fall back to the
+        // archive's parent, where we could overwrite the selected source.
+        if (!dest.empty() && !tcs::ExistingFileAncestor(dest).empty())
+            return state.Choose(
+                L"Target panel is inside an archive or file (WIM/WCX). Select a real filesystem folder.",
+                L"Целевая панель внутри файла/архива WIM/WCX. Выберите обычную папку на диске.",
+                L"חלונית היעד בתוך קובץ או ארכיון WIM/WCX. בחר תיקייה רגילה בדיסק.");
         return state.Choose(
-            L"Choose an existing destination folder.",
-            L"Выберите существующую папку назначения.",
-            L"יש לבחור תיקיית יעד קיימת.");
+            L"Target is not a real filesystem folder. Choose an existing disk or SMB directory, not a virtual panel.",
+            L"Назначение не является обычной папкой. Выберите каталог на диске или SMB, а не виртуальную панель.",
+            L"היעד אינו תיקיית מערכת קבצים. בחר תיקיית דיסק או SMB קיימת.");
+    }
     for (const auto& selected : state.selected) {
         const auto source = tcs::FullPath(selected);
         const auto name = tcs::BaseName(selected);
@@ -993,6 +1003,21 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             continue;
         }
         const auto link = tcs::Join(state.batchDestination, filename);
+        const auto absoluteSource = tcs::FullPath(source);
+        const auto absoluteLink = tcs::FullPath(link);
+        // Never attempt to replace the selected source with a link to itself.
+        // Windows reports ERROR_ALREADY_EXISTS (183) in this situation,
+        // which is misleading without showing the two resulting paths.
+        if (!absoluteSource.empty() && !absoluteLink.empty() &&
+            _wcsicmp(absoluteSource.c_str(), absoluteLink.c_str()) == 0) {
+            ++state.failed;
+            AppendLine(state.results, std::wstring(L"ERR  ") + link + L": " +
+                state.Choose(
+                    L"Source and link path are identical. Choose a different destination folder.",
+                    L"Путь исходного файла совпадает с путём ссылки. Выберите другую папку назначения.",
+                    L"נתיב המקור והקישור זהים. יש לבחור תיקיית יעד אחרת."));
+            continue;
+        }
         const DWORD error = tcs::CreateLink(source, link, state.batchKind, state.batchRelative);
         const DWORD sourceAttrs = GetFileAttributesW(source.c_str());
         const bool sourceDirectory = sourceAttrs != INVALID_FILE_ATTRIBUTES &&

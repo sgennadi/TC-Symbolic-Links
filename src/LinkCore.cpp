@@ -190,6 +190,23 @@ bool IsExistingDirectory(const std::wstring& path) {
     return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
+std::wstring ExistingFileAncestor(std::wstring_view path) {
+    auto candidate = FullPath(path);
+    // Bound network probes. Stop at the nearest actual filesystem object:
+    // a real folder means the missing child is merely absent; a FILE means
+    // Total Commander likely supplied a path inside an archive/WCX view.
+    for (int depth = 0; depth < 64 && !candidate.empty(); ++depth) {
+        const DWORD attrs = GetFileAttributesW(ApiPath(candidate).c_str());
+        if (attrs != INVALID_FILE_ATTRIBUTES)
+            return (attrs & FILE_ATTRIBUTE_DIRECTORY) ? L"" : candidate;
+        const auto parent = ParentPath(candidate);
+        if (parent.empty() || _wcsicmp(parent.c_str(), candidate.c_str()) == 0)
+            break;
+        candidate = parent;
+    }
+    return {};
+}
+
 SelectionSummary InspectSelection(const std::vector<std::wstring>& selected) {
     SelectionSummary summary;
     for (const auto& item : selected) {

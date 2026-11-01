@@ -53,6 +53,29 @@ int main() {
         const fs::path hardlink = targetFolder / original.filename();
         WriteTestFile(original);
 
+        // Total Commander %Z can report a WCX/WIM virtual directory.
+        // The file backing that virtual directory is NOT a filesystem folder.
+        // Never substitute its containing folder when creating an NTFS link.
+        const fs::path archiveFile = cleanup.path / L"boot.wim";
+        WriteTestFile(archiveFile);
+        const fs::path archiveInside = archiveFile / L"image1" / L"Windows";
+        Require(_wcsicmp(tcs::ExistingFileAncestor(archiveInside.wstring()).c_str(),
+                        archiveFile.wstring().c_str()) == 0,
+                "WCX virtual directory did not detect its archive file ancestor");
+        Require(_wcsicmp(tcs::ExistingFileAncestor(archiveFile.wstring()).c_str(),
+                        archiveFile.wstring().c_str()) == 0,
+                "An archive file was incorrectly recognized as a folder");
+        Require(tcs::ExistingFileAncestor(targetFolder.wstring()).empty(),
+                "Existing Windows folder misclassified as archive");
+        Require(tcs::ExistingFileAncestor(
+                (targetFolder / L"not-created" / L"folder").wstring()).empty(),
+                "Ordinary missing folder misclassified as archive");
+        Require(tcs::CreateLink(archiveFile.wstring(), archiveFile.wstring(),
+                tcs::LinkKind::FileSymbolic, false) == ERROR_ALREADY_EXISTS,
+                "Identical source and destination paths must not be overwritten");
+        Require(fs::is_regular_file(archiveFile),
+                "Protecting an archive destination unexpectedly removed its file");
+
         // A real NTFS hardlink from a Hebrew filename to a Hebrew destination.
         Require(tcs::CreateLink(original.wstring(), hardlink.wstring(),
                 tcs::LinkKind::Hardlink, false) == ERROR_SUCCESS,

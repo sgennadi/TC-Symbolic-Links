@@ -19,6 +19,10 @@ struct LinkDetails {
 
 std::wstring FullPath(std::wstring_view input);
 bool IsExistingDirectory(const std::wstring& path);
+// If a would-be destination traverses a regular file (e.g. boot.wim/image1),
+// return the actual file ancestor. Empty for a real directory or ordinary
+// non-existent folder. Read-only: never creates or extracts anything.
+std::wstring ExistingFileAncestor(std::wstring_view path);
 std::wstring ParentPath(const std::wstring& path);
 std::wstring BaseName(const std::wstring& path);
 std::wstring Join(const std::wstring& folder, const std::wstring& name);

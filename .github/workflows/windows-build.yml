@@ -268,8 +268,15 @@ jobs:
             The ZIP includes both .wdx and .wdx64 plus pluginst.inf.
             The native TC installer extracts both files; TC chooses
             and loads ONLY the matching DLL for its architecture.
-            Updater downloads this same ZIP, validates GitHub SHA-256
-            and replaces only the active installed DLL.
+            Native WinHTTP Update Check now shows progress and release
+            availability in one centered WDX-branded dialog. It does not
+            execute a temporary PowerShell script for checking updates.
+            Installing updates is manual: open the new ZIP in Total Commander.
+            The universal toolbar button now passes the %Z archive modifier:
+            when the target is inside WIM/WCX, the maker refuses unsafe
+            Windows symlink creation rather than falling back to the
+            containing folder. To update a previous button definition,
+            accept the one-time safe toolbar update (with backup) and restart TC.
             Visual Studio 2026 x64 and x86, WDX, Windows SMB, Linux WDX
             and sanitizer tests must all pass before this Preview release.
             Personalized TC GUI and third-party SMB servers still need
