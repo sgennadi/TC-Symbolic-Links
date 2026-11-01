@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <string>
 
 namespace tcs::update {
 // Launch the trusted PowerShell updater embedded in this WDX as raw data.
@@ -8,4 +9,6 @@ namespace tcs::update {
 bool StartUpdateManager(HMODULE plugin, bool automatic, HWND owner = nullptr);
 // Used only from WDX ContentSetDefaultParams outside DllMain/loader lock.
 void StartAutomaticUpdateCheck();
+// Schedules a conservative, opt-in duplicate WDX-registration repair once TC exits.
+bool StartRegistrationRepair(HMODULE plugin, const std::wstring& iniPath, HWND owner = nullptr);
 }

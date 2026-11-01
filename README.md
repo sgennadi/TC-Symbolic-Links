@@ -1,20 +1,42 @@
 # TC Symbolic Links 0.2.16 Preview
 
-**Native Total Commander WDX for inspecting and creating Windows links.**
+**One standard Total Commander ZIP for both x86 and x64:**
+`TC-Symbolic-Links-win32-win64.zip`. Select the archive in TC and
+press **Enter** to install via the built-in `pluginst.inf` dialog.
+The ZIP contains exactly these three root files:
+`SymlinkInspector.wdx` (x86), `SymlinkInspector.wdx64` (x64) and
+`pluginst.inf`. There are **no CMD, PS1 or external EXE files**.
 
-**Install directly inside Total Commander without CMD, EXE, PowerShell or manual extraction:**
+The native Total Commander installer **extracts both DLLs**, as in
+other combined x86/x64 plugins, but **registers one WDX plugin** under
+`[ContentPlugins]` with base path `SymlinkInspector.wdx`. The
+corresponding number in `[ContentPlugins64]` is a **64-bit availability
+flag, not a second independent plugin**. 64-bit TC loads `.wdx64`,
+32-bit TC loads `.wdx`.
 
-- **64-bit TC:** open `TC-Symbolic-Links-TC64.zip` with Enter and confirm the built-in plugin installation.
-- **32-bit TC:** open `TC-Symbolic-Links-TC32.zip` with Enter and confirm the built-in plugin installation.
+**Important for upgrades:** Prior versions 0.2.15/0.2.16 that
+registered `.wdx64` separately may have left *two numbered*
+`[ContentPlugins]` entries. The new WDX detects legacy duplicates
+and offers cautious repair **after all TC windows are closed**, with
+a backup and an unchanged-user-plugin check. When a layout is
+ambiguous it refuses automatic changes and explains how to remove the
+old entry through Total Commander Options → Plugins → Content.
 
-Each ZIP contains exactly **one** matching WDX file and `pluginst.inf`; the other architecture is not present. The WDX itself includes the GUI and Update Manager. Neither ZIP changes an existing toolbar until the plugin's safe, opt-in first-load configuration.
+The three colored link buttons, automatic WDX custom columns and
+built-in Update Manager are still included **in the same DLL**.
+Existing personal buttonbars, subbars, `usercmd.ini` and unrelated
+WDX plugins must remain untouched.
 
-The previously offered `TC-Symbolic-Links-Installer.zip` with CMD was a workaround and is no longer the recommended installation method. A single ZIP containing both architectures cannot be installed natively by TC while extracting just one; Total Commander extracts all files in `pluginst.inf` ZIPs.
+## 0.2.16 Preview — unified pluginst.inf installation
 
-The legacy `TC-Symbolic-Links-win32-win64.zip` remains on GitHub Releases **only for backwards-compatible embedded Update Manager transport**. Do NOT manually install that mixed-architecture ZIP through Total Commander: it includes both WDX files. Embedded updates of 0.2.16 replace only the installed architecture.
+Install with **one** ZIP and **one** TC plugin registration. TC may put
+both architecture-specific binary files in the plugin directory;
+this is intentional, not equivalent to registering two plugins.
 
-**Upgrading from 0.2.15:** the native install does not automatically delete DLLs copied by an earlier mixed-architecture package. Confirm old plugin registrations and backups before cleaning any legacy folders.
-
+The same official ZIP is used by the built-in Update Manager, which
+verifies release SHA-256 and stages replacement with backups after TC
+closes. The older selective CMD installer and separate TC32/TC64
+packages are superseded and no longer published in new releases.
 
 > **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
 > could switch the active button bar and hide existing icons. Version 0.2.4

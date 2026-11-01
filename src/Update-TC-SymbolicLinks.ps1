@@ -3,8 +3,9 @@
 # No bundled or downloaded EXE is executed. Windows PowerShell is an OS component.
 [CmdletBinding()]
 param(
-    [ValidateSet('Manual','Auto','Apply','SelfTest')][string]$Mode='Manual',
+    [ValidateSet('Manual','Auto','Apply','SelfTest','Repair')][string]$Mode='Manual',
     [string]$PluginPath,
+    [string]$IniPath='',
     [string]$CurrentVersion='0.2.16-preview.0',
     [string]$StageDirectory,
     [string]$TestX86,
@@ -266,6 +267,124 @@ function Apply-Staged([string]$folder,[string]$installedPath) {
         throw $reason
     }
 }
+
+# Conservative native-plugin registration repair: opt-in only, after TC exits.
+# This PowerShell text is EMBEDDED as WDX RCDATA, never shipped as a file.
+# [ContentPlugins64] is a same-index architecture flag, not a new plugin.
+function Init-RegAPI {
+    if ('TCSRegIni' -as [type]) {return}
+    $src=@'
+using System;
+using System.Runtime.InteropServices;
+public static class TCSRegIni {
+ [DllImport("kernel32.dll",EntryPoint="GetPrivateProfileSectionW",CharSet=CharSet.Unicode)]
+ public static extern uint Section(string s,[Out] char[] b,uint n,string f);
+ [DllImport("kernel32.dll",EntryPoint="GetPrivateProfileStringW",CharSet=CharSet.Unicode)]
+ public static extern uint Read(string s,string k,string d,System.Text.StringBuilder b,uint n,string f);
+ [DllImport("kernel32.dll",EntryPoint="WritePrivateProfileStringW",CharSet=CharSet.Unicode,SetLastError=true)]
+ [return: MarshalAs(UnmanagedType.Bool)]
+ public static extern bool Write(string s,string k,string v,string f);
+}
+'@
+    Add-Type -TypeDefinition $src
+}
+function Read-Reg([string]$ini,[string]$section,[string]$key){
+    $b=[Text.StringBuilder]::new(32768)
+    [void][TCSRegIni]::Read($section,$key,'',$b,[uint32]$b.Capacity,$ini)
+    return $b.ToString()
+}
+function Write-Reg([string]$ini,[string]$section,[string]$key,[AllowNull()][string]$value){
+    if(-not [TCSRegIni]::Write($section,$key,$value,$ini)){throw "INI write denied: $section/$key"}
+}
+function Registrations([string]$ini){
+    Init-RegAPI
+    $buf=New-Object 'char[]' 262144
+    [uint32]$size=[TCSRegIni]::Section('ContentPlugins',$buf,[uint32]$buf.Length,$ini)
+    if($size -ge $buf.Length-2){throw 'ContentPlugins too long; no changes.'}
+    $list=[Collections.Generic.List[object]]::new()
+    if($size -eq 0){return $list}
+    $txt=[string]::new($buf,0,[int]$size)
+    foreach($line in $txt.Split([char]0,[StringSplitOptions]::RemoveEmptyEntries)){
+        $m=[regex]::Match($line,'^([0-9]{1,4})=(.*)$')
+        if(-not $m.Success){continue}
+        $n=[int]$m.Groups[1].Value
+        $v=$m.Groups[2].Value.Trim()
+        $owned=($v -match '(?i)(?:^|[\\/])SymlinkInspector[.]wdx(?:64)?$')
+        $list.Add([pscustomobject]@{Index=$n;Value=$v;Owned=$owned})
+    }
+    return $list
+}
+function Repair-Registrations([string]$ini,[string]$module){
+    if([IO.Path]::GetFileName($ini) -ine 'wincmd.ini' -or
+        -not (Test-Path -LiteralPath $ini -PathType Leaf)){throw 'wincmd.ini not found; no changes.'}
+    if([IO.Path]::GetFileName($module) -notmatch '(?i)^SymlinkInspector[.]wdx(?:64)?$' -or
+        -not (Test-Path -LiteralPath $module -PathType Leaf)){throw 'Loaded WDX path invalid.'}
+    $root=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($module))
+    $base=Join-Path $root 'SymlinkInspector.wdx'
+    $other=Join-Path $root 'SymlinkInspector.wdx64'
+    if(-not (Test-Path -LiteralPath $base -PathType Leaf) -or
+       -not (Test-Path -LiteralPath $other -PathType Leaf)){
+        throw 'Both WDX files must exist; install the standard combined ZIP first.'
+    }
+    $entries=@(Registrations $ini | Sort-Object Index)
+    $owned=@($entries | Where-Object {$_.Owned})
+    if($owned.Count -le 1){return 'One or fewer WDX registrations: no repair needed.'}
+    for($j=0;$j -lt $entries.Count;$j++){
+        if($entries[$j].Index -ne $j){
+            throw 'Gaps in ContentPlugins numbering: use native TC Content Plugin settings to remove the old registration.'
+        }
+    }
+    if(@($owned | Where-Object {$_.Value -ieq $base -or $_.Value -ieq $other}).Count -eq 0){
+        throw 'The installed WDX was not found among registered paths; manual review required.'
+    }
+    $keep=$owned[0]
+    $remove=@($owned | Select-Object -Skip 1)
+    $removeIds=@($remove | ForEach-Object {$_.Index})
+    $remain=@($entries | Where-Object {$removeIds -notcontains $_.Index})
+    $last=($remain | Measure-Object Index -Maximum).Maximum
+    if(@($remove | Where-Object {$_.Index -le $last}).Count -ne 0){
+        throw 'Another plugin follows the duplicate. Nothing modified. Remove duplicate in Configuration > Options > Plugins > Content, so TC renumbers other plugins safely.'
+    }
+    $backup=$ini+'.tcslinks-registration-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+
+        '-'+[Guid]::NewGuid().ToString('N').Substring(0,8)+'.bak'
+    Copy-Item -LiteralPath $ini -Destination $backup -ErrorAction Stop
+    try{
+        Write-Reg $ini 'ContentPlugins' ([string]$keep.Index) $base
+        Write-Reg $ini 'ContentPlugins64' ([string]$keep.Index) '1'
+        foreach($entry in $remove){
+            $key=[string]$entry.Index
+            foreach($suffix in @('','_detect','_flags','_date')){
+                Write-Reg $ini 'ContentPlugins' ($key+$suffix) $null
+            }
+            Write-Reg $ini 'ContentPlugins64' $key $null
+        }
+        # Force TC to rebuild the derived bitness cache on next launch.
+        Write-Reg $ini 'ContentPlugins64' '$checksum$' $null
+        $after=@(Registrations $ini)
+        $afterOur=@($after | Where-Object {$_.Owned})
+        if($afterOur.Count -ne 1 -or $afterOur[0].Index -ne $keep.Index -or
+           $afterOur[0].Value -ine $base){throw 'WDX verification failed.'}
+        foreach($entry in @($entries | Where-Object {-not $_.Owned})){
+            if((Read-Reg $ini 'ContentPlugins' ([string]$entry.Index)) -cne $entry.Value){
+                throw "Unrelated content plugin $($entry.Index) changed."
+            }
+        }
+        return "SUCCESS: Removed $($remove.Count) trailing duplicate registration(s), retained WDX slot $($keep.Index). Backup: $backup"
+    }catch{
+        $msg=$_.Exception.Message
+        try{Copy-Item -LiteralPath $backup -Destination $ini -Force -ErrorAction Stop}
+        catch{throw "Repair error: $msg. Original INI RESTORE FAILED; backup: $backup"}
+        throw "Repair error: $msg. Original INI restored from $backup"
+    }
+}
+function Wait-TC-Exit {
+    for($i=0;$i -lt 90;$i++){
+        if(@(Get-Process -Name 'TOTALCMD','TOTALCMD64' -ErrorAction SilentlyContinue).Count -eq 0){return}
+        Start-Sleep -Seconds 2
+    }
+    throw 'Total Commander was not closed; no INI changes made.'
+}
+
 function Message([string]$text) {
     Add-Type -AssemblyName System.Windows.Forms
     [void][Windows.Forms.MessageBox]::Show($text,'TC Symbolic Links',
@@ -497,6 +616,48 @@ function Run-SelfTest {
             Assert (Test-Path -LiteralPath $x64Backup -PathType Container) 'x64 backup created'
             Assert (-not (Test-Path -LiteralPath (Join-Path $x64Only 'SymlinkInspector.wdx'))) 'x64 update must not install x86'
             Assert (-not (Test-Path -LiteralPath (Join-Path $x64Only 'pluginst.inf'))) 'x64 update must not add pluginst.inf'
+            # Legacy WDX registration repair: keep the first slot, remove
+            # only trailing duplicates and preserve unrelated plugin indexes.
+            $oldName='C:\OldPlugin\SymlinkInspector.wdx64'
+            $unrelated='C:\OtherPlugin\Other.wdx'
+            $newName=Join-Path $input 'SymlinkInspector.wdx'
+            $ini=Join-Path $temp 'wincmd.ini'
+            Set-Content -LiteralPath $ini -Encoding Unicode -Value @(
+                '[ContentPlugins]',
+                ('0='+$unrelated),
+                ('1='+$oldName),
+                ('2='+$unrelated),
+                ('3='+$newName),
+                '[ContentPlugins64]',
+                '1=1','3=1','$checksum$=12345678'
+            )
+            $repairText=Repair-Registrations $ini (Join-Path $input 'SymlinkInspector.wdx64')
+            Assert ($repairText -match '^SUCCESS:') 'safe tail duplicate repair'
+            Assert ((Read-Reg $ini 'ContentPlugins' '1') -eq $newName) 'canonical WDX slot'
+            Assert ((Read-Reg $ini 'ContentPlugins' '3') -eq '') 'trailing duplicate removed'
+            Assert ((Read-Reg $ini 'ContentPlugins' '2') -eq $unrelated) 'unrelated entry preserved'
+            Assert ((Read-Reg $ini 'ContentPlugins64' '1') -eq '1') 'same-slot 64-bit flag'
+            Assert ((Read-Reg $ini 'ContentPlugins64' '3') -eq '') 'old 64-bit flag removed'
+            $snapshots=@(Get-ChildItem -LiteralPath $temp -Filter 'wincmd.ini.tcslinks-registration-*.bak')
+            Assert ($snapshots.Count -eq 1) 'registration repair backup exists'
+            $unsafe=Join-Path $temp 'wincmd.ini'
+            Set-Content -LiteralPath $unsafe -Encoding Unicode -Value @(
+                '[ContentPlugins]',
+                ('0='+$unrelated),
+                ('1='+$oldName),
+                ('2='+$newName),
+                ('3='+$unrelated),
+                '[ContentPlugins64]',
+                '1=1','2=1'
+            )
+            $beforeUnsafe=(Get-FileHash -LiteralPath $unsafe -Algorithm SHA256).Hash
+            $declined=$false
+            try { Repair-Registrations $unsafe (Join-Path $input 'SymlinkInspector.wdx64') | Out-Null }
+            catch { $declined=$true }
+            Assert $declined 'refuse duplicate before unrelated WDX'
+            Assert ((Get-FileHash -LiteralPath $unsafe -Algorithm SHA256).Hash -eq $beforeUnsafe) 'unsafe INI unchanged'
+            # The native WDX will instead guide the user to TC Plugins
+            # configuration, where TC safely renumbers other entries.
             $wrong='0'+$hash.Substring(1)
             if ($wrong -eq $hash) { $wrong='1'+$hash.Substring(1) }
             $rejected=$false
@@ -509,6 +670,13 @@ function Run-SelfTest {
 try {
     switch($Mode) {
         'SelfTest' {Run-SelfTest;exit 0}
+        'Repair' {
+            Wait-TC-Exit
+            $report=Repair-Registrations $IniPath $PluginPath
+            Write-Log $report
+            Message $report
+            exit 0
+        }
         'Apply' {
             $backup=Apply-Staged $StageDirectory $PluginPath
             Message ((Say 'Update installed. Restart Total Commander.' 'Обновление установлено. Перезапустите Total Commander.' 'העדכון הותקן. הפעל מחדש את Total Commander.')+[Environment]::NewLine+$backup)

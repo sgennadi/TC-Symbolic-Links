@@ -52,11 +52,6 @@ jobs:
         run: |
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File src/Update-TC-SymbolicLinks.ps1 -Mode SelfTest -TestX86 build-win32/Release/SymlinkInspector.wdx -TestX64 build/Release/SymlinkInspector.wdx64
           if ($LASTEXITCODE -ne 0) { throw 'Update Manager offline security regression failed' }
-      - name: Verify installer selects ONLY the matching Total Commander WDX architecture
-        shell: pwsh
-        run: |
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/test_selective_installer.ps1 -Win32 build-win32/Release/SymlinkInspector.wdx -Win64 build/Release/SymlinkInspector.wdx64
-          if ($LASTEXITCODE -ne 0) { throw 'Architecture-selective installation test failed' }
       - name: Exercise a real temporary SMB share with x64 and x86
         shell: pwsh
         run: |
@@ -132,71 +127,63 @@ jobs:
           name: TC-Symbolic-Links-Toolbar-Recovery
           path: TC-Symbolic-Links-Toolbar-Recovery.zip
           if-no-files-found: error
-      - name: Package unified Total Commander x86 and x64 plugin
+      - name: Package ONE standard Total Commander plugin ZIP for both architectures
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item build/Release/SymlinkInspector.wdx64 dist/
-          Copy-Item build-win32/Release/SymlinkInspector.wdx dist/
-          Copy-Item pluginst.inf dist/
-          Copy-Item README.md dist/
-          Copy-Item docs/MANUAL-TESTS.md dist/
-          New-Item -ItemType Directory -Force -Path dist/Recovery | Out-Null
-          Copy-Item toolbar-recovery/* dist/Recovery/
-          Compress-Archive -Path dist/* -DestinationPath TC-Symbolic-Links-win32-win64.zip -Force
-          # Existing 0.2.15+ updaters still require the dual-architecture
-          # transport asset, but it is NOT for manual Total Commander install.
-          # Native TC installer ZIPs contain only one matching WDX and INF.
-          $packages = @(
-            @{ Bits='x64'; Source='build/Release/SymlinkInspector.wdx64'; Module='SymlinkInspector.wdx64'; Archive='TC-Symbolic-Links-TC64.zip'; Machine=0x8664 },
-            @{ Bits='x86'; Source='build-win32/Release/SymlinkInspector.wdx'; Module='SymlinkInspector.wdx'; Archive='TC-Symbolic-Links-TC32.zip'; Machine=0x014c }
-          )
-          foreach ($pkg in $packages) {
-            $stage = "dist-native-$($pkg.Bits)"
-            New-Item -ItemType Directory -Force -Path $stage | Out-Null
-            Copy-Item -LiteralPath $pkg.Source -Destination (Join-Path $stage $pkg.Module)
-            $inf = @(
-              '[plugininstall]'
-              "description=TC Symbolic Links - $($pkg.Bits) WDX and Link Maker"
-              "version=0.2.16-preview.${{ github.run_number }}"
-              'type=wdx'
-              "file=$($pkg.Module)"
-              'defaultdir=TCSymbolicLinks'
-            )
-            $inf | Set-Content -LiteralPath (Join-Path $stage 'pluginst.inf') -Encoding ascii
-            Compress-Archive -Path "$stage/*" -DestinationPath $pkg.Archive -Force
-            $verify = "verify-native-$($pkg.Bits)"
-            Expand-Archive -LiteralPath $pkg.Archive -DestinationPath $verify -Force
-            $files = @(Get-ChildItem -LiteralPath $verify -File)
-            if ($files.Count -ne 2) { throw 'A native TC plugin ZIP must contain exactly two files' }
-            if (-not (Test-Path -LiteralPath (Join-Path $verify $pkg.Module))) { throw 'Missing matching WDX binary' }
-            if (-not (Test-Path -LiteralPath (Join-Path $verify 'pluginst.inf'))) { throw 'Missing native TC pluginst.inf' }
-            if (@(Get-ChildItem -LiteralPath $verify -File -Filter 'SymlinkInspector.wdx*').Count -ne 1) { throw 'Wrong-architecture DLL included' }
-            if (@(Get-ChildItem -LiteralPath $verify -Recurse -File | Where-Object { $_.Extension -in @('.cmd','.ps1','.exe') }).Count -ne 0) { throw 'Native installer must contain no scripts or executables' }
-            $iniText = Get-Content -LiteralPath (Join-Path $verify 'pluginst.inf') -Raw
-            if ($iniText -notmatch '(?im)^type=wdx\s*$' -or
-                $iniText -notmatch ('(?im)^file=' + [regex]::Escape($pkg.Module) + '\s*$')) { throw 'Invalid native TC pluginst.inf registration' }
-            $moduleData = [IO.File]::ReadAllBytes((Join-Path $verify $pkg.Module))
-            $peOffset = [BitConverter]::ToInt32($moduleData, 0x3c)
-            $machine = [BitConverter]::ToUInt16($moduleData, $peOffset + 4)
-            if ($machine -ne $pkg.Machine) { throw 'Incorrect WDX machine architecture' }
-            $digest = (Get-FileHash -LiteralPath $pkg.Archive -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$digest  $($pkg.Archive)" | Set-Content -Encoding ascii "$($pkg.Archive).sha256"
-            Write-Host "PASS: native $($pkg.Bits) ZIP, two files, one correct WDX, no CMD/PS1"
+          $stage = 'tc-native-package'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -LiteralPath build/Release/SymlinkInspector.wdx64 -Destination $stage
+          Copy-Item -LiteralPath build-win32/Release/SymlinkInspector.wdx -Destination $stage
+          Copy-Item -LiteralPath pluginst.inf -Destination $stage
+          $zipName = 'TC-Symbolic-Links-win32-win64.zip'
+          Compress-Archive -Path "$stage/*" -DestinationPath $zipName -Force
+          # Verify actual ZIP contents, not only staging files. Native TC
+          # extracts both DLLs, registers the base .wdx, and automatically
+          # loads .wdx64 on 64-bit and .wdx on 32-bit Total Commander.
+          $check = 'tc-native-verification'
+          Expand-Archive -LiteralPath $zipName -DestinationPath $check -Force
+          $expected = @('SymlinkInspector.wdx', 'SymlinkInspector.wdx64', 'pluginst.inf')
+          $files = @(Get-ChildItem -LiteralPath $check -Recurse -File)
+          if ($files.Count -ne 3) { throw 'The one native ZIP must contain exactly three files' }
+          foreach ($file in $files) {
+            if ($file.DirectoryName -ne (Resolve-Path $check).Path) {
+              throw 'All three installer files must be at the ZIP root'
+            }
+            if ($expected -cnotcontains $file.Name) {
+              throw "Unexpected file or script in Total Commander plugin ZIP: $($file.Name)"
+            }
           }
-          $hash = (Get-FileHash TC-Symbolic-Links-win32-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  TC-Symbolic-Links-win32-win64.zip" | Set-Content -Encoding ascii TC-Symbolic-Links-win32-win64.zip.sha256
+          foreach ($pkg in @(
+            @{ File='SymlinkInspector.wdx'; Machine=0x014c },
+            @{ File='SymlinkInspector.wdx64'; Machine=0x8664 }
+          )) {
+            $bytes = [IO.File]::ReadAllBytes((Join-Path $check $pkg.File))
+            if ($bytes.Length -lt 512 -or [BitConverter]::ToUInt16($bytes, 0) -ne 0x5A4D) {
+              throw "Invalid Windows PE: $($pkg.File)"
+            }
+            $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+            if ($offset -lt 64 -or $offset -gt $bytes.Length - 24 -or
+                [BitConverter]::ToUInt32($bytes, $offset) -ne 0x00004550 -or
+                [BitConverter]::ToUInt16($bytes, $offset + 4) -ne $pkg.Machine) {
+              throw "Wrong WDX architecture or PE header: $($pkg.File)"
+            }
+          }
+          $inf = Get-Content -LiteralPath (Join-Path $check 'pluginst.inf') -Raw
+          if ($inf -notmatch '(?im)^\s*\[plugininstall\]\s*$' -or
+              $inf -notmatch '(?im)^\s*type=wdx\s*$' -or
+              $inf -notmatch '(?im)^\s*file=SymlinkInspector\.wdx\s*$') {
+            throw 'Invalid pluginst.inf: standard x86 base name must register both WDX architectures'
+          }
+          $hash = (Get-FileHash -LiteralPath $zipName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zipName" | Set-Content -Encoding ascii "$zipName.sha256"
+          Write-Host "PASS: one standard pluginst.inf ZIP; x86/x64 WDX, no CMD, no PS1, no EXE."
       - uses: actions/upload-artifact@v7
         with:
           name: TC-Symbolic-Links-win32-win64-VS2026
           path: |
             TC-Symbolic-Links-win32-win64.zip
             TC-Symbolic-Links-win32-win64.zip.sha256
-            TC-Symbolic-Links-TC64.zip
-            TC-Symbolic-Links-TC64.zip.sha256
-            TC-Symbolic-Links-TC32.zip
-            TC-Symbolic-Links-TC32.zip.sha256
           if-no-files-found: error
 
   linux-wdx-unicode:
@@ -269,21 +256,20 @@ jobs:
           make_latest: false
           generate_release_notes: true
           body: |
-            Preview build from successful Visual Studio 2026 Windows x86/x64,
-            Linux WDX, sanitizers and isolated Windows SMB tests.
-            Install TC-Symbolic-Links-TC64.zip directly with Enter in
-            Total Commander x64 (or TC32.zip in Total Commander x86).
-            Each native ZIP has exactly one WDX and pluginst.inf.
-            No CMD, PowerShell or manual unpacking is required.
-            The win32-win64 ZIP is only for backward-compatible updater
-            transport and MUST NOT be manually installed via TC.
-            Manual Total Commander GUI and third-party NAS/Samba tests remain
-            recommended before Stable.
+            One standard ZIP for Total Commander 32-bit AND 64-bit.
+            Open TC-Symbolic-Links-win32-win64.zip with Enter in Total
+            Commander. Confirm its built-in plugin installer.
+            No CMD, external installer, standalone EXE or manual unpacking.
+            The ZIP includes both .wdx and .wdx64 plus pluginst.inf.
+            The native TC installer extracts both files; TC chooses
+            and loads ONLY the matching DLL for its architecture.
+            Updater downloads this same ZIP, validates GitHub SHA-256
+            and replaces only the active installed DLL.
+            Visual Studio 2026 x64 and x86, WDX, Windows SMB, Linux WDX
+            and sanitizer tests must all pass before this Preview release.
+            Personalized TC GUI and third-party SMB servers still need
+            manual acceptance before Stable.
           files: |
-            release/TC-Symbolic-Links-TC64.zip
-            release/TC-Symbolic-Links-TC64.zip.sha256
-            release/TC-Symbolic-Links-TC32.zip
-            release/TC-Symbolic-Links-TC32.zip.sha256
             release/TC-Symbolic-Links-win32-win64.zip
             release/TC-Symbolic-Links-win32-win64.zip.sha256
             release/TC-Symbolic-Links-Linux-WDX-x64.zip

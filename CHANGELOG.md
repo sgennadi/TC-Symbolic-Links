@@ -1,3 +1,16 @@
+## 0.2.16 Preview — unified WDX registration fix
+
+- Return to **one normal Total Commander installer ZIP** containing
+  the 32-bit and 64-bit WDX next to one `pluginst.inf`.
+- Ensure exactly one native `file=SymlinkInspector.wdx` registration.
+  `[ContentPlugins64]` uses the same numeric key as a bitness flag,
+  not a second registration.
+- Add opt-in recovery from legacy double registrations after closing
+  all TC windows, with backup and narrow checks to leave other
+  plugins and personal toolbars intact.
+- No installer CMD, .ps1, companion EXE or manual unpacking.
+- Keep the same one ZIP for future verified updater downloads.
+
 ## 0.2.16 Preview — native TC ZIPs (no CMD / PS1 in packages)
 
 - Two architecture-specific, ordinary `pluginst.inf` ZIPs: `TC-Symbolic-Links-TC64.zip` has `SymlinkInspector.wdx64`, and `TC-Symbolic-Links-TC32.zip` has `SymlinkInspector.wdx`.

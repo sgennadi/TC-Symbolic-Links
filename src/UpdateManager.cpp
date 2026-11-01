@@ -65,7 +65,7 @@ bool AutoCheckDue() {
            now.QuadPart - lastCheck >= oneDay;
 }
 
-bool Launch(HMODULE module, bool automatic) {
+bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) {
     const std::wstring plugin = ModuleFile(module);
     if (plugin.empty()) return false;
     HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(kResourceUpdater),
@@ -132,8 +132,9 @@ bool Launch(HMODULE module, bool automatic) {
         std::to_wstring(TC_PREVIEW_ITERATION);
     std::wstring command = L"\"" + psHost +
         L"\" -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File \"" +
-        scriptFile + L"\" -Mode " + (automatic ? L"Auto" : L"Manual") +
-        L" -PluginPath \"" + plugin + L"\" -CurrentVersion \"" + version + L"\"";
+        scriptFile + L"\" -Mode " + (!repairIni.empty() ? L"Repair" : (automatic ? L"Auto" : L"Manual")) +
+        L" -PluginPath \"" + plugin + L"\" -CurrentVersion \"" + version + L"\"" +
+        (repairIni.empty() ? L"" : (L" -IniPath \"" + repairIni + L"\""));
     STARTUPINFOW startup{sizeof(startup)};
     startup.dwFlags = STARTF_USESHOWWINDOW;
     startup.wShowWindow = SW_HIDE;
@@ -165,4 +166,15 @@ void tcs::update::StartAutomaticUpdateCheck() {
     if (g_autoStarted.test_and_set()) return;
     if (!AutoCheckDue()) return;
     StartUpdateManager(OwnModule(), true);
+}
+
+bool tcs::update::StartRegistrationRepair(HMODULE plugin,
+                                          const std::wstring& iniPath,
+                                          HWND owner) {
+    if (!plugin) plugin = OwnModule();
+    if (plugin && !iniPath.empty() && Launch(plugin, false, iniPath)) return true;
+    MessageBoxW(owner,
+        L"Cannot start the deferred registration repair. No TC settings were changed.",
+        L"TC Symbolic Links", MB_OK | MB_ICONERROR);
+    return false;
 }

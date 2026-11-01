@@ -1,12 +1,26 @@
-## 0.2.16 — native ZIP installation, without CMD
+## 0.2.16 — one ZIP, one WDX registration
 
-1. Confirm `TC-Symbolic-Links-TC64.zip` contains **only** `SymlinkInspector.wdx64` and `pluginst.inf` at ZIP root.
-2. In 64-bit Total Commander, select the ZIP and press Enter. Confirm its standard native WDX install prompt; no manual extraction or CMD is required.
-3. Confirm `TC-Symbolic-Links-TC32.zip` contains **only** `SymlinkInspector.wdx` and `pluginst.inf`; repeat with 32-bit TC if installed.
-4. Restart TC and confirm installed plugin registration; accept the safe WDX setup for three buttons as needed. Existing personal toolbar and usercmd.ini must remain intact.
-5. If upgrading from 0.2.15, check registration paths before cleaning old dual-architecture plugin directories; installation must not silently delete unrelated DLLs.
-6. Run Check for Updates and verify it replaces only the installed WDX architecture after TC exits.
-7. Never manually install `TC-Symbolic-Links-win32-win64.zip`: the mixed ZIP is retained solely for legacy Update Manager compatibility.
+1. Confirm `TC-Symbolic-Links-win32-win64.zip` contains exactly
+   `SymlinkInspector.wdx`, `SymlinkInspector.wdx64`,
+   and `pluginst.inf` at ZIP root; NO CMD, PS1 or EXE.
+2. Install the same ZIP by pressing Enter in Total Commander x64.
+   Only one *numbered entry* may exist in `[ContentPlugins]`.
+   `[ContentPlugins64]` may contain the same number with value 1
+   as a bitness flag; that is **not a second WDX registration**.
+3. Verify x64 TC loads only `SymlinkInspector.wdx64`. TC x86 must
+   load `SymlinkInspector.wdx` from that same plugin installation.
+4. Upgrade a test profile with two legacy `SymlinkInspector` entries
+   in `[ContentPlugins]`. Confirm that automatic duplicate detection
+   offers repair with consent, defers until TC exits, and makes a full
+   backup before editing any registration.
+5. Confirm unrelated WDX plugins retain original paths, detect strings,
+   flags, order and enablement. Do not renumber other entries blindly.
+   Unsupported duplicate layouts must fail closed, with instructions
+   to remove the duplicate through native TC Content Plugin options.
+6. All original colored toolbar buttons, usercmd.ini, custom column
+   presets and alternate settings must remain unchanged.
+7. Verify the same unified ZIP is the native installation archive
+   and a SHA-256-checked Update Manager download.
 
 ## 0.2.15 — Update Manager interactive and safety checks
 

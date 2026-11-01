@@ -6,6 +6,7 @@
 // On failure all modified files are restored byte-for-byte.
 #include "TcIntegration.h"
 #include "TcCustomView.h"
+#include "UpdateManager.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -190,6 +191,33 @@ bool IsSystemRundll32(const std::wstring& cmd) {
     return false;
 }
 
+bool OwnWdxName(std::wstring_view path) {
+    const auto sep = path.find_last_of(L"\\/");
+    if (sep == std::wstring_view::npos || sep + 1 >= path.size()) return false;
+    const std::wstring leaf(path.substr(sep + 1));
+    return _wcsicmp(leaf.c_str(), L"SymlinkInspector.wdx") == 0 ||
+           _wcsicmp(leaf.c_str(), L"SymlinkInspector.wdx64") == 0;
+}
+
+int CountRegisteredWdx(const std::wstring& ini) {
+    // One [ContentPlugins] numeric entry denotes one logical plugin.
+    // A same-number [ContentPlugins64] flag is not a second registration.
+    std::vector<wchar_t> values(262144, L'\0');
+    const DWORD n = GetPrivateProfileSectionW(L"ContentPlugins", values.data(),
+                       static_cast<DWORD>(values.size()), ini.c_str());
+    if (!n || n >= values.size() - 2) return 0; // fail closed on truncated INI
+    int count = 0;
+    for (const wchar_t* p = values.data(); *p; p += wcslen(p) + 1) {
+        const wchar_t* equal = wcschr(p, L'=');
+        if (!equal || equal == p) continue;
+        bool numeric = true;
+        for (const wchar_t* key = p; key != equal; ++key)
+            if (*key < L'0' || *key > L'9') { numeric = false; break; }
+        if (numeric && OwnWdxName(equal + 1)) ++count;
+    }
+    return count;
+}
+
 bool CanOpenForWrite(const std::wstring& path) {
     HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -201,6 +229,10 @@ bool CanOpenForWrite(const std::wstring& path) {
 } // namespace
 
 namespace tcs {
+int DuplicateRegistrationCount(const std::wstring& ini) {
+    return CountRegisteredWdx(ini);
+}
+
 bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& dllPath,
                                 std::wstring& status) {
     if (!IsFile(tcIni) || !IsFile(dllPath) || Parent(tcIni).empty()) {
@@ -444,6 +476,38 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     }
     if (!IsFile(ini)) return;
     const auto marker = Join(Parent(ini), L"TCSymbolicLinksInstall.ini");
+    const int registeredCopies = DuplicateRegistrationCount(ini);
+    if (registeredCopies > 1 &&
+        GetPrivateProfileIntW(L"Setup", L"DuplicateRepairDismissed", 0,
+                              marker.c_str()) != registeredCopies) {
+        const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
+        const LANGID language = GetUserDefaultUILanguage();
+        const bool ru = PRIMARYLANGID(language) == LANG_RUSSIAN;
+        const bool he = PRIMARYLANGID(language) == LANG_HEBREW;
+        const wchar_t* prompt = he ?
+            L"נמצאו מספר רישומים של SymlinkInspector. לבצע בדיקה ותיקון "
+            L"לאחר סגירת Total Commander? יישמר גיבוי. אם הסדר מורכב, "
+            L"לא יבוצע שום שינוי." :
+            ru ?
+            L"Найдены повторные регистрации SymlinkInspector в [ContentPlugins]. "
+            L"Проверить и исправить после закрытия всех окон Total Commander? "
+            L"Будет создана резервная копия wincmd.ini. Если исправление "
+            L"может затронуть другие плагины, настройки останутся без изменений." :
+            L"Multiple SymlinkInspector registrations found in [ContentPlugins]. "
+            L"Check and repair after all Total Commander windows close? "
+            L"wincmd.ini will be backed up. Ambiguous layouts will not be changed.";
+        if (MessageBoxW(owner, prompt, L"TC Symbolic Links",
+                        MB_YESNO | MB_ICONWARNING) == IDYES) {
+            HMODULE own = nullptr;
+            if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                    reinterpret_cast<LPCWSTR>(&AutoConfigureOnFirstLoad), &own))
+                tcs::update::StartRegistrationRepair(own, ini, owner);
+        } else {
+            WriteIni(marker, L"Setup", L"DuplicateRepairDismissed",
+                     std::to_wstring(registeredCopies));
+        }
+    }
     // Installers select one WDX architecture; setup remains architecture-
     // specific because TC x86 and x64 can share a user profile or toolbar.
     const wchar_t* completedKey = is64 ? L"Completed" : L"Completed32";

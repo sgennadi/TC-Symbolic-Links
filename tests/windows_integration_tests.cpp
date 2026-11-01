@@ -108,6 +108,23 @@ int wmain(int argc, wchar_t** argv) {
             "[Buttonbar]\r\nButtonbar=placeholder\r\n"
             "[left]\r\nSpecialView=1\r\n"
             "[right]\r\nSpecialView=2\r\n");
+        // Regression: a correct [ContentPlugins64] flag must not count as
+        // a duplicate, whereas two NUMBERED ContentPlugins entries must.
+        const auto samePluginOnce = profile / L"one-wdx.ini";
+        WriteText(samePluginOnce,
+            "[ContentPlugins]\r\n0=C:\\Apps\\SymlinkInspector.wdx\r\n"
+            "1=C:\\Apps\\Other.wdx\r\n"
+            "[ContentPlugins64]\r\n0=1\r\n");
+        Require(tcs::DuplicateRegistrationCount(samePluginOnce.wstring()) == 1,
+                "the x64 flag is NOT a second WDX registration");
+        const auto twice = profile / L"two-wdx.ini";
+        WriteText(twice,
+            "[ContentPlugins]\r\n0=C:\\Apps\\SymlinkInspector.wdx\r\n"
+            "1=C:\\Other\\Unrelated.wdx\r\n"
+            "2=C:\\Legacy\\SymlinkInspector.wdx64\r\n"
+            "[ContentPlugins64]\r\n0=1\r\n2=1\r\n");
+        Require(tcs::DuplicateRegistrationCount(twice.wstring()) == 2,
+                "duplicate numbered SymlinkInspector entries were not detected");
         const auto selectedPath = L"%COMMANDER_INI_PATH%\\personal-custom-buttons.bar";
         Require(WritePrivateProfileStringW(L"Buttonbar", L"Buttonbar", selectedPath,
                                            ini.wstring().c_str()) != FALSE, "set personal toolbar");

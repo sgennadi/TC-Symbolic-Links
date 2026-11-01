@@ -88,10 +88,14 @@ if(WIN32)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse mpr)
 
-  add_library(tc_integration STATIC src/TcIntegration.cpp)
+  # Both native Maker and startup registration diagnosis use UpdateManager.
+  # Keep it in tc_integration so test executables link the same code as WDX.
+  add_library(tc_integration STATIC src/TcIntegration.cpp src/UpdateManager.cpp)
   target_include_directories(tc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_compile_definitions(tc_integration PRIVATE TC_PREVIEW_ITERATION=${TC_PREVIEW_ITERATION})
+  target_link_libraries(tc_integration PUBLIC user32 advapi32)
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
-    src/TcLauncher.cpp src/UpdateManager.cpp src/LinkMaker.rc)
+    src/TcLauncher.cpp src/LinkMaker.rc)
   # The updater is raw data embedded in this same WDX, not a companion EXE.
   set_property(SOURCE src/LinkMaker.rc APPEND PROPERTY OBJECT_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Update-TC-SymbolicLinks.ps1")
