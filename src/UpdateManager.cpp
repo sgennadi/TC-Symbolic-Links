@@ -143,9 +143,9 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
 #if TC_STABLE_RELEASE
-    const std::wstring version = L"0.2.16";
+    const std::wstring version = L"0.2.17";
 #else
-    const std::wstring version = L"0.2.16-preview." +
+    const std::wstring version = L"0.2.17-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
 #endif
     std::wstring command = L"\"" + psHost +
@@ -213,7 +213,7 @@ struct NetHandle {
     ~NetHandle() { if (h) WinHttpCloseHandle(h); }
 };
 bool GetReleases(std::string& body) {
-    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.16",
+    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.17",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h) return false;
@@ -292,9 +292,9 @@ bool UsePreviewChannel() {
 }
 void InspectReleases(UpdateCheck& check) {
 #if TC_STABLE_RELEASE
-    const Version installed=ParseVersion("0.2.16");
+    const Version installed=ParseVersion("0.2.17");
 #else
-    const Version installed=ParseVersion("0.2.16-preview."+std::to_string(TC_PREVIEW_ITERATION));
+    const Version installed=ParseVersion("0.2.17-preview."+std::to_string(TC_PREVIEW_ITERATION));
 #endif
     std::string data;
     if(!GetReleases(data)) {
