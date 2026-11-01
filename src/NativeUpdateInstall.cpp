@@ -167,8 +167,8 @@ bool HttpsGet(const wchar_t* host,const std::wstring& path,
         body.resize(offset+read);
         if(!read) break;
         if(progress && hasLength && length) {
-            const unsigned percent=static_cast<unsigned>(
-                (std::min)(size_t{99},body.size()*100/length));
+            const size_t ratio=body.size()*size_t{100}/static_cast<size_t>(length);
+            const unsigned percent=static_cast<unsigned>((std::min)(size_t{99},ratio));
             PostMessageW(progress,kDownloadProgress,percent,0);
         }
     }
