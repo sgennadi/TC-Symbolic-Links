@@ -49,15 +49,20 @@ void WideList(const fs::path& out, const std::wstring& folder) {
 struct ToolTipCount {
     HWND owner=nullptr;
     int count=0;
+    int tooltipWindows=0;
+    int ownedTooltips=0;
 };
 BOOL CALLBACK CountOwnerToolTips(HWND candidate, LPARAM context) {
     auto& result=*reinterpret_cast<ToolTipCount*>(context);
     wchar_t name[80]{};
     if(GetClassNameW(candidate,name,80) &&
-       _wcsicmp(name,TOOLTIPS_CLASSW)==0 &&
-       GetWindow(candidate,GW_OWNER)==result.owner) {
-        const auto n=SendMessageW(candidate,TTM_GETTOOLCOUNT,0,0);
-        if(n>0) result.count+=static_cast<int>(n);
+       _wcsicmp(name,TOOLTIPS_CLASSW)==0) {
+        ++result.tooltipWindows;
+        if(GetWindow(candidate,GW_OWNER)==result.owner) {
+            ++result.ownedTooltips;
+            const auto n=SendMessageW(candidate,TTM_GETTOOLCOUNT,0,0);
+            if(n>0)result.count+=static_cast<int>(n);
+        }
     }
     return TRUE;
 }
@@ -147,6 +152,10 @@ int wmain(int argc, wchar_t** argv) {
             if(uiThread)EnumThreadWindows(uiThread,CountOwnerToolTips,
                             reinterpret_cast<LPARAM>(&tipCount));
             hoverHelpInstalled=tipCount.count>=12;
+            if(!hoverHelpInstalled)
+                std::wcerr<<L"Tooltip probe: all="<<tipCount.tooltipWindows
+                          <<L" owned="<<tipCount.ownedTooltips
+                          <<L" tools="<<tipCount.count<<L"\n";
             // TC-style regression: two resizable file panels and familiar
             // classic list view must exist while retaining the old WDX IDs.
             HWND sourceList = GetDlgItem(window, 100);
