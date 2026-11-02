@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.17 Stable
+# TC Symbolic Links 0.2.18 Stable
 
 **Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
 `TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total
@@ -33,7 +33,25 @@ Older versions may have left duplicate numbered WDX registrations;
 the WDX offers a backed-up repair after TC closes, and refuses
 ambiguous changes that could affect other plugins.
 
-## Previous 0.2.16 stable and Preview release notes (historical behavior)
+## Window icons and hover help (0.2.18)
+
+The native Link Maker loads its icon resource from the actual WDX module.
+The same branded icon appears in the Maker title bar, the taskbar and the
+large blue banner, rather than Windows' generic `rundll32.exe` icon.
+This works for both 32-bit and 64-bit Total Commander without installing
+a separate EXE or icon file. The standalone Update Manager also sets its
+taskbar and title-bar icon explicitly.
+
+Hover over **Relative target (symlinks)** for examples: a relative
+symlink stores `..\\Software` from the LINK's directory instead of a
+full target path. The target and link must be on the same volume; if both
+folders are moved together with the same relative layout, the link
+continues to work. Junctions and hardlinks cannot use a relative target.
+Mouse-over explanations are also available on link type, the destination,
+the source panel, preview/results and action buttons. Maker tooltip
+languages follow the UI language (English/Russian/Hebrew).
+
+## Previous 0.2.17, 0.2.16 and Preview release notes (historical behavior)
 
 > **Safety update for people affected by 0.2.1 and 0.2.4**: Both versions
 > could switch the active button bar and hide existing icons. Version 0.2.4
