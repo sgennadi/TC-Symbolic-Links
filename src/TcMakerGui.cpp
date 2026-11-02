@@ -1473,6 +1473,7 @@ std::vector<std::wstring> ReadSelectedList(const std::wstring& fileName) {
 }
 
 int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, int show) {
+    (void)instance; // rundll32 passes the EXE instance, never the WDX resource module.
     std::wstring listFile;
     std::wstring destination;
     int requestedMode = 0; // 0=automatic, 1=file, 2=directory
@@ -1533,20 +1534,45 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         delete state;
         return 7;
     }
+    // IMPORTANT: rundll32 passes the host EXE as the entrypoint HINSTANCE.
+    // Icons 101/102/103 are embedded in the WDX, NOT in rundll32.exe.
+    // Looking them up in the host resulted in the generic Windows taskbar,
+    // title-bar and banner icons reported in Total Commander 11.58 screenshots.
+    HMODULE pluginModule = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&tcs::RunMakerFromArguments),
+            &pluginModule) || !pluginModule) {
+        delete state;
+        return 5;
+    }
+    // Only our dedicated rundll32 host receives this taskbar identity.
+    // Never change Total Commander's AppUserModelID if hosted in its process.
+    wchar_t hostName[MAX_PATH]{};
+    if (GetModuleFileNameW(nullptr, hostName, MAX_PATH)) {
+        const wchar_t* name = wcsrchr(hostName, L'\\');
+        if (name && _wcsicmp(name + 1, L"rundll32.exe") == 0)
+            SetCurrentProcessExplicitAppUserModelID(L"TC.SymbolicLinks.LinkMaker");
+    }
     WNDCLASSEXW cls{sizeof(cls)};
     cls.style = CS_DBLCLKS;
     cls.lpfnWndProc = WindowProc;
-    cls.hInstance = instance;
+    cls.hInstance = pluginModule;
     cls.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    // Use the same embedded chain icon as our Total Commander toolbar button.
-    cls.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(101));
-    cls.hIconSm = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(101),
+    cls.hIcon = static_cast<HICON>(LoadImageW(pluginModule, MAKEINTRESOURCEW(101),
+        IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON),
+        LR_DEFAULTCOLOR));
+    cls.hIconSm = static_cast<HICON>(LoadImageW(pluginModule, MAKEINTRESOURCEW(101),
         IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
-        LR_SHARED));
-    if (!cls.hIcon) cls.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+        LR_DEFAULTCOLOR));
+    if (!cls.hIcon) cls.hIcon = LoadIconW(pluginModule, MAKEINTRESOURCEW(101));
+    if (!cls.hIconSm) cls.hIconSm = cls.hIcon;
     cls.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     cls.lpszClassName = kClassName;
-    if (!RegisterClassExW(&cls)) { delete state; return 5; }
+    if (!RegisterClassExW(&cls) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+        delete state;
+        return 5;
+    }
     RECT work{};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     const int winWidth = (std::min)(MulDiv(960, static_cast<int>(GetDpiForSystem()), 96),
@@ -1561,11 +1587,17 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         state->he ? L"TC Symbolic Links — יצירת קישורים" :
         (state->ru ? L"TC Symbolic Links — создание ссылок" :
                      L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-        centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, instance, state);
+        centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, pluginModule, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.
         return 6;
     }
+    // Explicit per-window icons matter to the Windows taskbar in rundll32
+    // hosts, even if class icons were registered before the Maker opened.
+    if (cls.hIcon) SendMessageW(window, WM_SETICON, ICON_BIG,
+                               reinterpret_cast<LPARAM>(cls.hIcon));
+    if (cls.hIconSm) SendMessageW(window, WM_SETICON, ICON_SMALL,
+                                 reinterpret_cast<LPARAM>(cls.hIconSm));
     ShowWindow(window, show == SW_HIDE ? SW_SHOWNORMAL : show);
     UpdateWindow(window);
     // The exact same F5 and Esc shortcuts appear on the bottom buttons.
