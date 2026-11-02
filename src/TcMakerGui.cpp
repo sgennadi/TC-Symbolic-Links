@@ -764,7 +764,7 @@ void Layout(HWND hwnd, Ui& s) {
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
-    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links",
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.18",
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
     const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
         L"selected  |  Existing files are never overwritten",
@@ -998,7 +998,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"יש לבחור תיקיית דיסק או SMB נגישה.\n"
         L"אין ליצור קישורים בתוך WIM/ISO/WCX.\n"
         L"קבצים וקישורים קיימים לעולם לא יוחלפו.");
-    AddToolTip(hwnd, s.destination, targetHelp);
+    // Avoid tooltip flicker on the editable destination path; label retains the same help.
     AddToolTip(hwnd, s.labelDestination, targetHelp);
     AddToolTip(hwnd, s.browse, s.Choose(
         L"Browse for the physical destination folder (disk or SMB).",
@@ -1012,7 +1012,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"פריטים שנבחרו בחלונית המקור של Total Commander.\n"
         L"קובצי המקור אינם משתנים; הקישורים נוצרים בתיקיית היעד.");
     AddToolTip(hwnd, s.sources, sourceHelp);
-    AddToolTip(hwnd, s.sourcePath, sourceHelp);
+    // The live-updating path bar triggers tooltip re-entry; use the adjacent label instead.
     AddToolTip(hwnd, s.labelSources, sourceHelp);
     AddToolTip(hwnd, s.update, s.Choose(
         L"Check the official GitHub release.\n"
@@ -1079,8 +1079,8 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
-    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links - Create Links",
-        L"TC Symbolic Links - создание ссылок", L"TC Symbolic Links - יצירת קישורים"));
+    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.18 - Create Links",
+        L"TC Symbolic Links v0.2.18 - создание ссылок", L"TC Symbolic Links v0.2.18 - יצירת קישורים"));
     UpdateModeHelp(state);
 }
 
