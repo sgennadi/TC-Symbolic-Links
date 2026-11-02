@@ -25,16 +25,6 @@ if(MSVC)
 endif()
 
 include(CTest)
-# The Linux helper never runs as root and never changes Samba options.
-# Exercise its confinement/Unicode/overwrite rules on ordinary temporary paths.
-if(UNIX AND NOT APPLE AND BUILD_TESTING)
-  find_package(Python3 QUIET COMPONENTS Interpreter)
-  if(Python3_Interpreter_FOUND)
-    add_test(NAME tc_posix_server_symlink_confinement
-      COMMAND "${Python3_EXECUTABLE}" -m unittest discover
-        -s "${CMAKE_CURRENT_SOURCE_DIR}/tests" -p test_posix_helper.py)
-  endif()
-endif()
 
 # Cross-platform regression: TC custom column sets have SpecialView=index+2.
 # Also run on Linux to catch regressions before the first Windows CI build.
@@ -111,7 +101,7 @@ if(WIN32)
     set(TC_WDX_SUFFIX ".wdx")
   endif()
 
-  add_library(tc_link_core STATIC src/LinkCore.cpp src/PosixSmbBackend.cpp)
+  add_library(tc_link_core STATIC src/LinkCore.cpp)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse mpr)
 

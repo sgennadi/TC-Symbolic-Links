@@ -1,7 +1,6 @@
 // Native HiDPI Unicode link maker hosted inside the WDX DLL.
 // One window for file/directory symlinks, directory junctions and hardlinks.
 #include "LinkCore.h"
-#include "PosixSmbBackend.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
 #include "UpdateManager.h"
@@ -1125,11 +1124,6 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         if (error == ERROR_SUCCESS) {
             ++state.completed;
             AppendLine(state.results, L"OK   " + link + L"  ->  " + tcs::FullPath(source));
-            if (tcs::posix::LastSuccess())
-                AppendLine(state.results, state.Choose(
-                    L"POSIX: Authorized server helper verified directory symlink (readlink).",
-                    L"POSIX: Серверный помощник проверил символическую ссылку (readlink).",
-                    L"POSIX: השרת אימת קישור סמלי לתיקייה (readlink)."));
             if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated)
                 AppendLine(state.results, state.Choose(
                     L"NOTE: SMB link targets a local PC path. R2L traversal may be disabled; other computers may not have the same drive.",
@@ -1142,7 +1136,7 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                     L"שים לב: הקישור עובר לשיתוף אחר. בדוק הרשאות ומדיניות R2R."));
             // A successful Win32 return is not proof that the endpoint exposes
             // the expected reparse data. Verify without modifying the new link.
-            if (!tcs::posix::LastSuccess() && tcs::IsRemoteSmbPath(link) &&
+            if (tcs::IsRemoteSmbPath(link) &&
                 (state.batchKind == tcs::LinkKind::Automatic ||
                  state.batchKind == tcs::LinkKind::FileSymbolic ||
                  state.batchKind == tcs::LinkKind::DirectorySymbolic)) {
@@ -1174,8 +1168,6 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             if (error == ERROR_PRIVILEGE_NOT_HELD) state.privilegeError = true;
             AppendLine(state.results, L"ERR  " + link + L": " +
                 tcs::WindowsErrorMessage(error) + L" (" + std::to_wstring(error) + L")");
-            if (!tcs::posix::LastDiagnostic().empty())
-                AppendLine(state.results, L"POSIX: " + tcs::posix::LastDiagnostic());
             if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied)
                 AppendLine(state.results, state.Choose(
                     L"HINT: Folder symlink access denied. Check share/ACL permissions, server reparse support and Windows symlink privilege. Error 5 alone cannot identify the cause.",
