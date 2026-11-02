@@ -765,7 +765,7 @@ void Layout(HWND hwnd, Ui& s) {
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
-    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.18",
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.19",
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
     const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
         L"selected  |  Existing files are never overwritten",
@@ -1080,8 +1080,8 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
-    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.18 - Create Links",
-        L"TC Symbolic Links v0.2.18 - создание ссылок", L"TC Symbolic Links v0.2.18 - יצירת קישורים"));
+    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.19 - Create Links",
+        L"TC Symbolic Links v0.2.19 - создание ссылок", L"TC Symbolic Links v0.2.19 - יצירת קישורים"));
     UpdateModeHelp(state);
 }
 
@@ -1206,7 +1206,7 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
-    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.18 - ") +
+    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.19 - ") +
         std::to_wstring(state.nextItem) + L" / " + std::to_wstring(total)).c_str());
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }

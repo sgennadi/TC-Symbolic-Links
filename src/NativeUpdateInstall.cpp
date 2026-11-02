@@ -131,7 +131,7 @@ bool Sha256(const std::vector<unsigned char>& data,std::wstring& digest) {
 }
 bool HttpsGet(const wchar_t* host,const std::wstring& path,
               std::vector<unsigned char>& body,size_t limit,HWND progress=nullptr) {
-    Http session{WinHttpOpen(L"TCSymbolicLinks/0.2.18 native updater",
+    Http session{WinHttpOpen(L"TCSymbolicLinks/0.2.19 native updater",
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,0)};
     if(!session.h) return false;

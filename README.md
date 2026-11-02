@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.18 Stable
+# TC Symbolic Links 0.2.19 Stable
 
 **Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
 `TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total
@@ -32,6 +32,10 @@ to refresh the existing universal button with `%Z`, then restart TC.
 Older versions may have left duplicate numbered WDX registrations;
 the WDX offers a backed-up repair after TC closes, and refuses
 ambiguous changes that could affect other plugins.
+
+## Better error explanations and safer native updates (0.2.19)
+
+Creating links on Windows or Samba still uses the Windows API. When link creation fails, Link Maker shows the Win32 error, source and destination, possible causes and what to check in English, Russian or Hebrew. No SSH or automatic Samba configuration is used. Updater preflights loaded WDX files, and the UI offers **Reinstall** when the installed version matches the available release.
 
 ## Window icons and hover help (0.2.18)
 

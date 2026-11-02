@@ -1,3 +1,13 @@
+## 0.2.19 Stable — clearer error guidance and safer native updater (2026-11-02)
+
+- Expand Windows, Windows SMB and Samba error explanations in English, Russian and Hebrew: possible causes, full source and link paths, type of operation and concrete checks.
+- Error 5 for SMB directory symlinks distinguishes share/ACL, reparse support and Windows privilege without incorrectly blaming any one cause.
+- Preserve the native Windows API for Samba file/directory links. No SSH helper, automatic server configuration or ACL changes.
+- Verify successful symlink creation is an actual expected reparse point; warn about traversal restrictions separately.
+- Improve native WDX update preflight, staging and rollback after locked plugin files. Keep user's Total Commander buttons and custom commands.
+- Use Reinstall for an available same-version release, show application version in title bars and avoid tooltips on dynamic path fields.
+- One standard pluginst.inf ZIP for Windows x86/x64, with no companion command scripts or separate EXE.
+
 ## 0.2.18 Stable — real WDX window/taskbar icons and contextual hover help (2026-11-02)
 
 - Fix the root cause of the Windows default icon in the link maker:
