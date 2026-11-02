@@ -58,11 +58,13 @@ BOOL CALLBACK CountOwnerToolTips(HWND candidate, LPARAM context) {
     if(GetClassNameW(candidate,name,80) &&
        _wcsicmp(name,TOOLTIPS_CLASSW)==0) {
         ++result.tooltipWindows;
-        if(GetWindow(candidate,GW_OWNER)==result.owner) {
+        if(GetWindow(candidate,GW_OWNER)==result.owner)
             ++result.ownedTooltips;
-            const auto n=SendMessageW(candidate,TTM_GETTOOLCOUNT,0,0);
-            if(n>0)result.count+=static_cast<int>(n);
-        }
+        // Each rundll32 smoke test is isolated in its own UI thread.
+        // The common controls Tooltip HWND is a thread-owned popup; the
+        // Win32 window owner can be NULL even when TTF_SUBCLASS is active.
+        const auto n=SendMessageW(candidate,TTM_GETTOOLCOUNT,0,0);
+        if(n>0)result.count+=static_cast<int>(n);
     }
     return TRUE;
 }
