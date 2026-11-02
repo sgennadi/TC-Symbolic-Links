@@ -574,10 +574,10 @@ bool NativeManualCheck(HWND owner) {
     if(iconModule) {
         HICON big=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED));
-        HICON small=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+        HICON littleIcon=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
         if(big)SendMessageW(window,WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(big));
-        if(small)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(small));
+        if(littleIcon)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(littleIcon));
     }
     RECT wr{},anchor{};
     GetWindowRect(window,&wr);
