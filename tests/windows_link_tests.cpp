@@ -1,7 +1,10 @@
 // Windows-only end-to-end link tests. Run on Windows CI with actual Win32 APIs.
 #include "LinkCore.h"
+#include "LinkFailureHelp.h"
 #include <windows.h>
 #include <filesystem>
+#include <algorithm>
+#include <string_view>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -229,6 +232,49 @@ int main() {
                     tcs::LinkKind::Automatic, true, ERROR_ACCESS_DENIED) ==
                     tcs::LinkOutcomeDiagnostic::None,
                 "Local access denied must not be misdiagnosed as SMB");
+        // Error explanations are pure text. No SMB connection or ACL change is made.
+        auto hasHelp = [](const std::vector<std::wstring>& lines, std::wstring_view needle) {
+            return std::any_of(lines.begin(), lines.end(), [&](const auto& line) {
+                return line.find(needle) != std::wstring::npos;
+            });
+        };
+        const auto smbFolder5 = tcs::help::Explain(
+            {ERROR_ACCESS_DENIED, true, true, false, false, true},
+            tcs::help::Language::Russian);
+        Require(hasHelp(smbFolder5, L"directory reparse point"),
+                "Error 5 must explain unsupported directory reparse as a possible cause");
+        Require(hasHelp(smbFolder5, L"НЕ доказывает"),
+                "Error 5 must not imply file-link success proves directory-link support");
+        Require(hasHelp(smbFolder5, L"не меняет настройки Samba"),
+                "Error 5 must not change or recommend automatic Samba changes");
+        const auto existing = tcs::help::Explain(
+            {ERROR_ALREADY_EXISTS, true, true, false, false, true},
+            tcs::help::Language::English);
+        Require(hasHelp(existing, L"source and link path"),
+                "Error 183 must explain identical source/link paths");
+        Require(hasHelp(existing, L"Nothing will be overwritten"),
+                "Error 183 must preserve existing link destinations");
+        const auto privilege = tcs::help::Explain(
+            {ERROR_PRIVILEGE_NOT_HELD, false, false, false, false, false},
+            tcs::help::Language::English);
+        Require(hasHelp(privilege, L"Developer Mode"),
+                "Error 1314 must explain Windows Developer Mode");
+        const auto invalidReparse = tcs::help::Explain(
+            {ERROR_INVALID_REPARSE_DATA, true, false, false, false, true},
+            tcs::help::Language::English);
+        Require(hasHelp(invalidReparse, L"may already exist"),
+                "Reparse verification failure must warn before blindly retrying");
+        const auto sambaUnsupported = tcs::help::Explain(
+            {ERROR_NOT_SUPPORTED, true, true, false, false, true},
+            tcs::help::Language::Hebrew);
+        Require(!sambaUnsupported.empty(), "Hebrew SMB unsupported message missing");
+        Require(hasHelp(sambaUnsupported, L"Junction"),
+                "SMB unsupported operation must explain junction limitation");
+        const auto junction = tcs::help::Explain(
+            {ERROR_NOT_SUPPORTED, true, true, true, false, true},
+            tcs::help::Language::Russian);
+        Require(hasHelp(junction, L"локальном томе"),
+                "Junction on SMB must identify local-only constraint");
         std::cout << "PASS: Hebrew Unicode Win32 hardlink, junction, symlink checks\n";
         return 0;
     } catch (const std::exception& error) {
