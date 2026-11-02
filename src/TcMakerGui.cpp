@@ -1191,6 +1191,10 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                         L"WARN  הקישור נוצר אך לא ניתן לגשת ליעד: ")) +
                         tcs::WindowsErrorMessage(traversal) +
                         L" (" + std::to_wstring(traversal) + L")");
+                    AppendLine(state.results, state.Choose(
+                        L"CHECK: Creation and access are separate. Confirm the target exists, its ACLs, and the client's R2R/R2L/L2R symlink traversal policy (read-only: fsutil behavior query SymlinkEvaluation).",
+                        L"ПРОВЕРИТЬ: создание и переход по ссылке — разные операции. Проверьте наличие цели, ACL и политику R2R/R2L/L2R на клиенте (только чтение: fsutil behavior query SymlinkEvaluation).",
+                        L"בדיקה: יצירה וגישה לקישור הן פעולות שונות. יש לבדוק קיום היעד, הרשאות ומדיניות R2R/R2L/L2R (קריאה בלבד: fsutil behavior query SymlinkEvaluation)."));
                 }
             }
         } else {
