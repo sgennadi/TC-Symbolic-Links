@@ -270,10 +270,10 @@ int main() {
         Require(!sambaUnsupported.empty(), "Hebrew SMB unsupported message missing");
         Require(hasHelp(sambaUnsupported, L"Junction"),
                 "SMB unsupported operation must explain junction limitation");
-        const auto junction = tcs::help::Explain(
+        const auto junctionHelp = tcs::help::Explain(
             {ERROR_NOT_SUPPORTED, true, true, true, false, true},
             tcs::help::Language::Russian);
-        Require(hasHelp(junction, L"локальном томе"),
+        Require(hasHelp(junctionHelp, L"локальном томе"),
                 "Junction on SMB must identify local-only constraint");
         std::cout << "PASS: Hebrew Unicode Win32 hardlink, junction, symlink checks\n";
         return 0;
