@@ -41,6 +41,7 @@ constexpr int ID_BROWSE = 115;
 constexpr int ID_UPDATE = 116;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
+constexpr UINT WM_TCS_TEST_TOOLTIPS = WM_APP + 80; // read-only CI diagnostic
 constexpr std::size_t kCreateBatchSize = 12;
 
 class GdiPlusScope {
@@ -113,6 +114,7 @@ struct Ui {
     HWND close = nullptr;
     HWND update = nullptr;
     HWND tooltip = nullptr; // one native tooltip window, many owned controls
+    int tooltipCount = 0;
     std::vector<std::wstring> selected;
     std::wstring initialDestination;
     bool creating = false;
@@ -594,7 +596,14 @@ void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
     tip.hwnd=parent;
     tip.uId=reinterpret_cast<UINT_PTR>(control);
     tip.lpszText=const_cast<LPWSTR>(help);
-    SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip));
+    if(!SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip))) {
+        // Some Common Controls builds reject the newest TOOLINFO size.
+        // V2 contains the HWND, Unicode text and subclass flags we use.
+        tip.cbSize=TTTOOLINFOW_V2_SIZE;
+        if(!SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip)))
+            return;
+    }
+    ++state->tooltipCount;
 }
 void ChooseDestination(HWND owner, Ui& state) {
     if (!state.destination || state.creating) return;
@@ -1268,6 +1277,8 @@ void BeginCreate(HWND hwnd, Ui& state) {
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     auto* state = reinterpret_cast<Ui*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     switch (msg) {
+        case WM_TCS_TEST_TOOLTIPS:
+            return state ? state->tooltipCount : 0;
         case WM_NCCREATE: {
             auto* data = reinterpret_cast<CREATESTRUCTW*>(lParam);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA,
