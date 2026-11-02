@@ -141,7 +141,7 @@ int wmain(int argc, wchar_t** argv) {
                SendMessageTimeoutW(window,WM_GETICON,ICON_SMALL,0,
                    SMTO_ABORTIFHUNG,2000,&smallIcon))
                 wdxTaskbarIcons=largeIcon!=0 && smallIcon!=0 &&
-                    largeIcon!=reinterpret_cast<DWORD_PTR>(LoadIconW(nullptr,IDI_APPLICATION));
+                    largeIcon!=reinterpret_cast<DWORD_PTR>(LoadIconW(nullptr,MAKEINTRESOURCEW(32512)));
             ToolTipCount tipCount{window,0};
             const DWORD uiThread=GetWindowThreadProcessId(window,nullptr);
             if(uiThread)EnumThreadWindows(uiThread,CountOwnerToolTips,
