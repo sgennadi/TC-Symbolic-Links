@@ -131,7 +131,7 @@ bool Sha256(const std::vector<unsigned char>& data,std::wstring& digest) {
 }
 bool HttpsGet(const wchar_t* host,const std::wstring& path,
               std::vector<unsigned char>& body,size_t limit,HWND progress=nullptr) {
-    Http session{WinHttpOpen(L"TCSymbolicLinks/0.2.18 native updater",
+    Http session{WinHttpOpen(L"TCSymbolicLinks/0.2.19 native updater",
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,0)};
     if(!session.h) return false;
@@ -481,56 +481,100 @@ bool PrepareInstall(const Arguments& a,std::wstring& error) {
 }
 bool ApplyFiles(const std::wstring& prepared,const std::wstring& installedFolder,
                 std::wstring& error) {
-    const auto id=L".tcsbackup-"+std::to_wstring(GetTickCount64());
     const std::array<std::wstring,3> names{
         L"SymlinkInspector.wdx",L"SymlinkInspector.wdx64",L"pluginst.inf"
     };
-    std::vector<std::pair<std::wstring,std::wstring>> backups;
+    struct Replacement {
+        std::wstring target, payload, backup, pending;
+        bool installed=false;
+    };
+    const auto id=L".tcsbackup-"+std::to_wstring(GetCurrentProcessId())+
+        L"-"+std::to_wstring(GetTickCount64());
+    std::vector<Replacement> files;
+    auto cleanupPending=[&]() {
+        for(const auto& file:files)
+            if(!file.pending.empty()) DeleteFileW(file.pending.c_str());
+    };
+    // Preflight ALL installed architecture-specific members before changing ANY.
+    // A WDX may remain loaded by another TC process, even after the initiating
+    // TC process closed. Never overwrite a loaded module in-place.
     for(const auto& name:names) {
         const auto target=Join(installedFolder,name);
         if(GetFileAttributesW(target.c_str())==INVALID_FILE_ATTRIBUTES)
-            continue; // Do not add a new architecture unexpectedly.
+            continue; // Do not silently install an unused architecture.
         const auto payload=Join(prepared,name);
         if(GetFileAttributesW(payload.c_str())==INVALID_FILE_ATTRIBUTES) {
-            error=L"Verified staged payload disappeared.";break;
+            error=L"Verified staged payload missing: "+name; return false;
         }
-        const auto backup=target+id+L".bak";
-        if(!CopyFileW(target.c_str(),backup.c_str(),TRUE)) {
-            error=L"Cannot back up installed plugin: "+ReadableError(GetLastError());
-            break;
+        HANDLE probe=CreateFileW(target.c_str(),DELETE|FILE_READ_DATA,
+            FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+            nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(probe==INVALID_HANDLE_VALUE) {
+            const DWORD code=GetLastError();
+            error=L"Cannot safely replace "+name+L": "+ReadableError(code)+
+                L". Close every Total Commander instance and any process that "
+                L"has loaded the plugin. No installed files were modified.";
+            return false;
         }
-        backups.emplace_back(target,backup);
-        const auto pending=target+id+L".new";
-        if(!CopyFileW(payload.c_str(),pending.c_str(),TRUE)) {
-            error=L"Cannot stage replacement: "+ReadableError(GetLastError());
-            break;
-        }
-        bool replaced=false;
-        for(int retry=0;retry<8;retry++) {
-            if(MoveFileExW(pending.c_str(),target.c_str(),
-                MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
-                replaced=true;break;
-            }
-            Sleep(250);
-        }
-        if(!replaced) {
-            error=L"Cannot replace installed WDX: "+ReadableError(GetLastError());
-            DeleteFileW(pending.c_str());
-            break;
-        }
+        CloseHandle(probe);
+        files.push_back({target,payload,target+id+L".bak",target+id+L".new"});
     }
-    if(!error.empty()) {
-        bool restored=true;
-        for(auto it=backups.rbegin();it!=backups.rend();++it) {
-            if(!CopyFileW(it->second.c_str(),it->first.c_str(),FALSE))
-                restored=false;
-        }
-        if(!restored) error+=L"\nRollback incomplete; review .tcsbackup files.";
+    if(files.empty()) {
+        error=L"No installed WDX files were found. No changes made.";
         return false;
     }
-    // Leave backups for recovery. The currently running helper DLL cannot
-    // remove itself; the next update may clean orphaned .tcs-native folders.
-    return !backups.empty();
+    // Prepare complete verified replacement set and backups before the commit.
+    for(const auto& file:files) {
+        if(!CopyFileW(file.target.c_str(),file.backup.c_str(),TRUE)) {
+            error=L"Cannot back up "+file.target+L": "+ReadableError(GetLastError());
+            cleanupPending(); return false;
+        }
+        if(!CopyFileW(file.payload.c_str(),file.pending.c_str(),TRUE)) {
+            error=L"Cannot prepare "+file.target+L": "+ReadableError(GetLastError());
+            cleanupPending(); return false;
+        }
+    }
+    // Commit. Keep backups intact so failures are recoverable without loss.
+    size_t committed=0;
+    for(;committed<files.size();++committed) {
+        const auto& file=files[committed];
+        if(!MoveFileExW(file.pending.c_str(),file.target.c_str(),
+            MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
+            const DWORD code=GetLastError();
+            error=L"Cannot replace "+fs::path(file.target).filename().wstring()+
+                L": "+ReadableError(code)+
+                L". Another process may still be using the WDX.";
+            break;
+        }
+    }
+    cleanupPending();
+    if(committed!=files.size()) {
+        bool restored=true;
+        for(size_t i=committed;i>0;--i) {
+            const auto& file=files[i-1];
+            const auto restore=file.target+id+L".restore";
+            if(!CopyFileW(file.backup.c_str(),restore.c_str(),TRUE) ||
+               !MoveFileExW(restore.c_str(),file.target.c_str(),
+                   MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
+                restored=false;
+                DeleteFileW(restore.c_str());
+            }
+        }
+        error+=restored?L"\nPrevious installed files restored; backups retained.":
+            L"\nRollback incomplete; .tcsbackup files retained for manual recovery.";
+        return false;
+    }
+    // Verify committed bytes rather than reporting success after a mere rename.
+    for(const auto& file:files) {
+        std::vector<unsigned char> expected,actual;
+        if(!ReadBytes(file.payload,expected,kMaximumMember) ||
+           !ReadBytes(file.target,actual,kMaximumMember) || expected!=actual) {
+            error=L"Installed file verification failed: "+file.target+
+                L". Backups have been preserved for recovery.";
+            return false;
+        }
+    }
+    return true;
 }
 bool InstallAfterExit(const Arguments& a,std::wstring& error) {
     const auto installedFolder=fs::path(a.install).parent_path().wstring();

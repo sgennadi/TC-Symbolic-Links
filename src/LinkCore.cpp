@@ -385,14 +385,25 @@ DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
     const std::wstring target = preferRelative ? RelativeTarget(dst, src) : NetworkAwarePath(src);
     const DWORD flags = (dirlink ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0) |
                          SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+    // A successful SMB call is not proof that the server created a symlink.
+    // In particular, never classify an ordinary Samba file as a link.
+    auto verifyCreated = [&]() -> DWORD {
+        const auto details = InspectLink(dst);
+        const auto expectedKind = dirlink ? ReparseKind::SymbolicDirectory :
+                                           ReparseKind::SymbolicFile;
+        if (details.kind != expectedKind || details.error != ERROR_SUCCESS)
+            return ERROR_INVALID_REPARSE_DATA;
+        return ERROR_SUCCESS;
+    };
     if (CreateSymbolicLinkW(ApiPath(dst).c_str(),
-        IsAbsolute(target) ? ApiPath(target).c_str() : target.c_str(), flags)) return ERROR_SUCCESS;
+        IsAbsolute(target) ? ApiPath(target).c_str() : target.c_str(), flags))
+        return verifyCreated();
     DWORD error = GetLastError();
     // Older Windows versions do not recognize ALLOW_UNPRIVILEGED_CREATE.
     if (error == ERROR_INVALID_PARAMETER) {
         if (CreateSymbolicLinkW(ApiPath(dst).c_str(),
             IsAbsolute(target) ? ApiPath(target).c_str() : target.c_str(),
-            (dirlink ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0))) return ERROR_SUCCESS;
+            (dirlink ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0))) return verifyCreated();
         error = GetLastError();
     }
     return error;

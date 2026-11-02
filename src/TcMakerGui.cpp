@@ -1,6 +1,7 @@
 // Native HiDPI Unicode link maker hosted inside the WDX DLL.
 // One window for file/directory symlinks, directory junctions and hardlinks.
 #include "LinkCore.h"
+#include "LinkFailureHelp.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
 #include "UpdateManager.h"
@@ -764,7 +765,7 @@ void Layout(HWND hwnd, Ui& s) {
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
-    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links",
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.19",
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
     const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
         L"selected  |  Existing files are never overwritten",
@@ -998,7 +999,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"יש לבחור תיקיית דיסק או SMB נגישה.\n"
         L"אין ליצור קישורים בתוך WIM/ISO/WCX.\n"
         L"קבצים וקישורים קיימים לעולם לא יוחלפו.");
-    AddToolTip(hwnd, s.destination, targetHelp);
+    // Avoid tooltip flicker on the editable destination path; label retains the same help.
     AddToolTip(hwnd, s.labelDestination, targetHelp);
     AddToolTip(hwnd, s.browse, s.Choose(
         L"Browse for the physical destination folder (disk or SMB).",
@@ -1012,7 +1013,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"פריטים שנבחרו בחלונית המקור של Total Commander.\n"
         L"קובצי המקור אינם משתנים; הקישורים נוצרים בתיקיית היעד.");
     AddToolTip(hwnd, s.sources, sourceHelp);
-    AddToolTip(hwnd, s.sourcePath, sourceHelp);
+    // The live-updating path bar triggers tooltip re-entry; use the adjacent label instead.
     AddToolTip(hwnd, s.labelSources, sourceHelp);
     AddToolTip(hwnd, s.update, s.Choose(
         L"Check the official GitHub release.\n"
@@ -1079,9 +1080,35 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
-    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links - Create Links",
-        L"TC Symbolic Links - создание ссылок", L"TC Symbolic Links - יצירת קישורים"));
+    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.19 - Create Links",
+        L"TC Symbolic Links v0.2.19 - создание ссылок", L"TC Symbolic Links v0.2.19 - יצירת קישורים"));
     UpdateModeHelp(state);
+}
+
+// Explanation-only diagnostics: no extra probes, no SSH and no policy changes.
+void AppendFailureDetails(Ui& state, DWORD error, const std::wstring& source,
+                          const std::wstring& link, bool sourceDirectory) {
+    const auto lang = state.he ? tcs::help::Language::Hebrew :
+        state.ru ? tcs::help::Language::Russian : tcs::help::Language::English;
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Source: ", L"  Источник: ", L"  מקור: ")) + tcs::FullPath(source));
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Link path: ", L"  Путь ссылки: ", L"  נתיב הקישור: ")) +
+        tcs::FullPath(link));
+    const bool junction = state.batchKind == tcs::LinkKind::Junction;
+    const bool hardlink = state.batchKind == tcs::LinkKind::Hardlink;
+    const wchar_t* kind = junction ? L"Junction" :
+        hardlink ? L"Hardlink" :
+        sourceDirectory ? L"Directory Symlink" : L"File Symlink";
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Requested operation: ", L"  Тип операции: ",
+        L"  סוג פעולה: ")) + kind);
+    const tcs::help::Failure context{
+        error, tcs::IsRemoteSmbPath(link), sourceDirectory,
+        junction, hardlink, tcs::IsRemoteSmbPath(source)
+    };
+    for (const auto& line : tcs::help::Explain(context, lang))
+        AppendLine(state.results, L"  " + line);
 }
 
 void ContinueCreate(HWND hwnd, Ui& state) {
@@ -1113,6 +1140,9 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                     L"Source and link path are identical. Choose a different destination folder.",
                     L"Путь исходного файла совпадает с путём ссылки. Выберите другую папку назначения.",
                     L"נתיב המקור והקישור זהים. יש לבחור תיקיית יעד אחרת."));
+            const DWORD attrs = GetFileAttributesW(source.c_str());
+            AppendFailureDetails(state, ERROR_ALREADY_EXISTS, source, link,
+                attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0);
             continue;
         }
         const DWORD error = tcs::CreateLink(source, link, state.batchKind, state.batchRelative);
@@ -1161,6 +1191,10 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                         L"WARN  הקישור נוצר אך לא ניתן לגשת ליעד: ")) +
                         tcs::WindowsErrorMessage(traversal) +
                         L" (" + std::to_wstring(traversal) + L")");
+                    AppendLine(state.results, state.Choose(
+                        L"CHECK: Creation and access are separate. Confirm the target exists, its ACLs, and the client's R2R/R2L/L2R symlink traversal policy (read-only: fsutil behavior query SymlinkEvaluation).",
+                        L"ПРОВЕРИТЬ: создание и переход по ссылке — разные операции. Проверьте наличие цели, ACL и политику R2R/R2L/L2R на клиенте (только чтение: fsutil behavior query SymlinkEvaluation).",
+                        L"בדיקה: יצירה וגישה לקישור הן פעולות שונות. יש לבדוק קיום היעד, הרשאות ומדיניות R2R/R2L/L2R (קריאה בלבד: fsutil behavior query SymlinkEvaluation)."));
                 }
             }
         } else {
@@ -1168,30 +1202,11 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             if (error == ERROR_PRIVILEGE_NOT_HELD) state.privilegeError = true;
             AppendLine(state.results, L"ERR  " + link + L": " +
                 tcs::WindowsErrorMessage(error) + L" (" + std::to_wstring(error) + L")");
-            if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: Folder symlink access denied. Check share/ACL permissions, server reparse support and Windows symlink privilege. Error 5 alone cannot identify the cause.",
-                    L"ПОДСКАЗКА: отказ при создании ссылки на папку SMB. Проверьте ACL, поддержку reparse points и привилегию Windows. Ошибка 5 не определяет причину.",
-                    L"רמז: הגישה נדחתה. בדוק הרשאות, תמיכת שרת והרשאות Windows."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteFileAccessDenied)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: SMB file symlink access denied. Check share/ACL permissions and Windows symlink privilege.",
-                    L"ПОДСКАЗКА: отказ при создании файловой ссылки SMB. Проверьте права шары, ACL и разрешения Windows.",
-                    L"רמז: הגישה לקישור קובץ נדחתה. בדוק הרשאות."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteOperationUnsupported)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: This SMB endpoint does not support the requested operation. No .lnk shortcut was substituted.",
-                    L"ПОДСКАЗКА: SMB-ресурс не поддерживает эту операцию. Подмена ссылкой .lnk не выполнялась.",
-                    L"רמז: שרת SMB אינו תומך בפעולה. לא נוצר קיצור דרך."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteNetworkUnavailable)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: SMB path is unavailable. Check the UNC name, network connection and credentials.",
-                    L"ПОДСКАЗКА: SMB-путь недоступен. Проверьте UNC, соединение и учётные данные.",
-                    L"רמז: נתיב SMB אינו זמין. בדוק חיבור והרשאות."));
+            AppendFailureDetails(state, error, source, link, sourceDirectory);
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
-    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links - ") +
+    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.19 - ") +
         std::to_wstring(state.nextItem) + L" / " + std::to_wstring(total)).c_str());
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }
