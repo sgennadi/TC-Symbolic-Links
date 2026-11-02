@@ -135,13 +135,13 @@ int wmain(int argc, wchar_t** argv) {
             // Regress the user screenshot: rundll32 HINSTANCE is NOT the
             // SymlinkInspector module. Both taskbar/title icons must be
             // explicitly assigned from the WDX and not generic Windows.
-            DWORD_PTR large=0,small=0;
+            DWORD_PTR largeIcon=0,smallIcon=0;
             if(SendMessageTimeoutW(window,WM_GETICON,ICON_BIG,0,
-                   SMTO_ABORTIFHUNG,2000,&large) &&
+                   SMTO_ABORTIFHUNG,2000,&largeIcon) &&
                SendMessageTimeoutW(window,WM_GETICON,ICON_SMALL,0,
-                   SMTO_ABORTIFHUNG,2000,&small))
-                wdxTaskbarIcons=large!=0 && small!=0 &&
-                    large!=reinterpret_cast<DWORD_PTR>(LoadIconW(nullptr,IDI_APPLICATION));
+                   SMTO_ABORTIFHUNG,2000,&smallIcon))
+                wdxTaskbarIcons=largeIcon!=0 && smallIcon!=0 &&
+                    largeIcon!=reinterpret_cast<DWORD_PTR>(LoadIconW(nullptr,IDI_APPLICATION));
             ToolTipCount tipCount{window,0};
             const DWORD uiThread=GetWindowThreadProcessId(window,nullptr);
             if(uiThread)EnumThreadWindows(uiThread,CountOwnerToolTips,
