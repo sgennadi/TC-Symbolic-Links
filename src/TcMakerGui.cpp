@@ -1,6 +1,7 @@
 // Native HiDPI Unicode link maker hosted inside the WDX DLL.
 // One window for file/directory symlinks, directory junctions and hardlinks.
 #include "LinkCore.h"
+#include "LinkFailureHelp.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
 #include "UpdateManager.h"
@@ -1084,6 +1085,32 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     UpdateModeHelp(state);
 }
 
+// Explanation-only diagnostics: no extra probes, no SSH and no policy changes.
+void AppendFailureDetails(Ui& state, DWORD error, const std::wstring& source,
+                          const std::wstring& link, bool sourceDirectory) {
+    const auto lang = state.he ? tcs::help::Language::Hebrew :
+        state.ru ? tcs::help::Language::Russian : tcs::help::Language::English;
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Source: ", L"  Источник: ", L"  מקור: ")) + tcs::FullPath(source));
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Link path: ", L"  Путь ссылки: ", L"  נתיב הקישור: ")) +
+        tcs::FullPath(link));
+    const bool junction = state.batchKind == tcs::LinkKind::Junction;
+    const bool hardlink = state.batchKind == tcs::LinkKind::Hardlink;
+    const wchar_t* kind = junction ? L"Junction" :
+        hardlink ? L"Hardlink" :
+        sourceDirectory ? L"Directory Symlink" : L"File Symlink";
+    AppendLine(state.results, std::wstring(state.Choose(
+        L"  Requested operation: ", L"  Тип операции: ",
+        L"  סוג פעולה: ")) + kind);
+    const tcs::help::Failure context{
+        error, tcs::IsRemoteSmbPath(link), sourceDirectory,
+        junction, hardlink, tcs::IsRemoteSmbPath(source)
+    };
+    for (const auto& line : tcs::help::Explain(context, lang))
+        AppendLine(state.results, L"  " + line);
+}
+
 void ContinueCreate(HWND hwnd, Ui& state) {
     if (!state.creating) return;
     const auto total = state.selected.size();
@@ -1113,6 +1140,9 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                     L"Source and link path are identical. Choose a different destination folder.",
                     L"Путь исходного файла совпадает с путём ссылки. Выберите другую папку назначения.",
                     L"נתיב המקור והקישור זהים. יש לבחור תיקיית יעד אחרת."));
+            const DWORD attrs = GetFileAttributesW(source.c_str());
+            AppendFailureDetails(state, ERROR_ALREADY_EXISTS, source, link,
+                attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0);
             continue;
         }
         const DWORD error = tcs::CreateLink(source, link, state.batchKind, state.batchRelative);
@@ -1168,30 +1198,11 @@ void ContinueCreate(HWND hwnd, Ui& state) {
             if (error == ERROR_PRIVILEGE_NOT_HELD) state.privilegeError = true;
             AppendLine(state.results, L"ERR  " + link + L": " +
                 tcs::WindowsErrorMessage(error) + L" (" + std::to_wstring(error) + L")");
-            if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteDirectoryAccessDenied)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: Folder symlink access denied. Check share/ACL permissions, server reparse support and Windows symlink privilege. Error 5 alone cannot identify the cause.",
-                    L"ПОДСКАЗКА: отказ при создании ссылки на папку SMB. Проверьте ACL, поддержку reparse points и привилегию Windows. Ошибка 5 не определяет причину.",
-                    L"רמז: הגישה נדחתה. בדוק הרשאות, תמיכת שרת והרשאות Windows."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteFileAccessDenied)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: SMB file symlink access denied. Check share/ACL permissions and Windows symlink privilege.",
-                    L"ПОДСКАЗКА: отказ при создании файловой ссылки SMB. Проверьте права шары, ACL и разрешения Windows.",
-                    L"רמז: הגישה לקישור קובץ נדחתה. בדוק הרשאות."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteOperationUnsupported)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: This SMB endpoint does not support the requested operation. No .lnk shortcut was substituted.",
-                    L"ПОДСКАЗКА: SMB-ресурс не поддерживает эту операцию. Подмена ссылкой .lnk не выполнялась.",
-                    L"רמז: שרת SMB אינו תומך בפעולה. לא נוצר קיצור דרך."));
-            else if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteNetworkUnavailable)
-                AppendLine(state.results, state.Choose(
-                    L"HINT: SMB path is unavailable. Check the UNC name, network connection and credentials.",
-                    L"ПОДСКАЗКА: SMB-путь недоступен. Проверьте UNC, соединение и учётные данные.",
-                    L"רמז: נתיב SMB אינו זמין. בדוק חיבור והרשאות."));
+            AppendFailureDetails(state, error, source, link, sourceDirectory);
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
-    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links - ") +
+    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.18 - ") +
         std::to_wstring(state.nextItem) + L" / " + std::to_wstring(total)).c_str());
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }
