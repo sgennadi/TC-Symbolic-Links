@@ -938,51 +938,51 @@ void CreateControls(HWND hwnd, Ui& s) {
     // Help follows the same English/Russian/Hebrew language as the Maker.
     // Real Win32 hover tooltips, not permanent labels or a second dialog.
     const wchar_t* relativeHelp = s.Choose(
-        L"Relative target (symbolic links only).\\n"
-        L"Off: the link stores a full path, e.g. D:\\Apps.\\n"
-        L"On: it stores a path from the LINK's folder, e.g. ..\\Apps.\\n"
+        L"Relative target (symbolic links only).\n"
+        L"Off: the link stores a full path, e.g. D:\\Apps.\n"
+        L"On: it stores a path from the LINK's folder, e.g. ..\\Apps.\n"
         L"Both paths must be on the same volume. Moving both folders together "
         L"preserves the link. Not available for Junction or Hardlink.",
-        L"Относительный путь (только для символических ссылок).\\n"
-        L"Выкл.: ссылка хранит полный путь, например D:\\Apps.\\n"
-        L"Вкл.: путь относительно ПАПКИ ССЫЛКИ, например ..\\Apps.\\n"
+        L"Относительный путь (только для символических ссылок).\n"
+        L"Выкл.: ссылка хранит полный путь, например D:\\Apps.\n"
+        L"Вкл.: путь относительно ПАПКИ ССЫЛКИ, например ..\\Apps.\n"
         L"Обе папки должны быть на одном томе. При совместном переносе "
         L"ссылка продолжит работать. Для Junction/Hardlink недоступно.",
-        L"נתיב יחסי (קישורים סמליים בלבד).\\n"
-        L"כבוי: נשמר נתיב מלא, כגון D:\\Apps.\\n"
-        L"מופעל: נשמר נתיב יחסי לתיקיית הקישור, כגון ..\\Apps.\\n"
+        L"נתיב יחסי (קישורים סמליים בלבד).\n"
+        L"כבוי: נשמר נתיב מלא, כגון D:\\Apps.\n"
+        L"מופעל: נשמר נתיב יחסי לתיקיית הקישור, כגון ..\\Apps.\n"
         L"הנתיבים חייבים להיות באותו כונן. בעת העברת שתי התיקיות יחד, "
         L"הקישור ימשיך לעבוד. לא זמין עבור Junction או Hardlink.");
     AddToolTip(hwnd, s.relative, relativeHelp);
     AddToolTip(hwnd, s.relativeHint, relativeHelp);
     const wchar_t* linkTypeHelp = s.Choose(
-        L"Automatic selects File/Folder symlink from the source.\\n"
-        L"Symlink: Windows symbolic link to a file or folder.\\n"
-        L"Junction: absolute local folder target.\\n"
+        L"Automatic selects File/Folder symlink from the source.\n"
+        L"Symlink: Windows symbolic link to a file or folder.\n"
+        L"Junction: absolute local folder target.\n"
         L"Hardlink: second name for a file on the same volume.",
-        L"Автоматически: тип ссылки определяется по файлу или папке.\\n"
-        L"Symlink: символическая ссылка на файл или папку.\\n"
-        L"Junction: абсолютная ссылка на локальную папку.\\n"
+        L"Автоматически: тип ссылки определяется по файлу или папке.\n"
+        L"Symlink: символическая ссылка на файл или папку.\n"
+        L"Junction: абсолютная ссылка на локальную папку.\n"
         L"Hardlink: второе имя файла на том же диске.",
-        L"אוטומטי: סוג הקישור נקבע לפי קובץ או תיקייה.\\n"
-        L"Symlink: קישור סמלי לקובץ או לתיקייה.\\n"
-        L"Junction: תיקייה מקומית בנתיב מוחלט.\\n"
+        L"אוטומטי: סוג הקישור נקבע לפי קובץ או תיקייה.\n"
+        L"Symlink: קישור סמלי לקובץ או לתיקייה.\n"
+        L"Junction: תיקייה מקומית בנתיב מוחלט.\n"
         L"Hardlink: שם נוסף לקובץ באותו כונן.");
     AddToolTip(hwnd, s.kind, linkTypeHelp);
     AddToolTip(hwnd, s.labelKind, linkTypeHelp);
     AddToolTip(hwnd, s.modeHint, linkTypeHelp);
     const wchar_t* targetHelp = s.Choose(
-        L"Folder in which NEW links will be created.\\n"
-        L"Use a real local disk or accessible SMB directory.\\n"
-        L"Virtual folders inside WIM, ISO or WCX archives are not supported.\\n"
+        L"Folder in which NEW links will be created.\n"
+        L"Use a real local disk or accessible SMB directory.\n"
+        L"Virtual folders inside WIM, ISO or WCX archives are not supported.\n"
         L"Existing files and links are never overwritten.",
-        L"Папка, В КОТОРОЙ будут создаваться новые ссылки.\\n"
-        L"Выберите обычный каталог диска или доступную папку SMB.\\n"
-        L"Создание ссылок внутри WIM/ISO/WCX не поддерживается.\\n"
+        L"Папка, В КОТОРОЙ будут создаваться новые ссылки.\n"
+        L"Выберите обычный каталог диска или доступную папку SMB.\n"
+        L"Создание ссылок внутри WIM/ISO/WCX не поддерживается.\n"
         L"Существующие объекты не перезаписываются.",
-        L"תיקייה שבה ייווצרו קישורים חדשים.\\n"
-        L"יש לבחור תיקיית דיסק או SMB נגישה.\\n"
-        L"אין ליצור קישורים בתוך WIM/ISO/WCX.\\n"
+        L"תיקייה שבה ייווצרו קישורים חדשים.\n"
+        L"יש לבחור תיקיית דיסק או SMB נגישה.\n"
+        L"אין ליצור קישורים בתוך WIM/ISO/WCX.\n"
         L"קבצים וקישורים קיימים לעולם לא יוחלפו.");
     AddToolTip(hwnd, s.destination, targetHelp);
     AddToolTip(hwnd, s.labelDestination, targetHelp);
@@ -991,23 +991,23 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"Выбрать реальную папку назначения на диске или SMB.",
         L"בחירת תיקיית יעד אמיתית בדיסק או ב-SMB."));
     const wchar_t* sourceHelp = s.Choose(
-        L"Selected objects from Total Commander's active source panel.\\n"
+        L"Selected objects from Total Commander's active source panel.\n"
         L"Sources remain unchanged; new links are created at the destination.",
-        L"Выбранные объекты активной панели Total Commander.\\n"
+        L"Выбранные объекты активной панели Total Commander.\n"
         L"Исходные файлы не изменяются — ссылки создаются в папке назначения.",
-        L"פריטים שנבחרו בחלונית המקור של Total Commander.\\n"
+        L"פריטים שנבחרו בחלונית המקור של Total Commander.\n"
         L"קובצי המקור אינם משתנים; הקישורים נוצרים בתיקיית היעד.");
     AddToolTip(hwnd, s.sources, sourceHelp);
     AddToolTip(hwnd, s.sourcePath, sourceHelp);
     AddToolTip(hwnd, s.labelSources, sourceHelp);
     AddToolTip(hwnd, s.update, s.Choose(
-        L"Check the official GitHub release.\\n"
+        L"Check the official GitHub release.\n"
         L"Download & Install verifies SHA-256 and starts a native update "
         L"after Total Commander has closed; no PowerShell updater.",
-        L"Проверить официальный выпуск GitHub.\\n"
+        L"Проверить официальный выпуск GitHub.\n"
         L"«Download & Install» проверяет SHA-256 и устанавливает обновление "
         L"после закрытия Total Commander без PowerShell.",
-        L"בדיקת גרסה רשמית ב-GitHub.\\n"
+        L"בדיקת גרסה רשמית ב-GitHub.\n"
         L"Download & Install מאמת SHA-256 ומתקין לאחר סגירת Total Commander, "
         L"ללא PowerShell."));
     AddToolTip(hwnd, s.preview, s.Choose(
@@ -1015,11 +1015,11 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"Предпросмотр пути и имени новой ссылки. Создание ещё не запускалось.",
         L"תצוגה מקדימה של נתיב ושם הקישור החדש. עדיין לא בוצעה פעולה."));
     AddToolTip(hwnd, s.results, s.Choose(
-        L"Planned link paths and the result of each operation.\\n"
+        L"Planned link paths and the result of each operation.\n"
         L"OK = created; ERR = failed; WARN = warning.",
-        L"Планируемые ссылки и результаты операций.\\n"
+        L"Планируемые ссылки и результаты операций.\n"
         L"OK — создано; ERR — ошибка; WARN — предупреждение.",
-        L"נתיבי הקישורים ותוצאות הפעולות.\\n"
+        L"נתיבי הקישורים ותוצאות הפעולות.\n"
         L"OK — נוצר; ERR — שגיאה; WARN — אזהרה."));
     AddToolTip(hwnd, s.create, s.Choose(
         L"Create links at the destination (F5). Sources are not overwritten.",
