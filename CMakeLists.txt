@@ -165,7 +165,8 @@ if(WIN32)
     target_link_libraries(windows_native_network_tests PRIVATE tc_integration)
     add_test(NAME tc_native_github_release_download_sha256
       COMMAND windows_native_network_tests)
-    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES TIMEOUT 90)
+    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES
+      TIMEOUT 90 SKIP_RETURN_CODE 77)
     if(MSVC)
       target_compile_options(windows_native_network_tests PRIVATE /W4 /utf-8)
     endif()
