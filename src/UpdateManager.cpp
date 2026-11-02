@@ -410,11 +410,11 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
                 ShowWindow(open,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
             if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)) {
                 ShowWindow(install,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
-                SetWindowTextW(install,check->canReinstall?L"Download & Reinstall":
+                SetWindowTextW(install,check->canReinstall?L"Reinstall":
                                                 L"Download & Install");
                 EnableWindow(install,check->newer||check->canReinstall);
             }
-            SetWindowTextW(hwnd,L"TC Symbolic Links - Update Manager");
+            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.18 - Update Manager");
         }
         return 0;
     }
@@ -601,7 +601,7 @@ bool NativeManualCheck(HWND owner) {
     SetWindowLongPtrW(window,GWLP_USERDATA,
         reinterpret_cast<LONG_PTR>(new std::shared_ptr<UpdateCheck>(check)));
     // Embedded icon + branded header, no generic Windows icon or emoji fonts.
-    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links  |  Update Manager",
+    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links v0.2.18  |  Update Manager",
         WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,width,dp(57),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_TITLE)),instance,nullptr);
     if(iconModule) {
