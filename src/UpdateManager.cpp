@@ -7,6 +7,7 @@
 #include <winhttp.h>
 #include <commctrl.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 #include <regex>
 #include <thread>
 #include <memory>
@@ -516,8 +517,45 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     }
     return DefWindowProcW(hwnd,message,wParam,lParam);
 }
+void AddUpdateToolTip(HWND parent, HWND control,
+                      const wchar_t* english, const wchar_t* russian,
+                      const wchar_t* hebrew) {
+    if(!control) return;
+    const LANGID language=GetUserDefaultUILanguage();
+    const WORD primary=PRIMARYLANGID(language);
+    const wchar_t* value=primary==LANG_RUSSIAN?russian:
+                         primary==LANG_HEBREW?hebrew:english;
+    if(!value || !*value) return;
+    HWND tip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+        WS_POPUP|TTS_NOPREFIX|TTS_ALWAYSTIP,
+        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+        parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+    if(!tip)return;
+    TOOLINFOW info{};
+    info.cbSize=sizeof(info);
+    info.uFlags=TTF_IDISHWND|TTF_SUBCLASS;
+    info.hwnd=parent;
+    info.uId=reinterpret_cast<UINT_PTR>(control);
+    info.lpszText=const_cast<LPWSTR>(value);
+    if(!SendMessageW(tip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&info))) {
+        DestroyWindow(tip);
+        return;
+    }
+    const UINT dpi=GetDpiForWindow(parent);
+    SendMessageW(tip,TTM_SETMAXTIPWIDTH,0,MulDiv(440,dpi,96));
+    SendMessageW(tip,TTM_SETDELAYTIME,TTDT_INITIAL,600);
+    SendMessageW(tip,TTM_SETDELAYTIME,TTDT_AUTOPOP,18000);
+}
 bool NativeManualCheck(HWND owner) {
     const HINSTANCE instance=GetModuleHandleW(nullptr);
+    // A standalone Update Manager is also hosted by rundll32.exe.
+    // Identify it to Windows separately from the generic host executable.
+    wchar_t hostName[MAX_PATH]{};
+    if(GetModuleFileNameW(nullptr,hostName,MAX_PATH)) {
+        const wchar_t* basename=wcsrchr(hostName,L'\\');
+        if(basename && _wcsicmp(basename+1,L"rundll32.exe")==0)
+            SetCurrentProcessExplicitAppUserModelID(L"TC.SymbolicLinks.LinkMaker");
+    }
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
     WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
     const HMODULE iconModule=OwnModule();
@@ -534,8 +572,11 @@ bool NativeManualCheck(HWND owner) {
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,owner,nullptr,instance,nullptr);
     if(!window)return false;
     if(iconModule) {
+        HICON big=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+            IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED));
         HICON small=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
+        if(big)SendMessageW(window,WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(big));
         if(small)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(small));
     }
     RECT wr{},anchor{};
@@ -579,7 +620,7 @@ bool NativeManualCheck(HWND owner) {
         WS_CHILD|WS_VISIBLE|SS_LEFT,dp(22),dp(73),dp(555),dp(52),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_RESULT)),instance,nullptr);
     if(body)SendMessageW(check->status,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
-    INITCOMMONCONTROLSEX c{sizeof(c),ICC_PROGRESS_CLASS};
+    INITCOMMONCONTROLSEX c{sizeof(c),ICC_PROGRESS_CLASS|ICC_WIN95_CLASSES};
     InitCommonControlsEx(&c);
     check->progress=CreateWindowW(PROGRESS_CLASSW,nullptr,WS_CHILD|PBS_SMOOTH,
         dp(22),dp(126),dp(555),dp(12),window,
@@ -600,6 +641,32 @@ bool NativeManualCheck(HWND owner) {
                 SendMessageW(button,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
         }
     }
+    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_INSTALL),
+        L"Download the official GitHub ZIP, verify SHA-256 and file architecture.\n"
+        L"Install the selected version after closing Total Commander.\n"
+        L"Existing plugin DLLs are backed up; UAC may be requested.",
+        L"Скачать официальный ZIP, проверить SHA-256 и архитектуру DLL.\n"
+        L"Установить выбранную версию после закрытия Total Commander.\n"
+        L"Создаются резервные копии; возможен запрос UAC.",
+        L"הורדת ZIP רשמי ואימות SHA-256 וארכיטקטורת DLL.\n"
+        L"ההתקנה מתבצעת לאחר סגירת Total Commander.\n"
+        L"נוצרים גיבויים; ייתכן שתידרש הרשאת מנהל.");
+    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_OPEN),
+        L"Open the selected official GitHub Release page in your browser.",
+        L"Открыть страницу выбранного официального релиза на GitHub.",
+        L"פתיחת דף הגרסה הרשמית שנבחרה ב-GitHub.");
+    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_CLOSE),
+        L"Close Update Manager only. The main Link Maker stays open.",
+        L"Закрыть только окно обновлений. Основное окно создания ссылок останется.",
+        L"סגירת מנהל העדכונים בלבד, בלי לסגור את חלון יצירת הקישורים.");
+    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_RESULT),
+        L"Shows the installed/released version or download and installation status.",
+        L"Показывает найденную версию и ход проверки, загрузки и установки.",
+        L"מציג את הגרסה ואת מצב הבדיקה, ההורדה וההתקנה.");
+    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_PROGRESS),
+        L"Progress of the verified ZIP download; installation begins after Total Commander closes.",
+        L"Прогресс скачивания проверенного ZIP. Установка — после закрытия TC.",
+        L"התקדמות ההורדה; ההתקנה מתבצעת לאחר סגירת TC.");
     ShowWindow(window,SW_SHOW);
     std::thread([check]{
         try{InspectReleases(*check);}
