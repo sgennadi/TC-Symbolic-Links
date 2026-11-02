@@ -14,6 +14,7 @@
 #include <objbase.h>
 #include <dwmapi.h>
 #include <algorithm>
+#include <cwchar>
 #include <cstddef>
 #include <exception>
 #include <string>
@@ -40,6 +41,7 @@ constexpr int ID_BROWSE = 115;
 constexpr int ID_UPDATE = 116;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
+constexpr UINT WM_TCS_TEST_TOOLTIPS = WM_APP + 80; // read-only CI diagnostic
 constexpr std::size_t kCreateBatchSize = 12;
 
 class GdiPlusScope {
@@ -111,6 +113,8 @@ struct Ui {
     HWND create = nullptr;
     HWND close = nullptr;
     HWND update = nullptr;
+    HWND tooltip = nullptr; // one native tooltip window, many owned controls
+    int tooltipCount = 0;
     std::vector<std::wstring> selected;
     std::wstring initialDestination;
     bool creating = false;
@@ -571,23 +575,36 @@ void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
     }
 }
 void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
-    if (!control || !help) return;
-    HWND tooltip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr,
-        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        parent, nullptr, GetModuleHandleW(nullptr), nullptr);
-    if (!tooltip) return;
+    if (!control || !help || !*help) return;
+    auto* state=reinterpret_cast<Ui*>(GetWindowLongPtrW(parent,GWLP_USERDATA));
+    if(!state)return;
+    if(!state->tooltip) {
+        // One owner-managed common-controls tooltip for all Maker fields:
+        // avoids multiple overlapping hover windows and subclass conflicts.
+        state->tooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+            WS_POPUP|TTS_NOPREFIX|TTS_ALWAYSTIP,
+            CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+            parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+        if(!state->tooltip)return;
+        SendMessageW(state->tooltip,TTM_SETMAXTIPWIDTH,0,Dp(*state,430));
+        SendMessageW(state->tooltip,TTM_SETDELAYTIME,TTDT_INITIAL,600);
+        SendMessageW(state->tooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,18000);
+    }
     TOOLINFOW tip{};
-    tip.cbSize = sizeof(tip);
-    tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-    tip.hwnd = parent;
-    tip.uId = reinterpret_cast<UINT_PTR>(control);
-    tip.lpszText = const_cast<LPWSTR>(help);
-    SendMessageW(tooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tip));
-    SendMessageW(tooltip, TTM_SETMAXTIPWIDTH, 0, Dp(*reinterpret_cast<Ui*>(
-        GetWindowLongPtrW(parent, GWLP_USERDATA)), 350));
+    tip.cbSize=sizeof(tip);
+    tip.uFlags=TTF_IDISHWND|TTF_SUBCLASS;
+    tip.hwnd=parent;
+    tip.uId=reinterpret_cast<UINT_PTR>(control);
+    tip.lpszText=const_cast<LPWSTR>(help);
+    if(!SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip))) {
+        // Some Common Controls builds reject the newest TOOLINFO size.
+        // V2 contains the HWND, Unicode text and subclass flags we use.
+        tip.cbSize=TTTOOLINFOW_V2_SIZE;
+        if(!SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip)))
+            return;
+    }
+    ++state->tooltipCount;
 }
-
 void ChooseDestination(HWND owner, Ui& state) {
     if (!state.destination || state.creating) return;
     const HRESULT apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
@@ -927,26 +944,106 @@ void CreateControls(HWND hwnd, Ui& s) {
                       reinterpret_cast<DWORD_PTR>(&s));
     SetWindowSubclass(s.browse, ActionButtonProc, ID_BROWSE,
                       reinterpret_cast<DWORD_PTR>(&s));
-    AddToolTip(hwnd, s.browse, s.Choose(
-        L"Choose another destination folder...",
-        L"Выберите папку назначения...",
-        L"בחירת תיקיית יעד אחרת..."));
-    AddToolTip(hwnd, s.update, s.Choose(
-        L"Check releases, set Preview/Stable channel and automatic checks.",
-        L"Проверить версии, канал Preview/Stable и автоматические обновления.",
-        L"בדוק גרסאות וקבע עדכונים אוטומטיים."));
-    AddToolTip(hwnd, s.create, s.Choose(
-        L"Create links in the destination panel (F5)",
-        L"Создать ссылки в папке назначения (F5)",
-        L"יצירת קישורים בחלונית היעד (F5)"));
-    AddToolTip(hwnd, s.close, s.Choose(
-        L"Close window, or stop the running operation (Esc)",
-        L"Закрыть окно или остановить операцию (Esc)",
-        L"סגירה או עצירת הפעולה (Esc)"));
     RecreateFont(s);
     UpdateModeHelp(s);
     UpdatePreview(s);
     Layout(hwnd, s);
+    // Register mouse hover targets after controls have measurable geometry.
+    // Help follows the same English/Russian/Hebrew language as the Maker.
+    // Real Win32 hover tooltips, not permanent labels or a second dialog.
+    const wchar_t* relativeHelp = s.Choose(
+        L"Relative target (symbolic links only).\n"
+        L"Off: the link stores a full path, e.g. D:\\Apps.\n"
+        L"On: it stores a path from the LINK's folder, e.g. ..\\Apps.\n"
+        L"Both paths must be on the same volume. Moving both folders together "
+        L"preserves the link. Not available for Junction or Hardlink.",
+        L"Относительный путь (только для символических ссылок).\n"
+        L"Выкл.: ссылка хранит полный путь, например D:\\Apps.\n"
+        L"Вкл.: путь относительно ПАПКИ ССЫЛКИ, например ..\\Apps.\n"
+        L"Обе папки должны быть на одном томе. При совместном переносе "
+        L"ссылка продолжит работать. Для Junction/Hardlink недоступно.",
+        L"נתיב יחסי (קישורים סמליים בלבד).\n"
+        L"כבוי: נשמר נתיב מלא, כגון D:\\Apps.\n"
+        L"מופעל: נשמר נתיב יחסי לתיקיית הקישור, כגון ..\\Apps.\n"
+        L"הנתיבים חייבים להיות באותו כונן. בעת העברת שתי התיקיות יחד, "
+        L"הקישור ימשיך לעבוד. לא זמין עבור Junction או Hardlink.");
+    AddToolTip(hwnd, s.relative, relativeHelp);
+    AddToolTip(hwnd, s.relativeHint, relativeHelp);
+    const wchar_t* linkTypeHelp = s.Choose(
+        L"Automatic selects File/Folder symlink from the source.\n"
+        L"Symlink: Windows symbolic link to a file or folder.\n"
+        L"Junction: absolute local folder target.\n"
+        L"Hardlink: second name for a file on the same volume.",
+        L"Автоматически: тип ссылки определяется по файлу или папке.\n"
+        L"Symlink: символическая ссылка на файл или папку.\n"
+        L"Junction: абсолютная ссылка на локальную папку.\n"
+        L"Hardlink: второе имя файла на том же диске.",
+        L"אוטומטי: סוג הקישור נקבע לפי קובץ או תיקייה.\n"
+        L"Symlink: קישור סמלי לקובץ או לתיקייה.\n"
+        L"Junction: תיקייה מקומית בנתיב מוחלט.\n"
+        L"Hardlink: שם נוסף לקובץ באותו כונן.");
+    AddToolTip(hwnd, s.kind, linkTypeHelp);
+    AddToolTip(hwnd, s.labelKind, linkTypeHelp);
+    AddToolTip(hwnd, s.modeHint, linkTypeHelp);
+    const wchar_t* targetHelp = s.Choose(
+        L"Folder in which NEW links will be created.\n"
+        L"Use a real local disk or accessible SMB directory.\n"
+        L"Virtual folders inside WIM, ISO or WCX archives are not supported.\n"
+        L"Existing files and links are never overwritten.",
+        L"Папка, В КОТОРОЙ будут создаваться новые ссылки.\n"
+        L"Выберите обычный каталог диска или доступную папку SMB.\n"
+        L"Создание ссылок внутри WIM/ISO/WCX не поддерживается.\n"
+        L"Существующие объекты не перезаписываются.",
+        L"תיקייה שבה ייווצרו קישורים חדשים.\n"
+        L"יש לבחור תיקיית דיסק או SMB נגישה.\n"
+        L"אין ליצור קישורים בתוך WIM/ISO/WCX.\n"
+        L"קבצים וקישורים קיימים לעולם לא יוחלפו.");
+    AddToolTip(hwnd, s.destination, targetHelp);
+    AddToolTip(hwnd, s.labelDestination, targetHelp);
+    AddToolTip(hwnd, s.browse, s.Choose(
+        L"Browse for the physical destination folder (disk or SMB).",
+        L"Выбрать реальную папку назначения на диске или SMB.",
+        L"בחירת תיקיית יעד אמיתית בדיסק או ב-SMB."));
+    const wchar_t* sourceHelp = s.Choose(
+        L"Selected objects from Total Commander's active source panel.\n"
+        L"Sources remain unchanged; new links are created at the destination.",
+        L"Выбранные объекты активной панели Total Commander.\n"
+        L"Исходные файлы не изменяются — ссылки создаются в папке назначения.",
+        L"פריטים שנבחרו בחלונית המקור של Total Commander.\n"
+        L"קובצי המקור אינם משתנים; הקישורים נוצרים בתיקיית היעד.");
+    AddToolTip(hwnd, s.sources, sourceHelp);
+    AddToolTip(hwnd, s.sourcePath, sourceHelp);
+    AddToolTip(hwnd, s.labelSources, sourceHelp);
+    AddToolTip(hwnd, s.update, s.Choose(
+        L"Check the official GitHub release.\n"
+        L"Download & Install verifies SHA-256 and starts a native update "
+        L"after Total Commander has closed; no PowerShell updater.",
+        L"Проверить официальный выпуск GitHub.\n"
+        L"«Download & Install» проверяет SHA-256 и устанавливает обновление "
+        L"после закрытия Total Commander без PowerShell.",
+        L"בדיקת גרסה רשמית ב-GitHub.\n"
+        L"Download & Install מאמת SHA-256 ומתקין לאחר סגירת Total Commander, "
+        L"ללא PowerShell."));
+    AddToolTip(hwnd, s.preview, s.Choose(
+        L"Preview of the path and name of the next link. No action has run yet.",
+        L"Предпросмотр пути и имени новой ссылки. Создание ещё не запускалось.",
+        L"תצוגה מקדימה של נתיב ושם הקישור החדש. עדיין לא בוצעה פעולה."));
+    AddToolTip(hwnd, s.results, s.Choose(
+        L"Planned link paths and the result of each operation.\n"
+        L"OK = created; ERR = failed; WARN = warning.",
+        L"Планируемые ссылки и результаты операций.\n"
+        L"OK — создано; ERR — ошибка; WARN — предупреждение.",
+        L"נתיבי הקישורים ותוצאות הפעולות.\n"
+        L"OK — נוצר; ERR — שגיאה; WARN — אזהרה."));
+    AddToolTip(hwnd, s.create, s.Choose(
+        L"Create links at the destination (F5). Sources are not overwritten.",
+        L"Создать ссылки в папке назначения (F5), не изменяя источники.",
+        L"יצירת קישורים בתיקיית היעד (F5) ללא שינוי המקורות."));
+    AddToolTip(hwnd, s.close, s.Choose(
+        L"Close the Maker, or stop a running creation operation (Esc).",
+        L"Закрыть окно или прервать выполняемую операцию (Esc).",
+        L"סגירת החלון או עצירת הפעולה (Esc)."));
+
 }
 
 void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
@@ -1182,6 +1279,8 @@ void BeginCreate(HWND hwnd, Ui& state) {
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     auto* state = reinterpret_cast<Ui*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     switch (msg) {
+        case WM_TCS_TEST_TOOLTIPS:
+            return state ? state->tooltipCount : 0;
         case WM_NCCREATE: {
             auto* data = reinterpret_cast<CREATESTRUCTW*>(lParam);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA,
@@ -1473,6 +1572,7 @@ std::vector<std::wstring> ReadSelectedList(const std::wstring& fileName) {
 }
 
 int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, int show) {
+    (void)instance; // rundll32 passes the EXE instance, never the WDX resource module.
     std::wstring listFile;
     std::wstring destination;
     int requestedMode = 0; // 0=automatic, 1=file, 2=directory
@@ -1523,7 +1623,8 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     state->selected = std::move(selected);
     state->initialDestination = std::move(destination);
     state->initialMode = requestedMode;
-    INITCOMMONCONTROLSEX common{sizeof(common), ICC_LISTVIEW_CLASSES};
+    // The Maker also uses the Win32 tooltip and button common-control classes.
+    INITCOMMONCONTROLSEX common{sizeof(common), ICC_LISTVIEW_CLASSES | ICC_WIN95_CLASSES};
     if (!InitCommonControlsEx(&common)) { delete state; return 5; }
     GdiPlusScope graphics;
     if (!graphics.Ready()) {
@@ -1533,20 +1634,45 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         delete state;
         return 7;
     }
+    // IMPORTANT: rundll32 passes the host EXE as the entrypoint HINSTANCE.
+    // Icons 101/102/103 are embedded in the WDX, NOT in rundll32.exe.
+    // Looking them up in the host resulted in the generic Windows taskbar,
+    // title-bar and banner icons reported in Total Commander 11.58 screenshots.
+    HMODULE pluginModule = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&tcs::RunMakerFromArguments),
+            &pluginModule) || !pluginModule) {
+        delete state;
+        return 5;
+    }
+    // Only our dedicated rundll32 host receives this taskbar identity.
+    // Never change Total Commander's AppUserModelID if hosted in its process.
+    wchar_t hostName[MAX_PATH]{};
+    if (GetModuleFileNameW(nullptr, hostName, MAX_PATH)) {
+        const wchar_t* name = wcsrchr(hostName, L'\\');
+        if (name && _wcsicmp(name + 1, L"rundll32.exe") == 0)
+            SetCurrentProcessExplicitAppUserModelID(L"TC.SymbolicLinks.LinkMaker");
+    }
     WNDCLASSEXW cls{sizeof(cls)};
     cls.style = CS_DBLCLKS;
     cls.lpfnWndProc = WindowProc;
-    cls.hInstance = instance;
+    cls.hInstance = pluginModule;
     cls.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    // Use the same embedded chain icon as our Total Commander toolbar button.
-    cls.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(101));
-    cls.hIconSm = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(101),
+    cls.hIcon = static_cast<HICON>(LoadImageW(pluginModule, MAKEINTRESOURCEW(101),
+        IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON),
+        LR_DEFAULTCOLOR));
+    cls.hIconSm = static_cast<HICON>(LoadImageW(pluginModule, MAKEINTRESOURCEW(101),
         IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
-        LR_SHARED));
-    if (!cls.hIcon) cls.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+        LR_DEFAULTCOLOR));
+    if (!cls.hIcon) cls.hIcon = LoadIconW(pluginModule, MAKEINTRESOURCEW(101));
+    if (!cls.hIconSm) cls.hIconSm = cls.hIcon;
     cls.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     cls.lpszClassName = kClassName;
-    if (!RegisterClassExW(&cls)) { delete state; return 5; }
+    if (!RegisterClassExW(&cls) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+        delete state;
+        return 5;
+    }
     RECT work{};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     const int winWidth = (std::min)(MulDiv(960, static_cast<int>(GetDpiForSystem()), 96),
@@ -1561,11 +1687,17 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         state->he ? L"TC Symbolic Links — יצירת קישורים" :
         (state->ru ? L"TC Symbolic Links — создание ссылок" :
                      L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-        centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, instance, state);
+        centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, pluginModule, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.
         return 6;
     }
+    // Explicit per-window icons matter to the Windows taskbar in rundll32
+    // hosts, even if class icons were registered before the Maker opened.
+    if (cls.hIcon) SendMessageW(window, WM_SETICON, ICON_BIG,
+                               reinterpret_cast<LPARAM>(cls.hIcon));
+    if (cls.hIconSm) SendMessageW(window, WM_SETICON, ICON_SMALL,
+                                 reinterpret_cast<LPARAM>(cls.hIconSm));
     ShowWindow(window, show == SW_HIDE ? SW_SHOWNORMAL : show);
     UpdateWindow(window);
     // The exact same F5 and Esc shortcuts appear on the bottom buttons.

@@ -1,3 +1,27 @@
+## 0.2.18 Stable — real WDX window/taskbar icons and contextual hover help (2026-11-02)
+
+- Fix the root cause of the Windows default icon in the link maker:
+  `rundll32.exe` passes the host EXE HINSTANCE. Resolve the actual
+  `SymlinkInspector.wdx` / `.wdx64` module by a function address and load
+  icon resource 101 from the WDX, not from the host executable.
+- Set large and small `WM_SETICON` explicitly on the Maker window.
+  Assign the plugin a dedicated taskbar AppUserModelID only inside its own
+  `rundll32.exe` process, without modifying Total Commander's identity.
+  Its blue Maker banner now renders the real WDX icon too.
+- Consistent WDX icon on the standalone native Update Manager window,
+  including the taskbar and title bar.
+- Add DPI-scaled native Win32 hover tooltips for Relative target,
+  link type, source/target panels, browsing, preview, creation and results.
+  All Maker descriptions have English, Russian and Hebrew translations.
+  Relative link targets now explain path resolution, same-volume limits,
+  preserving the relative layout when folders move, and disallowed modes.
+- Add localized help to Update Manager's Download & Install, Release page,
+  Close, status and progress controls.
+- Extend the real rundll32 Maker integration regression with window/taskbar
+  WDX icon and tooltip registration checks, on Win32 and x64.
+- Keep single standard x86/x64 installer ZIP and preserve unrelated TC
+  buttons and settings. The existing native verified updater is unchanged.
+
 ## 0.2.17 Stable — native download and install UI (pending verification)
 
 - Native Download & Install action and transfer progress, with vector button icons.

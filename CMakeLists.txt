@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.17 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.18 LANGUAGES CXX)
 # CI preview releases use the matching GitHub workflow run number.
 set(TC_PREVIEW_ITERATION 0 CACHE STRING "Preview build serial; 0 for local builds")
 option(TC_STABLE_RELEASE "Compile the official stable release version" OFF)
@@ -165,7 +165,8 @@ if(WIN32)
     target_link_libraries(windows_native_network_tests PRIVATE tc_integration)
     add_test(NAME tc_native_github_release_download_sha256
       COMMAND windows_native_network_tests)
-    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES TIMEOUT 90)
+    set_tests_properties(tc_native_github_release_download_sha256 PROPERTIES
+      TIMEOUT 90 SKIP_RETURN_CODE 77)
     if(MSVC)
       target_compile_options(windows_native_network_tests PRIVATE /W4 /utf-8)
     endif()

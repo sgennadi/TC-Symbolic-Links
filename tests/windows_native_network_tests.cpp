@@ -12,6 +12,16 @@ int main() {
     tcs::update::NativeStage result{};
     const bool ok=tcs::update::StageNativeUpdate(L"v0.2.16",nullptr,result);
     if(!ok) {
+        // GitHub's public unauthenticated API may rate-limit shared CI
+        // runners. Network availability is not a property of our WDX.
+        // Keep cryptographic/PE/package integrity errors as hard failures:
+        // only unavailable remote release metadata or transfer may skip.
+        if(result.description==L"Official release ZIP or SHA-256 digest not available." ||
+           result.description==L"Cannot download verified ZIP from GitHub.") {
+            std::wcerr<<L"SKIP: public GitHub API/download unavailable: "
+                      <<result.description<<L"\n";
+            return 77;
+        }
         std::wcerr<<L"FAIL: native GitHub download: "<<result.description<<L"\n";
         return 1;
     }

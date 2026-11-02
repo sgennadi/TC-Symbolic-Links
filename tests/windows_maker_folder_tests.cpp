@@ -46,6 +46,28 @@ void WideList(const fs::path& out, const std::wstring& folder) {
     Check(ok, "Unable to write full UTF-16LE test selection");
 }
 }
+struct ToolTipCount {
+    HWND owner=nullptr;
+    int count=0;
+    int tooltipWindows=0;
+    int ownedTooltips=0;
+};
+BOOL CALLBACK CountOwnerToolTips(HWND candidate, LPARAM context) {
+    auto& result=*reinterpret_cast<ToolTipCount*>(context);
+    wchar_t name[80]{};
+    if(GetClassNameW(candidate,name,80) &&
+       _wcsicmp(name,TOOLTIPS_CLASSW)==0) {
+        ++result.tooltipWindows;
+        if(GetWindow(candidate,GW_OWNER)==result.owner)
+            ++result.ownedTooltips;
+        // Each rundll32 smoke test is isolated in its own UI thread.
+        // The common controls Tooltip HWND is a thread-owned popup; the
+        // Win32 window owner can be NULL even when TTF_SUBCLASS is active.
+        const auto n=SendMessageW(candidate,TTM_GETTOOLCOUNT,0,0);
+        if(n>0)result.count+=static_cast<int>(n);
+    }
+    return TRUE;
+}
 int wmain(int argc, wchar_t** argv) {
     try {
         Check(argc == 2, "Provide SymlinkInspector.wdx64 path");
@@ -110,11 +132,37 @@ int wmain(int argc, wchar_t** argv) {
         bool commanderLayout = false;
         bool actionStripOnScreen = false;
         bool understandableControls = false;
+        bool wdxTaskbarIcons = false;
+        bool hoverHelpInstalled = false;
         bool nipkgControlsFit = false;
         bool rejectsSameFolder = false;
         bool rejectsChildDestination = false;
         bool allowsSafeTarget = false;
         if (window) {
+            // Regress the user screenshot: rundll32 HINSTANCE is NOT the
+            // SymlinkInspector module. Both taskbar/title icons must be
+            // explicitly assigned from the WDX and not generic Windows.
+            DWORD_PTR largeIcon=0,smallIcon=0;
+            if(SendMessageTimeoutW(window,WM_GETICON,ICON_BIG,0,
+                   SMTO_ABORTIFHUNG,2000,&largeIcon) &&
+               SendMessageTimeoutW(window,WM_GETICON,ICON_SMALL,0,
+                   SMTO_ABORTIFHUNG,2000,&smallIcon))
+                wdxTaskbarIcons=largeIcon!=0 && smallIcon!=0 &&
+                    largeIcon!=reinterpret_cast<DWORD_PTR>(LoadIconW(nullptr,MAKEINTRESOURCEW(32512)));
+            ToolTipCount tipCount{window,0};
+            const DWORD uiThread=GetWindowThreadProcessId(window,nullptr);
+            if(uiThread)EnumThreadWindows(uiThread,CountOwnerToolTips,
+                            reinterpret_cast<LPARAM>(&tipCount));
+            DWORD_PTR registered=0;
+            const bool queried=SendMessageTimeoutW(window,WM_APP+80,0,0,
+                SMTO_ABORTIFHUNG,2000,&registered)!=FALSE;
+            hoverHelpInstalled=queried && registered>=12;
+            if(!hoverHelpInstalled)
+                std::wcerr<<L"Tooltip probe: maker_registered="<<registered
+                          <<L" queried="<<queried
+                          <<L" all_windows="<<tipCount.tooltipWindows
+                          <<L" owned_windows="<<tipCount.ownedTooltips
+                          <<L" external_tool_count="<<tipCount.count<<L"\n";
             // TC-style regression: two resizable file panels and familiar
             // classic list view must exist while retaining the old WDX IDs.
             HWND sourceList = GetDlgItem(window, 100);
@@ -283,6 +331,8 @@ int wmain(int argc, wchar_t** argv) {
         }
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
+        Check(wdxTaskbarIcons, "WDX chain icon missing: rundll32 default taskbar or title-bar icon was used");
+        Check(hoverHelpInstalled, "Missing Win32 hover help on relative target, link type and destination controls");
         Check(presetDirectoryMode, "Directory toolbar mode was not preselected");
         Check(commanderLayout, "TC-style dual file panes, native file table, path strips or F5 button missing");
         Check(understandableControls, "Source/target/status glyphs, browse icon or labeled Create/Close buttons missing");
