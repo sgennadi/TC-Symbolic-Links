@@ -153,11 +153,16 @@ int wmain(int argc, wchar_t** argv) {
             const DWORD uiThread=GetWindowThreadProcessId(window,nullptr);
             if(uiThread)EnumThreadWindows(uiThread,CountOwnerToolTips,
                             reinterpret_cast<LPARAM>(&tipCount));
-            hoverHelpInstalled=tipCount.count>=12;
+            DWORD_PTR registered=0;
+            const bool queried=SendMessageTimeoutW(window,WM_APP+80,0,0,
+                SMTO_ABORTIFHUNG,2000,&registered)!=FALSE;
+            hoverHelpInstalled=queried && registered>=12;
             if(!hoverHelpInstalled)
-                std::wcerr<<L"Tooltip probe: all="<<tipCount.tooltipWindows
-                          <<L" owned="<<tipCount.ownedTooltips
-                          <<L" tools="<<tipCount.count<<L"\n";
+                std::wcerr<<L"Tooltip probe: maker_registered="<<registered
+                          <<L" queried="<<queried
+                          <<L" all_windows="<<tipCount.tooltipWindows
+                          <<L" owned_windows="<<tipCount.ownedTooltips
+                          <<L" external_tool_count="<<tipCount.count<<L"\n";
             // TC-style regression: two resizable file panels and familiar
             // classic list view must exist while retaining the old WDX IDs.
             HWND sourceList = GetDlgItem(window, 100);
