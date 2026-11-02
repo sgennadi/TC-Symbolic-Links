@@ -1,6 +1,7 @@
 #include "LinkCore.h"
 #include "ReparseData.h"
 #include "SmbPath.h"
+#include "PosixSmbBackend.h"
 #include <winnetwk.h>
 #include <winioctl.h>
 #include <algorithm>
@@ -362,6 +363,7 @@ DWORD CheckLinkTraversal(const std::wstring& path) {
 
 DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
                  LinkKind kind, bool preferRelative) {
+    posix::ResetResult();
     const auto src = FullPath(source);
     const auto dst = FullPath(destination);
     if (src.empty() || dst.empty() || !IsAbsolute(src) || !IsAbsolute(dst))
@@ -405,6 +407,17 @@ DWORD CreateLink(const std::wstring& source, const std::wstring& destination,
             IsAbsolute(target) ? ApiPath(target).c_str() : target.c_str(),
             (dirlink ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0))) return verifyCreated();
         error = GetLastError();
+    }
+    // Explicitly configured, authorized Linux POSIX directory symlink backend.
+    // Never attempt SSH for ordinary Windows shares or without opt-in. Server
+    // checks its own share root and readlink result; no Samba ACL changes.
+    if (dirlink && IsRemoteSmbPath(dst) &&
+        (error == ERROR_ACCESS_DENIED || error == ERROR_NOT_SUPPORTED ||
+         error == ERROR_INVALID_FUNCTION || error == ERROR_PRIVILEGE_NOT_HELD)) {
+        const auto srcUnc = NetworkAwarePath(src);
+        const auto dstUnc = NetworkAwarePath(dst);
+        if (posix::EnabledFor(dstUnc))
+            return posix::CreateDirectoryLink(srcUnc,dstUnc);
     }
     return error;
 }
