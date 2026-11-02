@@ -101,7 +101,7 @@ if(WIN32)
     set(TC_WDX_SUFFIX ".wdx")
   endif()
 
-  add_library(tc_link_core STATIC src/LinkCore.cpp)
+  add_library(tc_link_core STATIC src/LinkCore.cpp src/PosixSmbBackend.cpp)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse mpr)
 
