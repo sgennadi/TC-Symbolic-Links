@@ -112,6 +112,7 @@ struct Ui {
     HWND create = nullptr;
     HWND close = nullptr;
     HWND update = nullptr;
+    HWND tooltip = nullptr; // one native tooltip window, many owned controls
     std::vector<std::wstring> selected;
     std::wstring initialDestination;
     bool creating = false;
@@ -573,29 +574,28 @@ void PaintPanelSymbol(const Ui& state, const DRAWITEMSTRUCT& item) {
 }
 void AddToolTip(HWND parent, HWND control, const wchar_t* help) {
     if (!control || !help || !*help) return;
-    HWND tooltip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr,
-        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        parent, nullptr, GetModuleHandleW(nullptr), nullptr);
-    if (!tooltip) return;
-    TOOLINFOW tip{};
-    tip.cbSize = sizeof(tip);
-    tip.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-    tip.hwnd = parent;
-    tip.uId = reinterpret_cast<UINT_PTR>(control);
-    tip.lpszText = const_cast<LPWSTR>(help);
-    if (!SendMessageW(tooltip, TTM_ADDTOOLW, 0,
-                      reinterpret_cast<LPARAM>(&tip))) {
-        DestroyWindow(tooltip);
-        return;
+    auto* state=reinterpret_cast<Ui*>(GetWindowLongPtrW(parent,GWLP_USERDATA));
+    if(!state)return;
+    if(!state->tooltip) {
+        // One owner-managed common-controls tooltip for all Maker fields:
+        // avoids multiple overlapping hover windows and subclass conflicts.
+        state->tooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+            WS_POPUP|TTS_NOPREFIX|TTS_ALWAYSTIP,
+            CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+            parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+        if(!state->tooltip)return;
+        SendMessageW(state->tooltip,TTM_SETMAXTIPWIDTH,0,Dp(*state,430));
+        SendMessageW(state->tooltip,TTM_SETDELAYTIME,TTDT_INITIAL,600);
+        SendMessageW(state->tooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,18000);
     }
-    const auto* state = reinterpret_cast<const Ui*>(
-        GetWindowLongPtrW(parent, GWLP_USERDATA));
-    SendMessageW(tooltip, TTM_SETMAXTIPWIDTH, 0, state ? Dp(*state, 430) : 430);
-    SendMessageW(tooltip, TTM_SETDELAYTIME, TTDT_INITIAL, 600);
-    SendMessageW(tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 18000);
+    TOOLINFOW tip{};
+    tip.cbSize=sizeof(tip);
+    tip.uFlags=TTF_IDISHWND|TTF_SUBCLASS;
+    tip.hwnd=parent;
+    tip.uId=reinterpret_cast<UINT_PTR>(control);
+    tip.lpszText=const_cast<LPWSTR>(help);
+    SendMessageW(state->tooltip,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tip));
 }
-
 void ChooseDestination(HWND owner, Ui& state) {
     if (!state.destination || state.creating) return;
     const HRESULT apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
