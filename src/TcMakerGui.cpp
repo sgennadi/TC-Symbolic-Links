@@ -944,6 +944,11 @@ void CreateControls(HWND hwnd, Ui& s) {
                       reinterpret_cast<DWORD_PTR>(&s));
     SetWindowSubclass(s.browse, ActionButtonProc, ID_BROWSE,
                       reinterpret_cast<DWORD_PTR>(&s));
+    RecreateFont(s);
+    UpdateModeHelp(s);
+    UpdatePreview(s);
+    Layout(hwnd, s);
+    // Register mouse hover targets after controls have measurable geometry.
     // Help follows the same English/Russian/Hebrew language as the Maker.
     // Real Win32 hover tooltips, not permanent labels or a second dialog.
     const wchar_t* relativeHelp = s.Choose(
@@ -1038,10 +1043,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"Close the Maker, or stop a running creation operation (Esc).",
         L"Закрыть окно или прервать выполняемую операцию (Esc).",
         L"סגירת החלון או עצירת הפעולה (Esc)."));
-    RecreateFont(s);
-    UpdateModeHelp(s);
-    UpdatePreview(s);
-    Layout(hwnd, s);
+
 }
 
 void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
