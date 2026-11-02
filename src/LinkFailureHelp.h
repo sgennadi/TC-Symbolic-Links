@@ -59,6 +59,13 @@ inline std::vector<std::wstring> Explain(const Failure& f, Language lang) {
                 add(L"CHECK 5: Compare behavior on a local NTFS folder and a Windows SMB share to isolate server limitations; do not change Samba configuration automatically.",
                     L"ПРОВЕРИТЬ 5: сравнить создание на локальном NTFS и Windows SMB, чтобы отделить ограничение сервера; автоматически ничего в Samba не менять.",
                     L"בדיקה 5: להשוות ל-NTFS מקומי ולשיתוף Windows SMB כדי לזהות מגבלת שרת; לא לשנות Samba אוטומטית.");
+            } else if (f.smbDestination && f.hardlink) {
+                add(L"MEANING (5): The SMB server rejected a hardlink. Hardlinks are not symbolic links or reparse points, and servers may restrict hardlink creation.",
+                    L"ЗНАЧЕНИЕ (5): SMB-сервер запретил Hardlink. Это не symlink и не reparse point; сервер может ограничивать создание жёстких ссылок.",
+                    L"משמעות (5): שרת SMB דחה Hardlink. זה אינו symlink או reparse point ושרתים עשויים להגביל קישורים קשיחים.");
+                add(L"CHECK: Source and link must refer to the same underlying filesystem and server share; verify write permissions and SMB hardlink support.",
+                    L"ПРОВЕРИТЬ: источник и ссылка должны быть на одной файловой системе и серверной шаре; проверить права и поддержку SMB Hardlink.",
+                    L"בדיקה: המקור והיעד צריכים להיות באותה מערכת קבצים ושיתוף; לבדוק הרשאות ותמיכת SMB ב-Hardlink.");
             } else if (f.smbDestination) {
                 add(L"MEANING (5): SMB file-link creation was denied; possible causes include share/filesystem permissions, server reparse support, Windows privileges or endpoint security.",
                     L"ЗНАЧЕНИЕ (5): создание файловой SMB-ссылки запрещено. Возможны права шары/каталога, ограничения reparse points, права Windows или защита конечной точки.",
