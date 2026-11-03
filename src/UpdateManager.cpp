@@ -144,9 +144,9 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
 #if TC_STABLE_RELEASE
-    const std::wstring version = L"0.2.19";
+    const std::wstring version = L"0.2.20";
 #else
-    const std::wstring version = L"0.2.19-preview." +
+    const std::wstring version = L"0.2.20-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
 #endif
     std::wstring command = L"\"" + psHost +
@@ -215,7 +215,7 @@ struct NetHandle {
     ~NetHandle() { if (h) WinHttpCloseHandle(h); }
 };
 bool GetReleases(std::string& body) {
-    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.19",
+    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.20",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h) return false;
@@ -294,9 +294,9 @@ bool UsePreviewChannel() {
 }
 void InspectReleases(UpdateCheck& check) {
 #if TC_STABLE_RELEASE
-    const Version installed=ParseVersion("0.2.19");
+    const Version installed=ParseVersion("0.2.20");
 #else
-    const Version installed=ParseVersion("0.2.19-preview."+std::to_string(TC_PREVIEW_ITERATION));
+    const Version installed=ParseVersion("0.2.20-preview."+std::to_string(TC_PREVIEW_ITERATION));
 #endif
     std::string data;
     if(!GetReleases(data)) {
@@ -414,7 +414,7 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
                                                 L"Download & Install");
                 EnableWindow(install,check->newer||check->canReinstall);
             }
-            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.19 - Update Manager");
+            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.20 - Update Manager");
         }
         return 0;
     }
@@ -601,7 +601,7 @@ bool NativeManualCheck(HWND owner) {
     SetWindowLongPtrW(window,GWLP_USERDATA,
         reinterpret_cast<LONG_PTR>(new std::shared_ptr<UpdateCheck>(check)));
     // Embedded icon + branded header, no generic Windows icon or emoji fonts.
-    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links v0.2.19  |  Update Manager",
+    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links v0.2.20  |  Update Manager",
         WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,width,dp(57),window,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_TITLE)),instance,nullptr);
     if(iconModule) {
