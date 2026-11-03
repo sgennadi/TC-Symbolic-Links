@@ -90,6 +90,11 @@ int wmain(int argc, wchar_t** argv) {
         Require(std::string(name) == "Link type", "Link type field name mismatch");
         Require(getField(3, name, units, sizeof(name)) == ft_numeric_32,
                 "Hardlink count WDX field ABI mismatch");
+        for(int i=4;i<8;++i)
+            Require(getField(i,name,units,sizeof(name))==ft_string,
+                    "Additional WDX column must be a string");
+        Require(getField(8,name,units,sizeof(name))==0,
+                "Additional WDX column bounds incorrect");
 
         TempDir dir = NewTempDirectory();
         const fs::path sourceDir = dir.root / L"מסמכים בעברית";
@@ -121,6 +126,18 @@ int wmain(int argc, wchar_t** argv) {
         Require(getValue(path.data(), 2, 0, output, sizeof(output), 0) == ft_stringw,
                 "WDX target-exists field missing");
         Require(std::wstring(output) == L"Yes", "WDX target-exists should be Yes");
+        Require(getValue(path.data(),4,0,output,sizeof(output),0)==ft_stringw &&
+                std::wstring(output)==L"No",
+                "Junction must not report a relative target");
+        Require(getValue(path.data(),5,0,output,sizeof(output),0)==ft_stringw &&
+                std::wstring(output)==L"Valid",
+                "Junction health should be Valid");
+        Require(getValue(path.data(),6,0,output,sizeof(output),0)==ft_stringw &&
+                std::wstring(output)==sourceDir.wstring(),
+                "Resolved junction target must preserve Hebrew path");
+        Require(getValue(path.data(),7,0,output,sizeof(output),0)==ft_stringw &&
+                std::wstring(output)==L"Yes",
+                "Junction must be a reparse object");
 
         path = hardlink.wstring();
         int hardlinkCount = 0;
