@@ -29,11 +29,24 @@ int main() {
         GetWindowTextW(wnd,title,256);
         RECT area{};
         if(table)GetWindowRect(table,&area);
-        ok=root&&table&&status&&close &&
-           IsWindowVisible(root)&&IsWindowVisible(table)&&
+        const bool rootVisible=root&&IsWindowVisible(root);
+        const bool tableVisible=table&&IsWindowVisible(table);
+        const bool titleValid=std::wcsstr(title,L"v0.2.20")!=nullptr;
+        const int textLength=status?GetWindowTextLengthW(status):-1;
+        std::cerr<<"GUI_DIAGNOSTIC window="<<(wnd?1:0)
+                 <<" root="<<(root?1:0)
+                 <<" table="<<(table?1:0)
+                 <<" status="<<(status?1:0)
+                 <<" close="<<(close?1:0)
+                 <<" root_visible="<<rootVisible
+                 <<" table_visible="<<tableVisible
+                 <<" table_size="<<(area.right-area.left)<<"x"
+                 <<(area.bottom-area.top)
+                 <<" title_version="<<titleValid
+                 <<" status_text_length="<<textLength<<"\\n";
+        ok=root&&table&&status&&close && rootVisible&&tableVisible &&
            area.right-area.left>200 && area.bottom-area.top>90 &&
-           std::wcsstr(title,L"v0.2.20")!=nullptr &&
-           GetWindowTextLengthW(status)>0;
+           titleValid && textLength>0;
         PostMessageW(wnd,WM_CLOSE,0,0);
     }
     worker.join();
