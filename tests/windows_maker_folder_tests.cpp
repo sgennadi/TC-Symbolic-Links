@@ -311,23 +311,9 @@ int wmain(int argc, wchar_t** argv) {
                 relativeDisabled = !IsWindowEnabled(relativeButton);
                 // F5 must create exactly as clicking the TC-style action key.
                 PostMessageW(window, WM_KEYDOWN, VK_F5, 0);
-                // The new Smart Batch Preview requires a real confirmation.
-                bool confirmed=false;
-                for(int attempt=0;attempt<120;++attempt){
-                    HWND preview=FindWindowW(L"TCSBatchPreview020",nullptr);
-                    DWORD previewPid=0;
-                    if(preview)GetWindowThreadProcessId(preview,&previewPid);
-                    HWND proceed=preview?GetDlgItem(preview,612):nullptr;
-                    if(preview && previewPid==process.dwProcessId &&
-                       proceed && IsWindowEnabled(proceed)){
-                        PostMessageW(preview,WM_COMMAND,
-                            MAKEWPARAM(612,BN_CLICKED),
-                            reinterpret_cast<LPARAM>(proceed));
-                        confirmed=true;break;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-                Check(confirmed,"Smart Batch Preview did not permit a safe junction");
+                // Single-item F5 should remain immediate when preflight is clean.
+                // Smart Preview is mandatory for multiple items, custom names or conflicts.
+
                 const auto link = output / folder.filename();
                 for (int i = 0; i < 100; ++i) {
                     if (fs::exists(link / L"child.txt")) {
