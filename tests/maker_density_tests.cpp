@@ -30,6 +30,32 @@ int main() {
                 (narrow.paneBottomInset-compact.paneBottomInset);
             require(gained>=80,"Compact must gain >= 80 logical pixels");
         }
+        // A 960-DIP main window must show the complete "Link Manager"
+        // caption. The old six-equal-unit row truncated it at this size.
+        for(int dpi:{96,120,144,192}) {
+            const auto dp=[dpi](int n){return n*dpi/96;};
+            auto english=tcs::maker::density::ResolveNameRow(
+                dp(820),dpi,dp(7),false,false);
+            require(!english.shortLabels,
+                    "Normal Maker width must not truncate Link Manager label");
+            require(english.manager>=dp(170),
+                    "Link Manager must receive icon and full caption width");
+            require(english.name>=dp(150),
+                    "Name pattern must keep useful editable width");
+            auto russian=tcs::maker::density::ResolveNameRow(
+                dp(1050),dpi,dp(7),true,false);
+            require(!russian.shortLabels && russian.manager>=dp(200),
+                    "Russian full captions need wider controls");
+            auto narrow=tcs::maker::density::ResolveNameRow(
+                dp(570),dpi,dp(4),false,false);
+            require(narrow.shortLabels,"Only cramped screens use short labels");
+            require(narrow.name>0 && narrow.manager>0,
+                    "All controls must keep positive widths");
+            const int allocated=narrow.name+narrow.preview+narrow.manager+
+                narrow.undo+narrow.compact+dp(4)*4;
+            require(allocated<=dp(570),
+                    "Responsive button row must stay inside the window");
+        }
         std::cout<<"PASS: Normal, Adaptive, Compact distinct at 100-200% DPI\n";
         return 0;
     }catch(const std::exception& e){
