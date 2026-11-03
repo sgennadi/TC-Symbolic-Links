@@ -1,4 +1,4 @@
-# TC Symbolic Links 0.2.19 Stable
+# TC Symbolic Links 0.2.20 Link Manager
 
 **Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
 `TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total
@@ -32,6 +32,10 @@ to refresh the existing universal button with `%Z`, then restart TC.
 Older versions may have left duplicate numbered WDX registrations;
 the WDX offers a backed-up repair after TC closes, and refuses
 ambiguous changes that could affect other plugins.
+
+## Link Manager and Smart Batch (0.2.20)
+
+Link Maker adds custom name templates `{Name}`, `{Stem}`, `{Ext}`, `{Index}`, Smart Batch Preview, a Link Manager dialog (Find, Health, Open Target, Copy Target, Copy Relative, Repair), identity-protected Undo Last Batch and Compact UI. Ordinary one-item F5 remains immediate when the preflight is safe; multi-item and custom-name batches require explicit confirmation. Repair is restricted to verified broken LOCAL symbolic links, never SMB objects. A bounded scan never follows symlink/junction directories. Additional WDX columns include Relative target, Link health, Resolved target and Reparse object. No SSH or Samba configuration changes are performed.
 
 ## Better error explanations and safer native updates (0.2.19)
 
