@@ -4,6 +4,7 @@
 #include "LinkBatchPlan.h"
 #include "LinkManagerCore.h"
 #include "LinkManagerGui.h"
+#include "TcMakerDensity.h"
 #include "BatchPreviewGui.h"
 #include "LinkFailureHelp.h"
 #include "ListParser.h"
@@ -759,9 +760,11 @@ void Layout(HWND hwnd, Ui& s) {
     GetClientRect(hwnd, &rc);
     const int width = rc.right - rc.left;
     const int height = rc.bottom - rc.top;
-    const bool compact=s.compact || width<Dp(s,840) || height<Dp(s,555);
-    const int margin=Dp(s,compact?11:15);
-    const int gap=Dp(s,compact?9:14);
+    const auto layout=tcs::maker::density::Resolve(
+        s.compact,width,height,static_cast<int>(s.dpi));
+    const bool compact=layout.compact || layout.adaptive;
+    const int margin=Dp(s,layout.margin);
+    const int gap=Dp(s,layout.gap);
     const int usable = (std::max)(Dp(s, 320), width - 2 * margin);
     const int cardWidth = (usable - gap) / 2;
     const int cardRightX = margin + cardWidth + gap;
@@ -777,7 +780,7 @@ void Layout(HWND hwnd, Ui& s) {
     };
     // The blue/green rounded banner is painted in WM_PAINT, not by
     // transparent STATIC controls (which erase the gradient on Windows).
-    const int toolsY=Dp(s,compact?110:122);
+    const int toolsY=Dp(s,layout.toolsY);
     const int labelWidth = Dp(s, 86);
     const int kindWidth=(std::min)(Dp(s,344),
         (std::max)(Dp(s,158),usable/2-labelWidth-Dp(s,15)));
@@ -788,8 +791,8 @@ void Layout(HWND hwnd, Ui& s) {
     place(s.relative, checkX, toolsY + Dp(s, 5),
           (std::max)(Dp(s, 105), width - margin - inset - checkX), Dp(s, 25));
 
-    const int patternY=Dp(s,compact?144:159);
-    const int patternH=Dp(s,compact?27:29);
+    const int patternY=Dp(s,layout.patternY);
+    const int patternH=Dp(s,layout.patternH);
     const int patternStart=leftX;
     const int patternLabelW=Dp(s,compact?56:77);
     const int patternGap=Dp(s,compact?4:7);
@@ -818,15 +821,15 @@ void Layout(HWND hwnd, Ui& s) {
     SetWindowTextW(s.undoLast,shortLabels?s.Choose(
         L"Undo",L"Отмена",L"בטל"):s.Choose(
         L"Undo Last",L"Отменить",L"בטל אחרון"));
-    const int headingY=Dp(s,compact?178:199);
+    const int headingY=Dp(s,layout.headingY);
     place(s.sourceGlyph, leftX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
     place(s.labelSources, leftX + Dp(s, 29), headingY,
           leftWidth - Dp(s, 29), Dp(s, 22));
     place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
     place(s.labelResults, rightX + Dp(s, 29), headingY,
           rightWidth - Dp(s, 29), Dp(s, 22));
-    const int pathY=Dp(s,compact?207:228);
-    const int pathH = Dp(s, 40);
+    const int pathY=Dp(s,layout.pathY);
+    const int pathH = Dp(s,layout.pathH);
     const int fieldPad = Dp(s, 10);
     const int browseGap = Dp(s, 9);
     const int browseWidth = (std::min)(
@@ -840,8 +843,8 @@ void Layout(HWND hwnd, Ui& s) {
     place(s.browse, rightX + targetFieldWidth + browseGap, pathY,
           browseWidth, pathH);
 
-    const int paneY = pathY + pathH + Dp(s, 9);
-    const int paneBottom=height-Dp(s,compact?158:174);
+    const int paneY = pathY + pathH + Dp(s,layout.compact?7:9);
+    const int paneBottom=height-Dp(s,layout.paneBottomInset);
     const int paneHeight = (std::max)(Dp(s, 64), paneBottom - paneY);
     place(s.sources, leftX, paneY, leftWidth, paneHeight);
     place(s.results, rightX, paneY, rightWidth, paneHeight);
@@ -854,14 +857,19 @@ void Layout(HWND hwnd, Ui& s) {
             (std::max)(Dp(s, 75), leftWidth - nameWidth - typeWidth - Dp(s, 7)));
     }
 
-    const int cardBottom = height - Dp(s, 161);
-    const int infoY = cardBottom + Dp(s, 6);
-    place(s.modeHint, margin + Dp(s, 15), infoY + Dp(s, 3),
-          usable - Dp(s, 30), Dp(s, 24));
-    place(s.relativeHint, margin + Dp(s, 15), infoY + Dp(s, 30),
-          usable - Dp(s, 30), Dp(s, 24));
-    place(s.preview, margin + Dp(s, 15), height - Dp(s, 94),
-          usable - Dp(s, 30), Dp(s, 22));
+    const int cardBottom = height - Dp(s,layout.cardBottomInset);
+    const int infoY = cardBottom + Dp(s,6);
+    ShowWindow(s.modeHint,layout.compact?SW_HIDE:SW_SHOW);
+    ShowWindow(s.relativeHint,layout.compact?SW_HIDE:SW_SHOW);
+    if(!layout.compact) {
+        place(s.modeHint, margin + Dp(s,15), infoY + Dp(s,3),
+              usable - Dp(s,30), Dp(s,24));
+        place(s.relativeHint, margin + Dp(s,15), infoY + Dp(s,30),
+              usable - Dp(s,30), Dp(s,24));
+    }
+    place(s.preview, margin + Dp(s,15),
+          height - Dp(s,layout.previewBottomInset),
+          usable - Dp(s,30), Dp(s,layout.compact?17:22));
 
     // Buttons sit inside an adaptive soft-green/blue/red status card.
     const int buttonY = height - Dp(s, 61);
@@ -1564,21 +1572,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             FillRect(dc, &client, canvas);
             DeleteObject(canvas);
             if (state) {
-                const bool compact=state->compact ||
-                    cw<Dp(*state,840) || ch<Dp(*state,555);
-                const int margin=Dp(*state,compact?11:15);
-                const int gap=Dp(*state,compact?9:14);
+                const auto layout=tcs::maker::density::Resolve(
+                    state->compact,cw,ch,static_cast<int>(state->dpi));
+                const int margin=Dp(*state,layout.margin);
+                const int gap=Dp(*state,layout.gap);
                 const std::wstring subtitle =
                     std::to_wstring(state->selected.size()) + L" " + state->Choose(
                     L"selected  |  Existing items are never overwritten",
                     L"выбрано  |  Существующие объекты не перезаписываются",
                     L"נבחרו  |  קבצים קיימים לעולם לא יוחלפו");
-                const RECT banner{margin, Dp(*state, 14),
-                                  client.right - margin, Dp(*state, 104)};
+                const RECT banner{margin, Dp(*state,layout.bannerTop),
+                                  client.right - margin,
+                                  Dp(*state,layout.bannerBottom)};
                 const HICON logo = reinterpret_cast<HICON>(
                     GetClassLongPtrW(hwnd, GCLP_HICON));
                 tcs::visual::Banner(dc, banner, state->dpi, logo,
-                    L"TC Symbolic Links", subtitle, state->he);
+                    L"TC Symbolic Links v0.2.20", subtitle,
+                    state->he,layout.compact);
                 const std::wstring status = L"●  " + GetText(state->status);
                 RECT actionRect{};
                 int actionLeft = -1;
@@ -1588,9 +1598,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     actionLeft = actionRect.left;
                 }
                 tcs::visual::FormPanels(dc, client, state->dpi,
-                    margin, gap, Dp(*state,compact?168:185),
-                    client.bottom - Dp(*state, 161),
-                    Dp(*state, 113), Dp(*state, 50),
+                    margin, gap, Dp(*state,layout.cardTop),
+                    client.bottom - Dp(*state,layout.cardBottomInset),
+                    Dp(*state,layout.toolsTop),
+                    Dp(*state,layout.toolsHeight),
                     state->hasRun, state->failed != 0,
                     state->unsafeDestination, state->creating,
                     status, state->he, actionLeft);
@@ -1777,6 +1788,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 state->compact=SendMessageW(state->compactToggle,
                     BM_GETCHECK,0,0)==BST_CHECKED;
                 Layout(hwnd,*state);
+                InvalidateRect(hwnd,nullptr,FALSE);
+                UpdateWindow(hwnd);
                 SaveMakerPreferences(*state);
                 return 0;
             }
