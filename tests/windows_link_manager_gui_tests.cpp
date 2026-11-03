@@ -25,6 +25,13 @@ int main() {
         const HWND table=GetDlgItem(wnd,304);
         const HWND status=GetDlgItem(wnd,305);
         const HWND close=GetDlgItem(wnd,311);
+        const HWND empty=GetDlgItem(wnd,314);
+        const HWND find=GetDlgItem(wnd,302);
+        const HWND open=GetDlgItem(wnd,307);
+        const bool buttonsStyled=find&&open &&
+            (GetWindowLongPtrW(find,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW &&
+            (GetWindowLongPtrW(open,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW;
+        const bool emptyVisible=empty&&IsWindowVisible(empty);
         wchar_t title[256]{};
         GetWindowTextW(wnd,title,256);
         RECT area{};
@@ -44,8 +51,11 @@ int main() {
                  <<" table_size="<<(area.right-area.left)<<"x"
                  <<(area.bottom-area.top)
                  <<" title_version="<<titleValid
+                 <<" ownerdraw_buttons="<<buttonsStyled
+                 <<" empty_state="<<emptyVisible
                  <<" status_text_length="<<textLength<<"\\n";
         ok=root&&table&&status&&close && rootVisible&&tableVisible &&
+           emptyVisible&&buttonsStyled &&
            area.right-area.left>200 && area.bottom-area.top>90 &&
            titleValid && textLength>0;
         PostMessageW(wnd,WM_CLOSE,0,0);
