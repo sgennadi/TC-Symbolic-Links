@@ -147,9 +147,9 @@ bool Launch(HMODULE module, bool automatic, const std::wstring& repairIni = {}) 
         L"\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
     if (GetFileAttributesW(psHost.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
 #if TC_STABLE_RELEASE
-    const std::wstring version = L"0.2.22";
+    const std::wstring version = L"0.2.23";
 #else
-    const std::wstring version = L"0.2.22-preview." +
+    const std::wstring version = L"0.2.23-preview." +
         std::to_wstring(TC_PREVIEW_ITERATION);
 #endif
     std::wstring command = L"\"" + psHost +
@@ -188,7 +188,7 @@ constexpr int ID_UPDATE_HELP = 410;
 constexpr int ID_UPDATE_TRUST = 411;
 constexpr int ID_UPDATE_INSTALLED_LABEL = 412;
 constexpr int ID_UPDATE_AVAILABLE_LABEL = 413;
-constexpr wchar_t kUiVersion[] = L"v0.2.22";
+constexpr wchar_t kUiVersion[] = L"v0.2.23";
 inline tcs::ui::Lang UpdateLanguage(){
     const LANGID lang=GetUserDefaultUILanguage();
     return PRIMARYLANGID(lang)==LANG_RUSSIAN?tcs::ui::Lang::Russian:
@@ -236,7 +236,7 @@ struct NetHandle {
     ~NetHandle() { if (h) WinHttpCloseHandle(h); }
 };
 bool GetReleases(std::string& body) {
-    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.22",
+    NetHandle session{WinHttpOpen(L"TC-Symbolic-Links-NativeUpdater/0.2.23",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h) return false;
@@ -315,9 +315,9 @@ bool UsePreviewChannel() {
 }
 void InspectReleases(UpdateCheck& check) {
 #if TC_STABLE_RELEASE
-    const Version installed=ParseVersion("0.2.22");
+    const Version installed=ParseVersion("0.2.23");
 #else
-    const Version installed=ParseVersion("0.2.22-preview."+std::to_string(TC_PREVIEW_ITERATION));
+    const Version installed=ParseVersion("0.2.23-preview."+std::to_string(TC_PREVIEW_ITERATION));
 #endif
     std::string data;
     if(!GetReleases(data)) {
@@ -528,7 +528,7 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
                 SetWindowTextW(install,label.c_str());
                 EnableWindow(install,actionable);
             }
-            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.22 - Update Manager");
+            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.23 - Update Manager");
             InvalidateRect(hwnd,nullptr,FALSE);
         }
         return 0;
@@ -728,7 +728,7 @@ bool NativeManualCheck(HWND owner) {
     const int width=(std::min)(dp(logical.width),workW);
     const int height=(std::min)(dp(logical.height),workH);
     HWND window=CreateWindowExW(WS_EX_DLGMODALFRAME,klass,
-        L"TC Symbolic Links v0.2.22 - Update Manager",
+        L"TC Symbolic Links v0.2.23 - Update Manager",
         WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,anchorHwnd,nullptr,instance,nullptr);
     if(!window)return false;

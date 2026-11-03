@@ -1,6 +1,10 @@
-# TC Symbolic Links 0.2.22 Stable — Native UI Polish
+# TC Symbolic Links 0.2.23 Stable — Window Geometry Fix
 
 **0.2.21 display hotfix:** Link Manager no longer opens as a blank window. Compact mode changes the actual layout height. Window captions and the native navy banner show the correct version. All v0.2.20 link-management operations remain in the same WDX; no changes to Samba or SSH are required.
+
+## Larger Maker window and restored placement (0.2.23)
+
+The default Maker window now opens at **1150 x 720 DIP** when screen space allows; otherwise it fits the current monitor work area. The plugin saves its **last normal size and position** per-user in `HKCU\\Software\\TCSymbolicLinks\\Maker` and restores the window when run again, including a previously maximized state. It fits to an available screen after a DPI, monitor, taskbar or resolution change. The name/actions row gives the full **Link Manager** button enough space and uses shorter button labels only on genuinely narrow screens. Hover a source item for its complete path. This stores only window geometry, with no TC command or Samba changes.
 
 ## Modern native interface (0.2.22)
 

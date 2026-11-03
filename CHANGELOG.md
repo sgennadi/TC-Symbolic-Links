@@ -1,3 +1,13 @@
+## 0.2.23 Maker window geometry and readability (2026-11-03)
+
+- Enlarge the default Link Maker window from 960x640 to 1150x720 logical pixels when the desktop permits.
+- Save the last size and screen position per Windows user under HKCU\\Software\\TCSymbolicLinks\\Maker, and restore it when opening Link Maker again.
+- Keep the restored window visible if a monitor is disconnected or the display resolution / DPI has changed; retain maximized state and normal placement.
+- Allocate caption-aware widths for Link Manager, Preview, Undo Last and Compact. Use short labels only when there is insufficient actual window space; avoid repeated SetWindowText flicker.
+- Show full source paths in read-only infotips instead of discarding information from truncated table cells.
+- Add automatic regression tests for DPI, negative monitor coordinates, unavailable monitors, native registry persistence and responsive control widths.
+- Same native WDX and one ZIP for x86/x64; no SSH, Samba changes, extra EXE or batch launcher.
+
 ## 0.2.22 UI polish (2026-11-03)
 
 - Update Manager redesigned: clear installed vs available version cards, **Update to vX** button, **Reinstall** for same version, Release notes, contextual verification/installation help, visible progress and retry action. Separate native status text correctly explains when Total Commander must close.
