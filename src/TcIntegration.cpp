@@ -460,15 +460,15 @@ bool ConfigureForTotalCommander(const std::wstring& tcIni, const std::wstring& d
         ok = WriteIni(barFile, L"Buttonbar", L"Buttoncount", std::to_wstring(nextSlot));
     const auto suffix = std::to_wstring(preset);
     constexpr wchar_t headers[] =
-        L"Name\nExt\nLink type\nLink target\nExists\nHardlinks\n"
-        L"Relative\nLink health\nResolved target\nReparse";
+        L"Name\\nExt\\nLink type\\nLink target\\nExists\\nHardlinks\\n"
+        L"Relative\\nLink health\\nResolved target\\nReparse";
     constexpr wchar_t widths[] = L"160,60,140,290,62,80,72,120,310,-80";
     constexpr wchar_t contents[] =
-        L"[=tc.name]\n[=tc.ext]\n[=SymlinkInspector.Link type]\n"
-        L"[=SymlinkInspector.Link target]\n[=SymlinkInspector.Target exists]\n"
-        L"[=SymlinkInspector.Hardlink count]\n"
-        L"[=SymlinkInspector.Relative target]\n[=SymlinkInspector.Link health]\n"
-        L"[=SymlinkInspector.Resolved target]\n[=SymlinkInspector.Reparse object]";
+        L"[=tc.name]\\n[=tc.ext]\\n[=SymlinkInspector.Link type]\\n"
+        L"[=SymlinkInspector.Link target]\\n[=SymlinkInspector.Target exists]\\n"
+        L"[=SymlinkInspector.Hardlink count]\\n"
+        L"[=SymlinkInspector.Relative target]\\n[=SymlinkInspector.Link health]\\n"
+        L"[=SymlinkInspector.Resolved target]\\n[=SymlinkInspector.Reparse object]";
     if (ok && newPreset) ok = WriteIni(columnsIni, L"CustomFields", L"Titles",
         titles.empty() ? kTitle : titles + L"|" + kTitle);
     if (ok) ok = WriteIni(columnsIni, L"CustomFields", L"Headers" + suffix, headers) &&
