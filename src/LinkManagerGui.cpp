@@ -2,6 +2,8 @@
 #include "LinkManagerGui.h"
 #include "LinkManagerCore.h"
 #include "LinkCore.h"
+#include "TcUiGraphics.h"
+#include "TcUiPolish.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <shellapi.h>
@@ -18,15 +20,15 @@ constexpr UINT WM_TCS_MANAGER_INITIAL_SCAN=WM_APP+0x560;
 enum {ID_ROOT=301,ID_FIND=302,ID_DEPTH=303,ID_TABLE=304,
       ID_STATUS=305,ID_NEW_TARGET=306,ID_OPEN=307,ID_COPY=308,
       ID_COPY_REL=309,ID_REPAIR=310,ID_CLOSE=311,ID_REFRESH=312,
-      ID_INFO=313};
+      ID_INFO=313,ID_EMPTY=314};
 struct Ui {
     HWND window=nullptr,owner=nullptr,root=nullptr,depth=nullptr,table=nullptr;
     HWND status=nullptr,target=nullptr,info=nullptr;
     HWND find=nullptr,refresh=nullptr,open=nullptr,copy=nullptr;
-    HWND copyRelative=nullptr,repair=nullptr,close=nullptr;
+    HWND copyRelative=nullptr,repair=nullptr,close=nullptr,empty=nullptr;
     HFONT font=nullptr;
     UINT dpi=96;
-    bool running=true,ru=false,he=false;
+    bool running=true,ru=false,he=false,searched=false,compact=false;
     std::vector<Entry> items;
     const wchar_t* L(const wchar_t* en,const wchar_t* ruText,
                      const wchar_t* heText)const{
@@ -106,6 +108,10 @@ void Populate(Ui& u,const Scan& scan){
     if(scan.firstError!=ERROR_SUCCESS && scan.firstError!=ERROR_FILE_NOT_FOUND)
         msg+=L" | Win32 "+std::to_wstring(scan.firstError);
     SetStatus(u,msg);
+    if(u.empty) {
+        ShowWindow(u.empty,u.items.empty()?SW_SHOW:SW_HIDE);
+        InvalidateRect(u.empty,nullptr,FALSE);
+    }
     Details(u);
 }
 void ScanFolder(Ui& u){
@@ -129,6 +135,7 @@ void ScanFolder(Ui& u){
     const bool remote=IsRemoteSmbPath(path);
     const Scan report=FindLinks(path,depth,remote?700:5000,remote?400:2000);
     SetCursor(LoadCursorW(nullptr,IDC_ARROW));
+    u.searched=true;
     Populate(u,report);
 }
 bool Clipboard(HWND owner,const std::wstring& value){
@@ -248,10 +255,14 @@ void Build(Ui& u){
         SendMessageW(u.depth,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(item));
     SendMessageW(u.depth,CB_SETCURSEL,1,0);
     u.find=Ctrl(u.window,L"BUTTON",u.L(L"Find links",L"Найти ссылки",
-        L"חפש קישורים"),WS_TABSTOP|BS_PUSHBUTTON,ID_FIND);
+        L"חפש קישורים"),WS_TABSTOP|BS_OWNERDRAW,ID_FIND);
     u.table=Ctrl(u.window,WC_LISTVIEWW,L"",WS_BORDER|WS_TABSTOP|
         LVS_REPORT|LVS_SHOWSELALWAYS|LVS_SINGLESEL,ID_TABLE);
     ListView_SetExtendedListViewStyle(u.table,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
+    ListView_SetBkColor(u.table,tcs::visual::White);
+    ListView_SetTextBkColor(u.table,tcs::visual::White);
+    ListView_SetTextColor(u.table,tcs::visual::Ink);
+    u.empty=Ctrl(u.window,L"STATIC",L"",SS_OWNERDRAW,ID_EMPTY);
     const wchar_t* names[]={L"Link path",L"Type",L"Health",L"Target",L"Hardlinks"};
     const wchar_t* russian[]={L"Путь ссылки",L"Тип",L"Состояние",L"Цель",L"Жёсткие"};
     const wchar_t* hebrew[]={L"נתיב קישור",L"סוג",L"מצב",L"יעד",L"קישורים"};
@@ -271,21 +282,22 @@ void Build(Ui& u){
             L"יעד חדש לתיקון קישור מקומי שבור")));
     u.status=Ctrl(u.window,L"STATIC",L"",SS_ENDELLIPSIS,ID_STATUS);
     u.open=Ctrl(u.window,L"BUTTON",u.L(L"Open Target",L"Открыть цель",
-        L"פתח יעד"),WS_TABSTOP,ID_OPEN);
+        L"פתח יעד"),WS_TABSTOP|BS_OWNERDRAW,ID_OPEN);
     u.copy=Ctrl(u.window,L"BUTTON",u.L(L"Copy Target",L"Копировать путь",
-        L"העתק יעד"),WS_TABSTOP,ID_COPY);
+        L"העתק יעד"),WS_TABSTOP|BS_OWNERDRAW,ID_COPY);
     u.copyRelative=Ctrl(u.window,L"BUTTON",u.L(L"Copy Relative",L"Относит. путь",
-        L"העתק יחסי"),WS_TABSTOP,ID_COPY_REL);
+        L"העתק יחסי"),WS_TABSTOP|BS_OWNERDRAW,ID_COPY_REL);
     u.repair=Ctrl(u.window,L"BUTTON",u.L(L"Repair",L"Исправить",
-        L"תקן"),WS_TABSTOP,ID_REPAIR);
+        L"תקן"),WS_TABSTOP|BS_OWNERDRAW,ID_REPAIR);
     u.close=Ctrl(u.window,L"BUTTON",u.L(L"Close",L"Закрыть",
-        L"סגור"),WS_TABSTOP,ID_CLOSE);
+        L"סגור"),WS_TABSTOP|BS_OWNERDRAW,ID_CLOSE);
     ApplyFont(u);
     SetStatus(u,u.L(
         L"Choose a folder and Find links. Existing folders are scanned automatically.",
         L"Выберите папку и нажмите «Найти ссылки». Существующие папки сканируются автоматически.",
         L"בחר תיקייה וחפש קישורים. תיקיות קיימות נסרקות אוטומטית."));
     Details(u);
+    if(u.empty)ShowWindow(u.empty,SW_SHOW);
 }
 LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     auto* u=reinterpret_cast<Ui*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
@@ -350,6 +362,11 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
                      const std::vector<std::wstring>& selected){
     Ui u;
     u.owner=owner;
+    if(owner&&IsWindow(owner)){
+        if(HWND checkbox=GetDlgItem(owner,121))
+            u.compact=SendMessageW(checkbox,BM_GETCHECK,0,0)==BST_CHECKED;
+    }
+    tcs::ui::GdiSession graphics;
     const LANGID lang=GetUserDefaultUILanguage();
     u.ru=PRIMARYLANGID(lang)==LANG_RUSSIAN;
     u.he=PRIMARYLANGID(lang)==LANG_HEBREW;
