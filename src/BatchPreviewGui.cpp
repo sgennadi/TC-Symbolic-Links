@@ -83,7 +83,8 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         auto* args=reinterpret_cast<CREATESTRUCTW*>(lp);
         SetWindowLongPtrW(hwnd,GWLP_USERDATA,
             reinterpret_cast<LONG_PTR>(args->lpCreateParams));
-        return TRUE;
+        // Keep the versioned caption from CreateWindowExW.
+        return DefWindowProcW(hwnd,msg,wp,lp);
     }
     switch(msg){
         case WM_CREATE:if(state){
