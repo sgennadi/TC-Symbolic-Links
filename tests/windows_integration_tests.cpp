@@ -387,23 +387,9 @@ int wmain(int argc, wchar_t** argv) {
             if (typeCombo && createButton && SendMessageW(typeCombo, CB_SETCURSEL, 4, 0) == 4) {
                 PostMessageW(makerWindow, WM_COMMAND,
                     MAKEWPARAM(105, BN_CLICKED), reinterpret_cast<LPARAM>(createButton));
-                // Confirm the new no-overwrite preview as an actual user.
-                bool confirmed=false;
-                for(int attempt=0;attempt<120;++attempt){
-                    HWND preview=FindWindowW(L"TCSBatchPreview020",nullptr);
-                    DWORD previewPid=0;
-                    if(preview)GetWindowThreadProcessId(preview,&previewPid);
-                    HWND proceed=preview?GetDlgItem(preview,612):nullptr;
-                    if(preview&&previewPid==buttonProcess.dwProcessId &&
-                       proceed&&IsWindowEnabled(proceed)){
-                        PostMessageW(preview,WM_COMMAND,
-                            MAKEWPARAM(612,BN_CLICKED),
-                            reinterpret_cast<LPARAM>(proceed));
-                        confirmed=true;break;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-                Require(confirmed,"Smart Batch Preview did not allow safe hardlink");
+                // Single-item F5 should remain immediate when preflight is clean.
+                // Smart Preview is mandatory for multiple items, custom names or conflicts.
+
                 const auto targetFile = destination / source.filename();
                 for (int i = 0; i < 100; ++i) {
                     if (fs::exists(targetFile)) {
