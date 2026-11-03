@@ -6,6 +6,7 @@
 #include <commctrl.h>
 #include <shellapi.h>
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -324,6 +325,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     const LANGID lang=GetUserDefaultUILanguage();
     u.ru=PRIMARYLANGID(lang)==LANG_RUSSIAN;
     u.he=PRIMARYLANGID(lang)==LANG_HEBREW;
+    u.dpi=owner?GetDpiForWindow(owner):GetDpiForSystem();
     HMODULE self=nullptr;
     if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -346,7 +348,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     const int height=(std::min)(600,maxHeight);
     const int left=work.left+(int(work.right-work.left)-width)/2;
     const int top=work.top+(int(work.bottom-work.top)-height)/2;
-    u.window=CreateWindowExW(WS_EX_APPWINDOW,kClass,
+    u.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
         L"TC Symbolic Links v0.2.20 - Link Manager",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         left,top,width,height,owner,nullptr,self,&u);
