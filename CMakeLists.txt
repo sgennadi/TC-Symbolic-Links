@@ -161,6 +161,15 @@ if(WIN32)
       target_compile_options(windows_link_manager_tests PRIVATE /W4 /utf-8)
     endif()
 
+    # Window size/position survives Maker relaunch; no TC INI changes.
+    add_executable(windows_window_placement_tests tests/windows_window_placement_tests.cpp)
+    target_include_directories(windows_window_placement_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_window_placement_tests PRIVATE user32 advapi32)
+    add_test(NAME tc_maker_last_window_size_position COMMAND windows_window_placement_tests)
+    if(MSVC)
+      target_compile_options(windows_window_placement_tests PRIVATE /W4 /utf-8)
+    endif()
+
     # Offscreen GDI+ theme acceptance does not depend on a visible desktop.
     add_executable(windows_visual_theme_tests tests/windows_visual_theme_tests.cpp)
     target_include_directories(windows_visual_theme_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
