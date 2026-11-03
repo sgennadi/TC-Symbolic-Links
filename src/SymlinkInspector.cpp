@@ -17,6 +17,7 @@
 #endif
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -30,7 +31,8 @@ constexpr int ft_nosuchfield = -1;
 constexpr int ft_fieldempty = -3;
 constexpr int ft_fileerror = -2;
 constexpr const char* kFields[] = {
-    "Link type", "Link target", "Target exists", "Hardlink count"
+    "Link type", "Link target", "Target exists", "Hardlink count",
+    "Relative target", "Link health", "Resolved target", "Reparse object"
 };
 
 #ifdef _WIN32
@@ -129,6 +131,7 @@ struct Details {
     Type type = Type::None;
     std::u16string target;
     bool targetExists = false;
+    bool relative = false;
     std::uint32_t hardlinkCount = 0;
     bool error = false;
 };
@@ -140,6 +143,7 @@ Details Inspect(const std::u16string& path, bool hardlinks) {
     info.error = raw.error != ERROR_SUCCESS && raw.kind == tcs::ReparseKind::None;
     info.target = std::u16string(raw.target.begin(), raw.target.end());
     info.targetExists = raw.targetExists;
+    info.relative = raw.relative;
     info.hardlinkCount = raw.hardlinkCount;
     switch (raw.kind) {
         case tcs::ReparseKind::SymbolicFile: info.type = Type::FileSymlink; break;
@@ -171,6 +175,7 @@ Details Inspect(const std::u16string& path, bool hardlinks) {
             info.error = true;
             return info;
         }
+        info.relative=!info.target.empty() && info.target.front()!=u'/';
         struct stat resolved{};
         info.targetExists = stat(native.c_str(), &resolved) == 0;
         // POSIX does not store the symlink's intended type. For broken
@@ -187,9 +192,10 @@ Details Inspect(const std::u16string& path, bool hardlinks) {
 #endif
 
 int GetContent(const std::u16string& path, int index, void* output, int maxBytes, bool unicode) {
-    if (index < 0 || index >= 4) return ft_nosuchfield;
+    if (index < 0 || index >= 8) return ft_nosuchfield;
     if (path.empty() || !output || maxBytes <= 0) return ft_fileerror;
-    const auto info = Inspect(path, index == 0 || index == 3);
+    const auto info = Inspect(path, index == 0 || index == 3 ||
+                                   index == 5 || index == 7);
     if (info.error) return ft_fileerror;
     if (index == 3) {
         if (maxBytes < static_cast<int>(sizeof(std::int32_t))) return ft_fileerror;
@@ -215,6 +221,43 @@ int GetContent(const std::u16string& path, int index, void* output, int maxBytes
         case 2:
             if (info.type != Type::None && !info.target.empty())
                 value = info.targetExists ? u"Yes" : u"No";
+            break;
+        case 4:
+            if(info.type!=Type::None && !info.target.empty())
+                value=info.relative?u"Yes":u"No";
+            break;
+        case 5:
+            if(info.type==Type::Other)value=u"Unknown reparse";
+            else if(info.type!=Type::None)
+                value=info.targetExists?u"Valid":u"Missing or inaccessible";
+            else if(info.hardlinkCount>1)value=u"Valid";
+            break;
+        case 6:
+            if(info.type!=Type::None && !info.target.empty()){
+                if(!info.relative)value=info.target;
+                else {
+#ifdef _WIN32
+                    const std::wstring pathWide(path.begin(),path.end());
+                    const std::wstring targetWide(info.target.begin(),info.target.end());
+                    const auto full=tcs::FullPath(tcs::Join(
+                        tcs::ParentPath(pathWide),targetWide));
+                    value.assign(full.begin(),full.end());
+#else
+                    std::string sourceNative,targetNative;
+                    if(Utf16ToUtf8(path,sourceNative)&&
+                       Utf16ToUtf8(info.target,targetNative)){
+                        const auto normalized=(
+                            std::filesystem::path(sourceNative).parent_path()/
+                            std::filesystem::path(targetNative)).lexically_normal().string();
+                        Utf8ToUtf16(normalized,value);
+                    }
+#endif
+                }
+            }
+            break;
+        case 7:
+            if(info.type!=Type::None)value=u"Yes";
+            else if(info.hardlinkCount>1)value=u"No";
             break;
         default: return ft_nosuchfield;
     }
@@ -266,7 +309,7 @@ WDX_EXPORT void WDX_CALL ContentSetDefaultParams(ContentDefaultParamStruct* para
 #endif
 
 WDX_EXPORT int WDX_CALL ContentGetSupportedField(int index, char* name, char* units, int maxlen) {
-    if (index < 0 || index >= 4) return ft_nomorefields;
+    if (index < 0 || index >= 8) return ft_nomorefields;
     CopyBytes(kFields[index], name, maxlen);
     if (units && maxlen > 0) units[0] = 0;
     return index == 3 ? ft_numeric_32 : ft_string;
