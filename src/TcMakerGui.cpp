@@ -835,6 +835,23 @@ void CreateControls(HWND hwnd, Ui& s) {
         WS_TABSTOP | BS_AUTOCHECKBOX | (s.he ? BS_RIGHTBUTTON : 0),
         ID_RELATIVE, captionEx);
 
+    s.patternLabel=AddControl(hwnd,L"STATIC",s.Choose(
+        L"Name:",L"Имя:",L"שם:"),SS_ENDELLIPSIS|alignCaption,0,captionEx);
+    s.namePattern=AddControl(hwnd,L"EDIT",L"{Name}",
+        WS_TABSTOP|WS_BORDER|ES_AUTOHSCROLL,ID_NAME_PATTERN);
+    s.batchPreview=AddControl(hwnd,L"BUTTON",s.Choose(
+        L"Preview",L"Просмотр",L"תצוגה"),WS_TABSTOP|BS_PUSHBUTTON,ID_BATCH_PREVIEW);
+    s.linkManager=AddControl(hwnd,L"BUTTON",s.Choose(
+        L"Link Manager",L"Менеджер ссылок",L"מנהל קישורים"),
+        WS_TABSTOP|BS_PUSHBUTTON,ID_LINK_MANAGER);
+    s.undoLast=AddControl(hwnd,L"BUTTON",s.Choose(
+        L"Undo Last",L"Отменить",L"בטל אחרון"),
+        WS_TABSTOP|BS_PUSHBUTTON,ID_UNDO_LAST);
+    EnableWindow(s.undoLast,FALSE);
+    s.compactToggle=AddControl(hwnd,L"BUTTON",s.Choose(
+        L"Compact",L"Компактно",L"קומפקטי"),
+        WS_TABSTOP|BS_AUTOCHECKBOX,ID_COMPACT);
+
     const std::wstring sourceCaption = std::wstring(s.Choose(
         L"Source panel", L"Исходная панель", L"חלונית מקור")) + L"  [" +
         std::to_wstring(s.selected.size()) + L"]";
@@ -1082,7 +1099,27 @@ void CreateControls(HWND hwnd, Ui& s) {
         L"OK — создано; ERR — ошибка; WARN — предупреждение.",
         L"נתיבי הקישורים ותוצאות הפעולות.\n"
         L"OK — נוצר; ERR — שגיאה; WARN — אזהרה."));
-    AddToolTip(hwnd, s.create, s.Choose(
+        AddToolTip(hwnd,s.patternLabel,s.Choose(
+        L"Link names: {Name}, {Stem}, {Ext}, {Index}. Example: {Stem}-link.{Ext}. Existing names are never replaced.",
+        L"Шаблон имён: {Name}, {Stem}, {Ext}, {Index}. Пример: {Stem}-link.{Ext}. Существующие имена не заменяются.",
+        L"שמות קישורים: {Name}, {Stem}, {Ext}, {Index}. לא מחליפים פריטים קיימים."));
+    AddToolTip(hwnd,s.batchPreview,s.Choose(
+        L"Inspect the complete batch before any changes. Conflicts block creation.",
+        L"Проверить все ссылки перед созданием. Конфликты блокируют операцию.",
+        L"הצג את כל הקישורים לפני יצירה; התנגשויות חוסמות."));
+    AddToolTip(hwnd,s.linkManager,s.Choose(
+        L"Find and inspect links, copy/open targets and repair confirmed broken local symlinks.",
+        L"Поиск и проверка ссылок, копирование/открытие целей и исправление повреждённых локальных symlink.",
+        L"חיפוש ובדיקת קישורים, העתקת יעדים ותיקון קישורים מקומיים שבורים."));
+    AddToolTip(hwnd,s.undoLast,s.Choose(
+        L"Undo only the links from the last batch that still have the same file identity.",
+        L"Отменить только ссылки последней операции, идентичность которых не изменилась.",
+        L"בטל רק קישורים מהפעולה האחרונה שלא השתנו."));
+    AddToolTip(hwnd,s.compactToggle,s.Choose(
+        L"Reduce visual spacing. Layout automatically adapts to screen size and DPI.",
+        L"Уменьшить отступы. Интерфейс автоматически подстраивается под размер экрана и DPI.",
+        L"הקטן רווחים; התאמה אוטומטית למסך ו-DPI."));
+AddToolTip(hwnd, s.create, s.Choose(
         L"Create links at the destination (F5). Sources are not overwritten.",
         L"Создать ссылки в папке назначения (F5), не изменяя источники.",
         L"יצירת קישורים בתיקיית היעד (F5) ללא שינוי המקורות."));
