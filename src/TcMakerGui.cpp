@@ -413,8 +413,17 @@ std::vector<tcs::batch::Row> BuildBatchPlan(Ui& s,std::size_t limit){
         GetText(s.namePattern),index,[](const std::wstring& link){
             const DWORD attr=GetFileAttributesW(link.c_str());
             if(attr!=INVALID_FILE_ATTRIBUTES)return true;
-            // A denied target must be treated as occupied, never overwritten.
-            return GetLastError()==ERROR_ACCESS_DENIED;
+            // Read the link object itself: a broken NTFS/SMB reparse point
+            // can still occupy a name even when its target is missing.
+            HANDLE h=CreateFileW(link.c_str(),FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+                nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|
+                FILE_FLAG_BACKUP_SEMANTICS,nullptr);
+            if(h!=INVALID_HANDLE_VALUE){CloseHandle(h);return true;}
+            const DWORD error=GetLastError();
+            // Treat uncertainty as occupied; never overwrite by guessing.
+            return error==ERROR_ACCESS_DENIED || error==ERROR_SHARING_VIOLATION ||
+                   error==ERROR_LOCK_VIOLATION;
         });
 }
 void UpdatePlannedOutput(Ui& s){
