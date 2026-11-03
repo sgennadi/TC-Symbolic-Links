@@ -1506,7 +1506,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             auto* data = reinterpret_cast<CREATESTRUCTW*>(lParam);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA,
                 reinterpret_cast<LONG_PTR>(data->lpCreateParams));
-            return TRUE;
+            // DefWindowProc stores lpWindowName as the native caption.
+            // Returning TRUE directly left our versioned window title blank.
+            return DefWindowProcW(hwnd,msg,wParam,lParam);
         }
         case WM_CREATE:
             if (state) {
