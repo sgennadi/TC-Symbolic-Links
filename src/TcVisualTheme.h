@@ -180,7 +180,8 @@ inline void Text(Gdiplus::Graphics& g, const std::wstring& text,
 }
 inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
                    const std::wstring& title, const std::wstring& subtitle,
-                   bool rtl, bool compact = false) {
+                   bool rtl, bool compact = false,
+                   const std::wstring& version = L"") {
     const float x = static_cast<float>(area.left);
     const float y = static_cast<float>(area.top);
     const float w = static_cast<float>(area.right - area.left);
@@ -193,11 +194,11 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
     Gdiplus::GraphicsPath clip;
     AddRoundRect(clip, rect, static_cast<float>(Px(17, dpi)));
     Gdiplus::LinearGradientBrush gradient(rect,
-        Tone(Navy), Tone(Blue), Gdiplus::LinearGradientModeHorizontal);
+        Tone(Navy), Tone(RGB(13,93,177)), Gdiplus::LinearGradientModeHorizontal);
     g.FillPath(&gradient, &clip);
     const Gdiplus::GraphicsState previous = g.Save();
     g.SetClip(&clip);
-    // Subtle curved green and blue waves match the NI Package Creator header.
+    // Low-contrast accents keep the header calm and text legible.
     Gdiplus::GraphicsPath blueWave;
     blueWave.AddBezier(x + w - Px(360, dpi), y + h,
         x + w - Px(240, dpi), y + h - Px(80, dpi),
@@ -205,7 +206,7 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
         x + w, y + h - Px(25, dpi));
     blueWave.AddLine(x + w, y + h - Px(25, dpi), x + w, y + h);
     blueWave.CloseFigure();
-    Gdiplus::SolidBrush blueGlow(Gdiplus::Color(87, 43, 190, 255));
+    Gdiplus::SolidBrush blueGlow(Gdiplus::Color(38,53,184,232));
     g.FillPath(&blueGlow, &blueWave);
     Gdiplus::GraphicsPath greenWave;
     greenWave.AddBezier(x + w - Px(235, dpi), y + h,
@@ -214,7 +215,7 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
         x + w, y + h - Px(70, dpi));
     greenWave.AddLine(x + w, y + h - Px(70, dpi), x + w, y + h);
     greenWave.CloseFigure();
-    Gdiplus::SolidBrush greenGlow(Gdiplus::Color(108, 34, 211, 128));
+    Gdiplus::SolidBrush greenGlow(Gdiplus::Color(28,30,183,198));
     g.FillPath(&greenGlow, &greenWave);
     g.Restore(previous);
 
@@ -235,11 +236,17 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
             delete bitmap;
         }
     }
-    const float textX = rtl ? x + static_cast<float>(Px(24, dpi)) :
-                              x + static_cast<float>(Px(compact ? 56 : 95, dpi));
-    const float textRightPad = rtl ?
-        static_cast<float>(Px(compact ? 57 : 100, dpi)) :
-        static_cast<float>(Px(16, dpi));
+    const bool hasVersion=!version.empty() &&
+        w>=static_cast<float>(Px(470,dpi));
+    const float versionWidth=static_cast<float>(Px(compact?67:78,dpi));
+    const float textX=rtl?
+        x+static_cast<float>(Px(24,dpi))+
+        (hasVersion?versionWidth+static_cast<float>(Px(9,dpi)):0.f):
+        x+static_cast<float>(Px(compact?56:95,dpi));
+    const float textRightPad=rtl?
+        static_cast<float>(Px(compact?57:100,dpi)):
+        static_cast<float>(Px(16,dpi))+
+        (hasVersion?versionWidth+static_cast<float>(Px(18,dpi)):0.f);
     const float textW = (std::max)(1.f, w - (textX - x) - textRightPad);
     if(compact) {
         // One-line header is intentionally much smaller. Unlike the
@@ -257,6 +264,25 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
              textW, static_cast<float>(Px(28, dpi))),
              static_cast<float>(Px(11, dpi)), false,
              Gdiplus::Color(235, 225, 240, 255), rtl);
+    }
+    if(hasVersion) {
+        const float chipH=static_cast<float>(Px(compact?25:29,dpi));
+        const float chipX=rtl?x+static_cast<float>(Px(13,dpi)):
+            x+w-versionWidth-static_cast<float>(Px(15,dpi));
+        const Gdiplus::RectF chip(chipX,y+(h-chipH)*.5f,versionWidth,chipH);
+        Gdiplus::GraphicsPath curve;
+        AddRoundRect(curve,chip,static_cast<float>(Px(8,dpi)));
+        Gdiplus::SolidBrush fill(Gdiplus::Color(54,255,255,255));
+        Gdiplus::Pen outline(Gdiplus::Color(70,255,255,255),1.f);
+        g.FillPath(&fill,&curve);
+        g.DrawPath(&outline,&curve);
+        Gdiplus::StringFormat center;
+        center.SetAlignment(Gdiplus::StringAlignmentCenter);
+        center.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+        Gdiplus::Font font(L"Segoe UI",static_cast<float>(Px(11,dpi)),
+            Gdiplus::FontStyleBold,Gdiplus::UnitPixel);
+        Gdiplus::SolidBrush white(Tone(White));
+        g.DrawString(version.c_str(),-1,&font,chip,&center,&white);
     }
 }
 inline void FormPanels(HDC dc, const RECT& client, UINT dpi,
