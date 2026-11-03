@@ -56,6 +56,7 @@ int main(){
               "undo changed original file or left created hardlink");
         Check(tcs::manager::Undo({id}).deleted==0,
               "undo must never delete another entry after first removal");
+        Write(temp.root/L"another.txt");
         const auto limited=tcs::manager::FindLinks(temp.root.wstring(),1,1,50);
         Check(limited.truncated,"finder must stop at explicit item limit");
         const auto alias=temp.root/L"file-symlink.txt";
