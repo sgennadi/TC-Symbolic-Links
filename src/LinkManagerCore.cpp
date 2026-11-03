@@ -222,6 +222,23 @@ RepairResult RepairBroken(const std::wstring& path,const std::wstring& newTarget
         result.explanation=L"Cannot move old broken link to temporary backup.";
         return result;
     }
+    // Re-verify after rename BEFORE installing a replacement. An external
+    // process might have changed the old path between preflight and MoveFileEx.
+    // Never replace an unverified object; preserve or restore it without
+    // overwriting another object at the original location.
+    Identity staged;
+    if(!Capture(backup,staged)||!SameIdentity(staged,original)){
+        result.code=ERROR_INVALID_DATA;
+        if(!ExistsNoFollow(oldPath) &&
+           MoveFileExW(Api(backup).c_str(),Api(oldPath).c_str(),
+                       MOVEFILE_WRITE_THROUGH))
+            result.explanation=L"Repair cancelled: link changed during preparation. Original path restored.";
+        else {
+            result.retainedBackup=backup;
+            result.explanation=L"Repair cancelled: link identity changed. Preserve backup and inspect manually.";
+        }
+        return result;
+    }
     const auto kind=directory?LinkKind::DirectorySymbolic:LinkKind::FileSymbolic;
     const DWORD created=CreateLink(target,oldPath,kind,false);
     if(created!=ERROR_SUCCESS){
