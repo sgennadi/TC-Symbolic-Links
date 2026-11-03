@@ -1169,6 +1169,10 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
     if (state.close) InvalidateRect(state.close, nullptr, FALSE);
     if (state.browse) EnableWindow(state.browse, TRUE);
     if (state.update) EnableWindow(state.update, TRUE);
+    for(HWND button:{state.namePattern,state.batchPreview,state.linkManager,
+                     state.compactToggle})
+        if(button)EnableWindow(button,TRUE);
+    if(state.undoLast)EnableWindow(state.undoLast,!state.undoItems.empty());
     AppendLine(state.results, L"------------------------------");
     AppendLine(state.results, state.Choose(L"Created: ", L"Создано: ", L"נוצרו: ") +
         std::to_wstring(state.completed) + state.Choose(L"; skipped / failed: ",
@@ -1227,11 +1231,12 @@ void AppendFailureDetails(Ui& state, DWORD error, const std::wstring& source,
 
 void ContinueCreate(HWND hwnd, Ui& state) {
     if (!state.creating) return;
-    const auto total = state.selected.size();
+    const auto total = state.batchRows.size();
     const auto end = (std::min)(total, state.nextItem + kCreateBatchSize);
     for (; state.nextItem < end; ++state.nextItem) {
-        const auto& source = state.selected[state.nextItem];
-        const auto filename = tcs::BaseName(source);
+        const auto& row=state.batchRows[state.nextItem];
+        const auto& source=row.source;
+        const auto& filename=row.name;
         if (filename.empty() || filename == L"." || filename == L"..") {
             ++state.failed;
             AppendLine(state.results, source + L": " + state.Choose(
@@ -1240,7 +1245,7 @@ void ContinueCreate(HWND hwnd, Ui& state) {
                 L"מקור לא תקין (תיקיית שורש או נתיב ריק)."));
             continue;
         }
-        const auto link = tcs::Join(state.batchDestination, filename);
+        const auto& link=row.destination;
         const auto absoluteSource = tcs::FullPath(source);
         const auto absoluteLink = tcs::FullPath(link);
         // Never attempt to replace the selected source with a link to itself.
@@ -1268,6 +1273,16 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         if (error == ERROR_SUCCESS) {
             ++state.completed;
             AppendLine(state.results, L"OK   " + link + L"  ->  " + tcs::FullPath(source));
+            tcs::manager::Identity createdIdentity;
+            if(tcs::manager::Capture(link,createdIdentity))
+                state.undoItems.push_back(std::move(createdIdentity));
+            else {
+                ++state.warnings;
+                AppendLine(state.results,state.Choose(
+                    L"WARN  Link created but Undo is unavailable for this entry (identity cannot be verified).",
+                    L"WARN  Ссылка создана, но Undo недоступен: идентичность объекта не подтверждена.",
+                    L"WARN  הקישור נוצר אך אין אפשרות לבטל: הזהות לא אומתה."));
+            }
             if (diagnostic == tcs::LinkOutcomeDiagnostic::RemoteToLocalCreated)
                 AppendLine(state.results, state.Choose(
                     L"NOTE: SMB link targets a local PC path. R2L traversal may be disabled; other computers may not have the same drive.",
@@ -1380,6 +1395,19 @@ void BeginCreate(HWND hwnd, Ui& state) {
             L"TC Symbolic Links", MB_OK | MB_ICONWARNING);
         return;
     }
+    // Full read-only batch preflight: exact names, duplicate names, existing
+    // entries and mismatched file/directory types are shown in one table.
+    state.batchRows=BuildBatchPlan(state,state.selected.size());
+    const bool allReady=tcs::batch::AllReady(state.batchRows);
+    if(!tcs::batch::ConfirmPreview(hwnd,state.batchRows,allReady)){
+        if(!allReady)SetWindowTextW(state.status,state.Choose(
+            L"Batch conflicts found. No links created.",
+            L"Найдены конфликты. Ссылки не созданы.",
+            L"נמצאו התנגשויות. לא נוצרו קישורים."));
+        return;
+    }
+    state.undoItems.clear();
+    if(state.undoLast)EnableWindow(state.undoLast,FALSE);
     // Automatic mode intentionally accepts mixed file/folder selections.
     state.batchRelative = sel < 3 && SendMessageW(state.relative, BM_GETCHECK, 0, 0) == BST_CHECKED;
     state.batchDestination = destination;
@@ -1398,6 +1426,9 @@ void BeginCreate(HWND hwnd, Ui& state) {
     EnableWindow(state.create, FALSE);
     if (state.browse) EnableWindow(state.browse, FALSE);
     if (state.update) EnableWindow(state.update, FALSE);
+    for(HWND button:{state.namePattern,state.batchPreview,state.linkManager,
+                     state.compactToggle,state.undoLast})
+        if(button)EnableWindow(button,FALSE);
     EnableWindow(state.relative, FALSE);
     SetWindowTextW(state.status, state.Choose(L"Creating links...",
         L"Создание ссылок...", L"יוצר קישורים..."));
@@ -1535,7 +1566,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 FillRect(dc, &track, trackBrush);
                 DeleteObject(trackBrush);
                 if (state->creating || state->hasRun) {
-                    const auto total = (std::max)(std::size_t{1}, state->selected.size());
+                    const auto total = (std::max)(std::size_t{1}, state->batchRows.empty()?
+                    state->selected.size():state->batchRows.size());
                     const auto done = (std::min)(total,
                         static_cast<std::size_t>(state->completed + state->failed));
                     const int width = track.right - track.left;
