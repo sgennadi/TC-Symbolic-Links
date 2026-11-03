@@ -1,5 +1,8 @@
 #include "UpdateManager.h"
 #include "NativeUpdateInstall.h"
+#include "TcUiPolish.h"
+#include "TcUiGraphics.h"
+#include <dwmapi.h>
 #include <windows.h>
 #include <atomic>
 #include <cwchar>
@@ -179,10 +182,27 @@ constexpr UINT WM_TCS_UPDATE_PROGRESS = WM_APP + 250;
 constexpr int ID_UPDATE_INSTALL = 405;
 constexpr int ID_UPDATE_PROGRESS = 406;
 constexpr int ID_UPDATE_BRAND = 407;
+constexpr int ID_UPDATE_INSTALLED = 408;
+constexpr int ID_UPDATE_AVAILABLE = 409;
+constexpr int ID_UPDATE_HELP = 410;
+constexpr int ID_UPDATE_TRUST = 411;
+constexpr int ID_UPDATE_INSTALLED_LABEL = 412;
+constexpr int ID_UPDATE_AVAILABLE_LABEL = 413;
+constexpr wchar_t kUiVersion[] = L"v0.2.22";
+inline tcs::ui::Lang UpdateLanguage(){
+    const LANGID lang=GetUserDefaultUILanguage();
+    return PRIMARYLANGID(lang)==LANG_RUSSIAN?tcs::ui::Lang::Russian:
+        PRIMARYLANGID(lang)==LANG_HEBREW?tcs::ui::Lang::Hebrew:
+        tcs::ui::Lang::English;
+}
 struct UpdateCheck {
     HWND window = nullptr;
     HWND status = nullptr;
     HWND progress = nullptr;
+    HWND installed = nullptr;
+    HWND available = nullptr;
+    HWND help = nullptr;
+    HWND trust = nullptr;
     std::wstring result;
     std::wstring url;
     std::wstring tag;
@@ -343,54 +363,98 @@ constexpr int ID_UPDATE_RESULT = 403;
 constexpr int ID_UPDATE_TITLE = 404;
 
 void DrawUpdateButton(const DRAWITEMSTRUCT& item) {
-    RECT rect=item.rcItem;
     const UINT dpi=GetDpiForWindow(item.hwndItem);
-    const auto dp=[dpi](int v){return MulDiv(v,static_cast<int>(dpi),96);};
-    const bool disabled=(item.itemState & ODS_DISABLED)!=0;
-    const bool selected=(item.itemState & ODS_SELECTED)!=0;
-    const bool primary=item.CtlID==ID_UPDATE_INSTALL;
-    const COLORREF fill=disabled?RGB(227,233,242):
-        primary?(selected?RGB(10,137,81):RGB(16,170,93)):
-        (selected?RGB(222,234,250):RGB(247,250,255));
-    const COLORREF ink=disabled?RGB(126,140,160):
-        primary?RGB(255,255,255):RGB(20,57,100);
-    const COLORREF border=primary?fill:RGB(198,215,239);
-    HBRUSH b=CreateSolidBrush(fill);
-    HPEN pen=CreatePen(PS_SOLID,1,border);
-    HGDIOBJ oldPen=SelectObject(item.hDC,pen);
-    HGDIOBJ oldBrush=SelectObject(item.hDC,b);
-    RoundRect(item.hDC,rect.left+1,rect.top+1,rect.right-1,rect.bottom-1,dp(13),dp(13));
-    SelectObject(item.hDC,oldBrush);SelectObject(item.hDC,oldPen);
-    DeleteObject(b);DeleteObject(pen);
-    SetTextColor(item.hDC,ink);SetBkMode(item.hDC,TRANSPARENT);
-    wchar_t text[160]{};
-    GetWindowTextW(item.hwndItem,text,160);
-    RECT label=rect;
-    label.left+=dp(34);
-    label.right-=dp(8);
-    DrawTextW(item.hDC,text,-1,&label,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
-    // Draw vector icons using Win32 GDI: no font glyph/emoji fallback.
-    const int cx=rect.left+dp(20),cy=(rect.top+rect.bottom)/2;
-    HPEN lines=CreatePen(PS_SOLID,(std::max)(1,dp(2)),ink);
-    HGDIOBJ prior=SelectObject(item.hDC,lines);
-    if(item.CtlID==ID_UPDATE_INSTALL) {
-        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx,cy+dp(4));
-        MoveToEx(item.hDC,cx-dp(5),cy,nullptr);LineTo(item.hDC,cx,cy+dp(5));
-        LineTo(item.hDC,cx+dp(5),cy);
-        MoveToEx(item.hDC,cx-dp(7),cy+dp(9),nullptr);LineTo(item.hDC,cx+dp(7),cy+dp(9));
-    } else if(item.CtlID==ID_UPDATE_OPEN) {
-        MoveToEx(item.hDC,cx-dp(7),cy+dp(6),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
-        MoveToEx(item.hDC,cx,cy-dp(8),nullptr);LineTo(item.hDC,cx+dp(7),cy-dp(8));
-        LineTo(item.hDC,cx+dp(7),cy-dp(1));
-    } else {
-        MoveToEx(item.hDC,cx-dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx+dp(5),cy+dp(5));
-        MoveToEx(item.hDC,cx+dp(5),cy-dp(5),nullptr);LineTo(item.hDC,cx-dp(5),cy+dp(5));
-    }
-    SelectObject(item.hDC,prior);DeleteObject(lines);
-    if(item.itemState & ODS_FOCUS) {
-        RECT ring=rect;InflateRect(&ring,-4,-4);
-        DrawFocusRect(item.hDC,&ring);
-    }
+    const bool main=item.CtlID==ID_UPDATE_INSTALL;
+    const auto glyph=main?tcs::ui::Glyph::Download:
+        item.CtlID==ID_UPDATE_OPEN?tcs::ui::Glyph::External:
+        tcs::ui::Glyph::Close;
+    tcs::ui::PaintButton(item,dpi,main,glyph);
+}
+void UpdateLayout(HWND hwnd) {
+    if(!GetDlgItem(hwnd,ID_UPDATE_CLOSE))return;
+    RECT rc{};GetClientRect(hwnd,&rc);
+    const int w=rc.right,h=rc.bottom;
+    const UINT dpi=GetDpiForWindow(hwnd);
+    const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
+    const int margin=dp(21),gap=dp(10);
+    const int inner=(std::max)(dp(260),w-2*margin);
+    const int rowX=margin;
+    const int versionsTop=dp(86),versionsH=dp(71);
+    const int half=(inner-gap)/2;
+    auto position=[&](int id,int x,int y,int width,int height){
+        if(HWND control=GetDlgItem(hwnd,id))
+            MoveWindow(control,x,y,(std::max)(1,width),(std::max)(1,height),TRUE);
+    };
+    position(ID_UPDATE_INSTALLED_LABEL,rowX+dp(16),versionsTop+dp(8),
+             half-dp(24),dp(19));
+    position(ID_UPDATE_INSTALLED,rowX+dp(16),versionsTop+dp(28),
+             half-dp(24),dp(31));
+    position(ID_UPDATE_AVAILABLE_LABEL,rowX+half+gap+dp(16),
+             versionsTop+dp(8),half-dp(24),dp(19));
+    position(ID_UPDATE_AVAILABLE,rowX+half+gap+dp(16),
+             versionsTop+dp(28),half-dp(24),dp(31));
+    const int buttonsY=h-dp(57),buttonH=dp(42);
+    const int mainW=(std::max)(dp(160),(inner-2*gap)*47/100);
+    const int releaseW=(std::max)(dp(120),(inner-2*gap-mainW)*54/100);
+    const int closeW=(std::max)(dp(65),inner-mainW-releaseW-2*gap);
+    position(ID_UPDATE_INSTALL,margin,buttonsY,mainW,buttonH);
+    position(ID_UPDATE_OPEN,margin+mainW+gap,buttonsY,releaseW,buttonH);
+    position(ID_UPDATE_CLOSE,margin+mainW+gap+releaseW+gap,buttonsY,
+             closeW,buttonH);
+    const int statusY=dp(171);
+    const int hintY=buttonsY-dp(31);
+    const int statusH=(std::max)(dp(34),hintY-statusY-dp(5));
+    position(ID_UPDATE_RESULT,margin+dp(17),statusY,inner-dp(34),statusH);
+    position(ID_UPDATE_HELP,margin+dp(17),statusY+dp(39),inner-dp(34),
+             (std::max)(dp(20),statusH-dp(41)));
+    position(ID_UPDATE_TRUST,margin+dp(2),hintY,inner-dp(4),dp(21));
+    position(ID_UPDATE_PROGRESS,margin+dp(2),buttonsY-dp(7),
+             inner-dp(4),dp(5));
+    InvalidateRect(hwnd,nullptr,FALSE);
+}
+void PaintUpdateSurface(HWND hwnd) {
+    PAINTSTRUCT ps{};
+    HDC screen=BeginPaint(hwnd,&ps);
+    if(!screen)return;
+    RECT rc{};GetClientRect(hwnd,&rc);
+    const int w=rc.right,h=rc.bottom;
+    HDC memory=CreateCompatibleDC(screen);
+    HBITMAP bitmap=memory?CreateCompatibleBitmap(screen,w,h):nullptr;
+    HGDIOBJ previous=memory&&bitmap?SelectObject(memory,bitmap):nullptr;
+    HDC dc=memory&&bitmap?memory:screen;
+    HBRUSH canvas=CreateSolidBrush(tcs::visual::Canvas);
+    FillRect(dc,&rc,canvas);DeleteObject(canvas);
+    const UINT dpi=GetDpiForWindow(hwnd);
+    const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
+    const int margin=dp(20),inner=w-2*margin;
+    const int gap=dp(10),half=(inner-gap)/2;
+    HICON icon=reinterpret_cast<HICON>(
+        SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0));
+    const RECT header{margin,dp(12),w-margin,dp(76)};
+    tcs::ui::Header(dc,header,dpi,icon,
+        L"TC Symbolic Links",L"UPDATE MANAGER",kUiVersion);
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin)+.5f,
+        static_cast<float>(dp(86))+.5f,
+        static_cast<float>(half)-1.f,static_cast<float>(dp(71))-1.f),
+        static_cast<float>(dp(11)),tcs::visual::White,tcs::visual::Stroke);
+    tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin+half+gap)+.5f,
+        static_cast<float>(dp(86))+.5f,
+        static_cast<float>(half)-1.f,static_cast<float>(dp(71))-1.f),
+        static_cast<float>(dp(11)),tcs::visual::White,tcs::visual::Stroke);
+    const int statusY=dp(165);
+    const int buttonsY=h-dp(57);
+    const int cardHeight=(std::max)(dp(66),buttonsY-statusY-dp(33));
+    tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin)+.5f,
+        static_cast<float>(statusY)+.5f,
+        static_cast<float>(inner)-1.f,static_cast<float>(cardHeight)-1.f),
+        static_cast<float>(dp(11)),tcs::visual::White,tcs::visual::Stroke);
+    if(dc==memory)BitBlt(screen,0,0,w,h,dc,0,0,SRCCOPY);
+    if(previous)SelectObject(memory,previous);
+    if(bitmap)DeleteObject(bitmap);
+    if(memory)DeleteDC(memory);
+    EndPaint(hwnd,&ps);
 }
 std::shared_ptr<UpdateCheck> CheckFor(HWND hwnd) {
     auto* value=reinterpret_cast<std::shared_ptr<UpdateCheck>*>(
