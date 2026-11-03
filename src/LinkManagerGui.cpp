@@ -236,7 +236,7 @@ void Layout(Ui& u){
                             (std::max)(1,height),TRUE);
     };
     const int right=Dp(u,124);
-    const int depthWidth=Dp(u,92);
+    const int depthWidth=Dp(u,u.ru?136:u.he?124:115);
     const int searchY=Dp(u,u.compact?74:97);
     pos(u.root,m,searchY,w-2*m-right-depthWidth-2*g,line);
     // Win32 CBS_DROPDOWNLIST uses the control's FULL height for its popup.
