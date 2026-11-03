@@ -1399,7 +1399,13 @@ void BeginCreate(HWND hwnd, Ui& state) {
     // entries and mismatched file/directory types are shown in one table.
     state.batchRows=BuildBatchPlan(state,state.selected.size());
     const bool allReady=tcs::batch::AllReady(state.batchRows);
-    if(!tcs::batch::ConfirmPreview(hwnd,state.batchRows,allReady)){
+    // Ordinary single-item F5 keeps the established Total Commander workflow:
+    // no extra modal confirmation when the preflight is clean. Multi-selection,
+    // conflicting names and templates get an explicit full batch preview.
+    const bool needsConfirmation=state.batchRows.size()>1 || !allReady ||
+        GetText(state.namePattern)!=L"{Name}";
+    if(needsConfirmation &&
+       !tcs::batch::ConfirmPreview(hwnd,state.batchRows,allReady)){
         if(!allReady)SetWindowTextW(state.status,state.Choose(
             L"Batch conflicts found. No links created.",
             L"Найдены конфликты. Ссылки не созданы.",
