@@ -5,6 +5,7 @@
 #include "LinkManagerCore.h"
 #include "LinkManagerGui.h"
 #include "TcMakerDensity.h"
+#include "TcMakerWindowState.h"
 #include "BatchPreviewGui.h"
 #include "LinkFailureHelp.h"
 #include "ListParser.h"
@@ -797,29 +798,34 @@ void Layout(HWND hwnd, Ui& s) {
     const int patternStart=leftX;
     const int patternLabelW=Dp(s,compact?56:77);
     const int patternGap=Dp(s,compact?4:7);
-    const int remaining=(width-margin-inset)-patternStart-patternLabelW-
-        5*patternGap;
-    const int unit=(std::max)(Dp(s,31),remaining/6);
+    // Allocate named-action buttons by their actual caption needs.
+    // Previously six identical units clipped "Link Manager" even at 960 DIP.
     place(s.patternLabel,patternStart,patternY+Dp(s,5),
         patternLabelW,patternH-Dp(s,7));
     const int editX=patternStart+patternLabelW+patternGap;
-    place(s.namePattern,editX,patternY,unit*2,patternH);
-    const int previewX=editX+unit*2+patternGap;
-    place(s.batchPreview,previewX,patternY,unit,patternH);
-    const int managerX=previewX+unit+patternGap;
-    place(s.linkManager,managerX,patternY,unit,patternH);
-    const int undoX=managerX+unit+patternGap;
-    place(s.undoLast,undoX,patternY,unit,patternH);
-    const int compactX=undoX+unit+patternGap;
-    place(s.compactToggle,compactX,patternY,unit,patternH);
-    const bool shortLabels=compact || unit<Dp(s,95);
-    SetWindowTextW(s.batchPreview,shortLabels?s.Choose(
+    const int remaining=(width-margin-inset)-editX;
+    const auto row=tcs::maker::density::ResolveNameRow(
+        remaining,static_cast<int>(s.dpi),patternGap,s.ru,s.he);
+    place(s.namePattern,editX,patternY,row.name,patternH);
+    const int previewX=editX+row.name+patternGap;
+    place(s.batchPreview,previewX,patternY,row.preview,patternH);
+    const int managerX=previewX+row.preview+patternGap;
+    place(s.linkManager,managerX,patternY,row.manager,patternH);
+    const int undoX=managerX+row.manager+patternGap;
+    place(s.undoLast,undoX,patternY,row.undo,patternH);
+    const int compactX=undoX+row.undo+patternGap;
+    place(s.compactToggle,compactX,patternY,row.compact,patternH);
+    auto caption=[&](HWND control,const wchar_t* label){
+        // Avoid re-setting text on every WM_SIZE (tooltip/focus flicker).
+        if(control && GetText(control)!=label)SetWindowTextW(control,label);
+    };
+    caption(s.batchPreview,row.shortLabels?s.Choose(
         L"Plan",L"План",L"תכנון"):s.Choose(
         L"Preview",L"Просмотр",L"תצוגה"));
-    SetWindowTextW(s.linkManager,shortLabels?s.Choose(
+    caption(s.linkManager,row.shortLabels?s.Choose(
         L"Links",L"Ссылки",L"קישורים"):s.Choose(
         L"Link Manager",L"Менеджер ссылок",L"מנהל קישורים"));
-    SetWindowTextW(s.undoLast,shortLabels?s.Choose(
+    caption(s.undoLast,row.shortLabels?s.Choose(
         L"Undo",L"Отмена",L"בטל"):s.Choose(
         L"Undo Last",L"Отменить",L"בטל אחרון"));
     const int headingY=Dp(s,layout.headingY);
@@ -989,7 +995,7 @@ void CreateControls(HWND hwnd, Ui& s) {
         WS_TABSTOP | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS |
         LVS_SINGLESEL, ID_SOURCES, WS_EX_CLIENTEDGE);
     ListView_SetExtendedListViewStyle(s.sources,
-        LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+        LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
     ListView_SetBkColor(s.sources, tcs::visual::Field);
     ListView_SetTextBkColor(s.sources, tcs::visual::Field);
     ListView_SetTextColor(s.sources, tcs::visual::Ink);
@@ -1535,13 +1541,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_SIZE:
             if (state && state->sources) Layout(hwnd, *state);
             return 0;
+        case WM_EXITSIZEMOVE:
+            if(state)tcs::maker::window::SaveWindow(hwnd,state->dpi);
+            return 0;
         case WM_GETMINMAXINFO: {
             const UINT dpi = state ? state->dpi : 96;
             auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
+            MONITORINFO monitor{sizeof(monitor)};
+            const HMONITOR nearest=MonitorFromWindow(hwnd,MONITOR_DEFAULTTONEAREST);
             RECT usable{};
-            SystemParametersInfoW(SPI_GETWORKAREA, 0, &usable, 0);
-            info->ptMinTrackSize.x = (std::min)(MulDiv(760, dpi, 96), static_cast<int>(usable.right - usable.left) - 24);
-            info->ptMinTrackSize.y = (std::min)(MulDiv(540, dpi, 96), static_cast<int>(usable.bottom - usable.top) - 24);
+            if(nearest&&GetMonitorInfoW(nearest,&monitor))usable=monitor.rcWork;
+            else SystemParametersInfoW(SPI_GETWORKAREA,0,&usable,0);
+            info->ptMinTrackSize.x=(std::min)(MulDiv(930,dpi,96),
+                (std::max)(480,static_cast<int>(usable.right-usable.left)-24));
+            info->ptMinTrackSize.y=(std::min)(MulDiv(605,dpi,96),
+                (std::max)(350,static_cast<int>(usable.bottom-usable.top)-24));
             return 0;
         }
         case WM_DPICHANGED:
@@ -1749,6 +1763,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_TCS_CREATE_NEXT:
             if (state) ContinueCreate(hwnd, *state);
             return 0;
+        case WM_NOTIFY:
+            if(state && lParam){
+                const auto* header=reinterpret_cast<const NMHDR*>(lParam);
+                if(header->idFrom==ID_SOURCES &&
+                   header->code==LVN_GETINFOTIPW){
+                    auto* tip=reinterpret_cast<NMLVGETINFOTIPW*>(lParam);
+                    if(tip->iItem>=0 &&
+                       static_cast<std::size_t>(tip->iItem)<state->selected.size() &&
+                       tip->pszText && tip->cchTextMax>0){
+                        const auto path=tcs::FullPath(
+                            state->selected[static_cast<std::size_t>(tip->iItem)]);
+                        wcsncpy_s(tip->pszText,
+                            static_cast<std::size_t>(tip->cchTextMax),
+                            path.c_str(),_TRUNCATE);
+                    }
+                    return 0;
+                }
+            }
+            break;
         case WM_COMMAND:
             if(state && LOWORD(wParam)==ID_NAME_PATTERN && HIWORD(wParam)==EN_CHANGE){
                 if(!state->creating)UpdatePreview(*state);
@@ -1837,6 +1870,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             delete state;
             return 0;
         case WM_DESTROY:
+            if(state)tcs::maker::window::SaveWindow(hwnd,state->dpi);
             PostQuitMessage(0);
             return 0;
         default:
@@ -1971,12 +2005,21 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         delete state;
         return 5;
     }
+    // Start with a roomier window on the monitor used to launch TC.
+    // Previous per-user bounds (if any) override these defaults below.
+    MONITORINFO activeMonitor{sizeof(activeMonitor)};
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    const HMONITOR active=MonitorFromPoint(cursor,MONITOR_DEFAULTTOPRIMARY);
     RECT work{};
-    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
-    const int winWidth = (std::min)(MulDiv(960, static_cast<int>(GetDpiForSystem()), 96),
-                                    static_cast<int>(work.right - work.left) - 24);
-    const int winHeight = (std::min)(MulDiv(640, static_cast<int>(GetDpiForSystem()), 96),
-                                     static_cast<int>(work.bottom - work.top) - 24);
+    if(active&&GetMonitorInfoW(active,&activeMonitor))
+        work=activeMonitor.rcWork;
+    else SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
+    const UINT currentDpi=GetDpiForSystem();
+    const int winWidth=(std::min)(MulDiv(1150,static_cast<int>(currentDpi),96),
+        (std::max)(480,static_cast<int>(work.right-work.left)-24));
+    const int winHeight=(std::min)(MulDiv(720,static_cast<int>(currentDpi),96),
+        (std::max)(360,static_cast<int>(work.bottom-work.top)-24));
     // CW_USEDEFAULT can place the bottom F5/Esc strip under the taskbar on
     // compact desktops. Center inside the actual usable work area instead.
     const int centeredX = work.left + (work.right - work.left - winWidth) / 2;
@@ -1990,13 +2033,20 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
         // WM_NCDESTROY may already have freed state during failed creation.
         return 6;
     }
+    // Restore the exact last normal size and position for this user, keeping
+    // it visible if display count/resolution/DPI changed since last launch.
+    tcs::maker::window::SavedPlacement saved{};
+    bool restoredMaximized=false;
+    const bool restored=tcs::maker::window::Load(saved) &&
+        tcs::maker::window::Restore(window,saved,&restoredMaximized);
     // Explicit per-window icons matter to the Windows taskbar in rundll32
     // hosts, even if class icons were registered before the Maker opened.
     if (cls.hIcon) SendMessageW(window, WM_SETICON, ICON_BIG,
                                reinterpret_cast<LPARAM>(cls.hIcon));
     if (cls.hIconSm) SendMessageW(window, WM_SETICON, ICON_SMALL,
                                  reinterpret_cast<LPARAM>(cls.hIconSm));
-    ShowWindow(window, show == SW_HIDE ? SW_SHOWNORMAL : show);
+    ShowWindow(window,restored&&restoredMaximized?
+        SW_SHOWMAXIMIZED:(show==SW_HIDE?SW_SHOWNORMAL:show));
     UpdateWindow(window);
     // The exact same F5 and Esc shortcuts appear on the bottom buttons.
     ACCEL mappings[] = {
