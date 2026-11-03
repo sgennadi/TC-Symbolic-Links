@@ -226,10 +226,19 @@ void Layout(Ui& u){
         x+=available+g;
     }
 }
-void Build(Ui& u){
-    u.font=CreateFontW(-MulDiv(9,static_cast<int>(u.dpi),72),0,0,0,FW_NORMAL,
+void ApplyFont(Ui& u){
+    HFONT next=CreateFontW(-MulDiv(9,static_cast<int>(u.dpi),72),0,0,0,FW_NORMAL,
         FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    if(!next)return;
+    for(HWND control:{u.root,u.depth,u.find,u.table,u.info,u.target,u.status,
+        u.open,u.copy,u.copyRelative,u.repair,u.close})
+        if(control)SendMessageW(control,WM_SETFONT,
+            reinterpret_cast<WPARAM>(next),TRUE);
+    if(u.font)DeleteObject(u.font);
+    u.font=next;
+}
+void Build(Ui& u){
     u.root=Ctrl(u.window,L"EDIT",L"",WS_BORDER|WS_TABSTOP|ES_AUTOHSCROLL,ID_ROOT);
     u.depth=Ctrl(u.window,L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_TABSTOP,ID_DEPTH);
     for(const wchar_t* item:{L"1 level",L"3 levels",L"6 levels"})
@@ -268,10 +277,7 @@ void Build(Ui& u){
         L"תקן"),WS_TABSTOP,ID_REPAIR);
     u.close=Ctrl(u.window,L"BUTTON",u.L(L"Close",L"Закрыть",
         L"סגור"),WS_TABSTOP,ID_CLOSE);
-    for(HWND control:{u.root,u.depth,u.find,u.table,u.info,u.target,u.status,
-        u.open,u.copy,u.copyRelative,u.repair,u.close})
-        if(control && u.font)SendMessageW(control,WM_SETFONT,
-            reinterpret_cast<WPARAM>(u.font),TRUE);
+    ApplyFont(u);
     Details(u);
 }
 LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
@@ -283,13 +289,14 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         return TRUE;
     }
     switch(msg){
-        case WM_CREATE:if(u){Build(*u);Layout(*u);}return 0;
+        case WM_CREATE:if(u){u->dpi=GetDpiForWindow(hwnd);Build(*u);Layout(*u);}return 0;
         case WM_SIZE:if(u&&u->table)Layout(*u);return 0;
         case WM_DPICHANGED:if(u){
             u->dpi=HIWORD(wp);
             const RECT* r=reinterpret_cast<const RECT*>(lp);
             SetWindowPos(hwnd,nullptr,r->left,r->top,
                 r->right-r->left,r->bottom-r->top,SWP_NOACTIVATE|SWP_NOZORDER);
+            ApplyFont(*u);
             Layout(*u);
         }return 0;
         case WM_GETMINMAXINFO:if(u){
