@@ -534,8 +534,9 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     if(message==WM_TCS_UPDATE_PROGRESS) {
         if(check && check->busy) {
             if(check->progress)SendMessageW(check->progress,PBM_SETPOS,wParam,0);
-            UpdateStatus(hwnd,L"Downloading verified release... "+
-                std::to_wstring(wParam)+L"%");
+            UpdateStatus(hwnd,tcs::ui::Translate(UpdateLanguage(),
+                L"Downloading release... ",L"Загрузка релиза... ",
+                L"מוריד גרסה... ")+std::to_wstring(wParam)+L"%");
         }
         return 0;
     }
@@ -545,8 +546,12 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
             if(!check->stageOkay) {
                 UpdateStatus(hwnd,check->stage.description);
                 if(check->progress)ShowWindow(check->progress,SW_HIDE);
-                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))
+                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)){
+                    const auto copy=tcs::ui::Translate(UpdateLanguage(),
+                        L"Retry update",L"Повторить",L"נסה שוב");
+                    SetWindowTextW(install,copy.c_str());
                     EnableWindow(install,TRUE);
+                }
             } else {
                 UpdateStatus(hwnd,L"SHA-256 verified. Starting protected native installer...");
                 const auto module=ModuleFile(OwnModule());
@@ -561,8 +566,15 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
                 } else {
                     UpdateStatus(hwnd,L"Update could not start: "+error);
                 }
-                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))
+                if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)){
+                    const auto copy=launched?
+                        tcs::ui::Translate(UpdateLanguage(),L"Install pending",
+                            L"Установка ожидает",L"ההתקנה ממתינה"):
+                        tcs::ui::Translate(UpdateLanguage(),L"Retry update",
+                            L"Повторить",L"נסה שוב");
+                    SetWindowTextW(install,copy.c_str());
                     EnableWindow(install,!launched);
+                }
             }
         }
         return 0;
@@ -579,7 +591,12 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
            (check->newer||check->canReinstall) && !check->busy &&
            !check->installationStarted) {
             check->busy=true;
-            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL))EnableWindow(install,FALSE);
+            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)){
+                const auto copy=tcs::ui::Translate(UpdateLanguage(),
+                    L"Downloading...",L"Загрузка...",L"מוריד...");
+                SetWindowTextW(install,copy.c_str());
+                EnableWindow(install,FALSE);
+            }
             if(check->progress) {
                 ShowWindow(check->progress,SW_SHOW);
                 SendMessageW(check->progress,PBM_SETPOS,0,0);
@@ -605,20 +622,34 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
             DestroyWindow(hwnd);return 0;
         }
     }
+    if(message==WM_PAINT){PaintUpdateSurface(hwnd);return 0;}
+    if(message==WM_ERASEBKGND)return TRUE;
+    if(message==WM_SIZE){UpdateLayout(hwnd);return 0;}
+    if(message==WM_DPICHANGED){
+        const RECT* suggested=reinterpret_cast<const RECT*>(lParam);
+        SetWindowPos(hwnd,nullptr,suggested->left,suggested->top,
+            suggested->right-suggested->left,
+            suggested->bottom-suggested->top,
+            SWP_NOZORDER|SWP_NOACTIVATE);
+        if(check)ApplyUpdateFonts(hwnd,*check);
+        UpdateLayout(hwnd);
+        return 0;
+    }
     if(message==WM_CTLCOLORSTATIC) {
         HDC dc=reinterpret_cast<HDC>(wParam);
-        HWND control=reinterpret_cast<HWND>(lParam);
-        if(GetDlgCtrlID(control)==ID_UPDATE_TITLE ||
-           GetDlgCtrlID(control)==ID_UPDATE_BRAND) {
-            SetTextColor(dc,RGB(255,255,255));
-            SetBkColor(dc,RGB(14,76,154));
-            static HBRUSH blue=CreateSolidBrush(RGB(14,76,154));
-            return reinterpret_cast<LRESULT>(blue);
+        const int id=GetDlgCtrlID(reinterpret_cast<HWND>(lParam));
+        static HBRUSH white=CreateSolidBrush(tcs::visual::White);
+        static HBRUSH canvas=CreateSolidBrush(tcs::visual::Canvas);
+        SetBkMode(dc,TRANSPARENT);
+        if(id==ID_UPDATE_TRUST){
+            SetTextColor(dc,tcs::visual::Muted);
+            return reinterpret_cast<LRESULT>(canvas);
         }
-        SetTextColor(dc,RGB(25,47,78));
-        SetBkColor(dc,RGB(245,248,253));
-        static HBRUSH pale=CreateSolidBrush(RGB(245,248,253));
-        return reinterpret_cast<LRESULT>(pale);
+        SetTextColor(dc,id==ID_UPDATE_AVAILABLE||id==ID_UPDATE_INSTALLED?
+            tcs::visual::Navy:id==ID_UPDATE_INSTALLED_LABEL||
+            id==ID_UPDATE_AVAILABLE_LABEL||id==ID_UPDATE_HELP?
+            tcs::visual::Muted:tcs::visual::Ink);
+        return reinterpret_cast<LRESULT>(white);
     }
     if(message==WM_CLOSE){DestroyWindow(hwnd);return 0;}
     // Secondary window must not issue WM_QUIT to the Link Maker.
