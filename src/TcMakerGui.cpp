@@ -715,8 +715,9 @@ void Layout(HWND hwnd, Ui& s) {
     GetClientRect(hwnd, &rc);
     const int width = rc.right - rc.left;
     const int height = rc.bottom - rc.top;
-    const int margin = Dp(s, 15);
-    const int gap = Dp(s, 14);
+    const bool compact=s.compact || width<Dp(s,840) || height<Dp(s,555);
+    const int margin=Dp(s,compact?11:15);
+    const int gap=Dp(s,compact?9:14);
     const int usable = (std::max)(Dp(s, 320), width - 2 * margin);
     const int cardWidth = (usable - gap) / 2;
     const int cardRightX = margin + cardWidth + gap;
@@ -732,10 +733,10 @@ void Layout(HWND hwnd, Ui& s) {
     };
     // The blue/green rounded banner is painted in WM_PAINT, not by
     // transparent STATIC controls (which erase the gradient on Windows).
-    const int toolsY = Dp(s, 122);
+    const int toolsY=Dp(s,compact?110:122);
     const int labelWidth = Dp(s, 86);
-    const int kindWidth = (std::min)(Dp(s, 344),
-        (std::max)(Dp(s, 245), usable / 2 - labelWidth));
+    const int kindWidth=(std::min)(Dp(s,344),
+        (std::max)(Dp(s,158),usable/2-labelWidth-Dp(s,15)));
     place(s.labelKind, leftX, toolsY + Dp(s, 7), labelWidth, Dp(s, 23));
     place(s.kind, leftX + labelWidth, toolsY + Dp(s, 1),
           kindWidth, Dp(s, 300));
@@ -743,14 +744,44 @@ void Layout(HWND hwnd, Ui& s) {
     place(s.relative, checkX, toolsY + Dp(s, 5),
           (std::max)(Dp(s, 105), width - margin - inset - checkX), Dp(s, 25));
 
-    const int headingY = Dp(s, 190);
+    const int patternY=Dp(s,compact?144:159);
+    const int patternH=Dp(s,compact?27:29);
+    const int patternStart=leftX;
+    const int patternLabelW=Dp(s,compact?56:77);
+    const int patternGap=Dp(s,compact?4:7);
+    const int remaining=(width-margin-inset)-patternStart-patternLabelW-
+        5*patternGap;
+    const int unit=(std::max)(Dp(s,31),remaining/6);
+    place(s.patternLabel,patternStart,patternY+Dp(s,5),
+        patternLabelW,patternH-Dp(s,7));
+    const int editX=patternStart+patternLabelW+patternGap;
+    place(s.namePattern,editX,patternY,unit*2,patternH);
+    const int previewX=editX+unit*2+patternGap;
+    place(s.batchPreview,previewX,patternY,unit,patternH);
+    const int managerX=previewX+unit+patternGap;
+    place(s.linkManager,managerX,patternY,unit,patternH);
+    const int undoX=managerX+unit+patternGap;
+    place(s.undoLast,undoX,patternY,unit,patternH);
+    const int compactX=undoX+unit+patternGap;
+    place(s.compactToggle,compactX,patternY,unit,patternH);
+    const bool shortLabels=compact || unit<Dp(s,95);
+    SetWindowTextW(s.batchPreview,shortLabels?s.Choose(
+        L"Plan",L"План",L"תכנון"):s.Choose(
+        L"Preview",L"Просмотр",L"תצוגה"));
+    SetWindowTextW(s.linkManager,shortLabels?s.Choose(
+        L"Links",L"Ссылки",L"קישורים"):s.Choose(
+        L"Link Manager",L"Менеджер ссылок",L"מנהל קישורים"));
+    SetWindowTextW(s.undoLast,shortLabels?s.Choose(
+        L"Undo",L"Отмена",L"בטל"):s.Choose(
+        L"Undo Last",L"Отменить",L"בטל אחרון"));
+    const int headingY=Dp(s,compact?178:199);
     place(s.sourceGlyph, leftX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
     place(s.labelSources, leftX + Dp(s, 29), headingY,
           leftWidth - Dp(s, 29), Dp(s, 22));
     place(s.targetGlyph, rightX, headingY - Dp(s, 2), Dp(s, 24), Dp(s, 24));
     place(s.labelResults, rightX + Dp(s, 29), headingY,
           rightWidth - Dp(s, 29), Dp(s, 22));
-    const int pathY = Dp(s, 220);
+    const int pathY=Dp(s,compact?207:228);
     const int pathH = Dp(s, 40);
     const int fieldPad = Dp(s, 10);
     const int browseGap = Dp(s, 9);
@@ -766,7 +797,7 @@ void Layout(HWND hwnd, Ui& s) {
           browseWidth, pathH);
 
     const int paneY = pathY + pathH + Dp(s, 9);
-    const int paneBottom = height - Dp(s, 174);
+    const int paneBottom=height-Dp(s,compact?158:174);
     const int paneHeight = (std::max)(Dp(s, 64), paneBottom - paneY);
     place(s.sources, leftX, paneY, leftWidth, paneHeight);
     place(s.results, rightX, paneY, rightWidth, paneHeight);
@@ -1448,8 +1479,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             FillRect(dc, &client, canvas);
             DeleteObject(canvas);
             if (state) {
-                const int margin = Dp(*state, 15);
-                const int gap = Dp(*state, 14);
+                const bool compact=state->compact ||
+                    cw<Dp(*state,840) || ch<Dp(*state,555);
+                const int margin=Dp(*state,compact?11:15);
+                const int gap=Dp(*state,compact?9:14);
                 const std::wstring subtitle =
                     std::to_wstring(state->selected.size()) + L" " + state->Choose(
                     L"selected  |  Existing items are never overwritten",
@@ -1470,7 +1503,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     actionLeft = actionRect.left;
                 }
                 tcs::visual::FormPanels(dc, client, state->dpi,
-                    margin, gap, Dp(*state, 175),
+                    margin, gap, Dp(*state,compact?168:185),
                     client.bottom - Dp(*state, 161),
                     Dp(*state, 113), Dp(*state, 50),
                     state->hasRun, state->failed != 0,
