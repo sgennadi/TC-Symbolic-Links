@@ -379,8 +379,9 @@ void UpdateLayout(HWND hwnd) {
     const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
     const int margin=dp(21),gap=dp(10);
     const int inner=(std::max)(dp(260),w-2*margin);
+    const bool tight=h<dp(310);
     const int rowX=margin;
-    const int versionsTop=dp(86),versionsH=dp(71);
+    const int versionsTop=dp(tight?75:86);
     const int half=(inner-gap)/2;
     auto position=[&](int id,int x,int y,int width,int height){
         if(HWND control=GetDlgItem(hwnd,id))
@@ -388,12 +389,12 @@ void UpdateLayout(HWND hwnd) {
     };
     position(ID_UPDATE_INSTALLED_LABEL,rowX+dp(16),versionsTop+dp(8),
              half-dp(24),dp(19));
-    position(ID_UPDATE_INSTALLED,rowX+dp(16),versionsTop+dp(28),
-             half-dp(24),dp(31));
+    position(ID_UPDATE_INSTALLED,rowX+dp(16),versionsTop+dp(tight?25:28),
+             half-dp(24),dp(tight?26:31));
     position(ID_UPDATE_AVAILABLE_LABEL,rowX+half+gap+dp(16),
              versionsTop+dp(8),half-dp(24),dp(19));
     position(ID_UPDATE_AVAILABLE,rowX+half+gap+dp(16),
-             versionsTop+dp(28),half-dp(24),dp(31));
+             versionsTop+dp(tight?25:28),half-dp(24),dp(tight?26:31));
     const int buttonsY=h-dp(57),buttonH=dp(42);
     const int mainW=(std::max)(dp(160),(inner-2*gap)*47/100);
     const int releaseW=(std::max)(dp(120),(inner-2*gap-mainW)*54/100);
@@ -402,12 +403,12 @@ void UpdateLayout(HWND hwnd) {
     position(ID_UPDATE_OPEN,margin+mainW+gap,buttonsY,releaseW,buttonH);
     position(ID_UPDATE_CLOSE,margin+mainW+gap+releaseW+gap,buttonsY,
              closeW,buttonH);
-    const int statusY=dp(171);
-    const int hintY=buttonsY-dp(31);
-    const int statusH=(std::max)(dp(34),hintY-statusY-dp(5));
-    position(ID_UPDATE_RESULT,margin+dp(17),statusY,inner-dp(34),statusH);
-    position(ID_UPDATE_HELP,margin+dp(17),statusY+dp(39),inner-dp(34),
-             (std::max)(dp(20),statusH-dp(41)));
+    const int statusY=dp(tight?143:171);
+    const int hintY=buttonsY-dp(tight?27:31);
+    const int helpY=statusY+dp(27);
+    position(ID_UPDATE_RESULT,margin+dp(17),statusY,inner-dp(34),dp(24));
+    position(ID_UPDATE_HELP,margin+dp(17),helpY,inner-dp(34),
+             (std::max)(dp(18),hintY-helpY-dp(6)));
     position(ID_UPDATE_TRUST,margin+dp(2),hintY,inner-dp(4),dp(21));
     position(ID_UPDATE_PROGRESS,margin+dp(2),buttonsY-dp(7),
              inner-dp(4),dp(5));
@@ -428,25 +429,26 @@ void PaintUpdateSurface(HWND hwnd) {
     const UINT dpi=GetDpiForWindow(hwnd);
     const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
     const int margin=dp(20),inner=w-2*margin;
+    const bool tight=h<dp(310);
     const int gap=dp(10),half=(inner-gap)/2;
     HICON icon=reinterpret_cast<HICON>(
         SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0));
-    const RECT header{margin,dp(12),w-margin,dp(76)};
+    const RECT header{margin,dp(tight?9:12),w-margin,dp(tight?65:76)};
     tcs::ui::Header(dc,header,dpi,icon,
         L"TC Symbolic Links",L"UPDATE MANAGER",kUiVersion);
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin)+.5f,
-        static_cast<float>(dp(86))+.5f,
-        static_cast<float>(half)-1.f,static_cast<float>(dp(71))-1.f),
+        static_cast<float>(dp(tight?75:86))+.5f,
+        static_cast<float>(half)-1.f,static_cast<float>(dp(tight?61:71))-1.f),
         static_cast<float>(dp(11)),tcs::visual::White,tcs::visual::Stroke);
     tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin+half+gap)+.5f,
-        static_cast<float>(dp(86))+.5f,
-        static_cast<float>(half)-1.f,static_cast<float>(dp(71))-1.f),
+        static_cast<float>(dp(tight?75:86))+.5f,
+        static_cast<float>(half)-1.f,static_cast<float>(dp(tight?61:71))-1.f),
         static_cast<float>(dp(11)),tcs::visual::White,tcs::visual::Stroke);
-    const int statusY=dp(165);
+    const int statusY=dp(tight?138:165);
     const int buttonsY=h-dp(57);
-    const int cardHeight=(std::max)(dp(66),buttonsY-statusY-dp(33));
+    const int cardHeight=(std::max)(dp(52),buttonsY-statusY-dp(tight?29:33));
     tcs::visual::Card(g,Gdiplus::RectF(static_cast<float>(margin)+.5f,
         static_cast<float>(statusY)+.5f,
         static_cast<float>(inner)-1.f,static_cast<float>(cardHeight)-1.f),
