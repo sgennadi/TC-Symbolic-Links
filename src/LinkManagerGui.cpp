@@ -13,6 +13,7 @@
 namespace tcs::manager {
 namespace {
 constexpr wchar_t kClass[]=L"TCSLinkManager020";
+constexpr UINT WM_TCS_MANAGER_INITIAL_SCAN=WM_APP+0x560;
 enum {ID_ROOT=301,ID_FIND=302,ID_DEPTH=303,ID_TABLE=304,
       ID_STATUS=305,ID_NEW_TARGET=306,ID_OPEN=307,ID_COPY=308,
       ID_COPY_REL=309,ID_REPAIR=310,ID_CLOSE=311,ID_REFRESH=312,
@@ -47,7 +48,8 @@ void SetStatus(Ui& u,const std::wstring& msg){
 HWND Ctrl(HWND parent,const wchar_t* name,const wchar_t* title,DWORD style,int id){
     return CreateWindowExW(0,name,title,style|WS_CHILD|WS_VISIBLE,
         0,0,0,0,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-        GetModuleHandleW(nullptr),nullptr);
+        reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(parent,GWLP_HINSTANCE)),
+        nullptr);
 }
 int Selected(const Ui& u){
     if(!u.table)return -1;
@@ -278,6 +280,10 @@ void Build(Ui& u){
     u.close=Ctrl(u.window,L"BUTTON",u.L(L"Close",L"Закрыть",
         L"סגור"),WS_TABSTOP,ID_CLOSE);
     ApplyFont(u);
+    SetStatus(u,u.L(
+        L"Choose a folder and Find links. Existing folders are scanned automatically.",
+        L"Выберите папку и нажмите «Найти ссылки». Существующие папки сканируются автоматически.",
+        L"בחר תיקייה וחפש קישורים. תיקיות קיימות נסרקות אוטומטית."));
     Details(u);
 }
 LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
@@ -289,8 +295,21 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         return TRUE;
     }
     switch(msg){
-        case WM_CREATE:if(u){u->dpi=GetDpiForWindow(hwnd);Build(*u);Layout(*u);}return 0;
+        case WM_CREATE:if(u){
+            // CreateWindowExW dispatches WM_CREATE BEFORE returning. At this
+            // moment ShowLinkManager has NOT assigned u.window yet. All child
+            // controls previously received a NULL parent and were invisible.
+            u->window=hwnd;
+            u->dpi=GetDpiForWindow(hwnd);
+            Build(*u);
+            Layout(*u);
+        }return 0;
         case WM_SIZE:if(u&&u->table)Layout(*u);return 0;
+        case WM_TCS_MANAGER_INITIAL_SCAN:
+            if(u&&u->root&&u->table &&
+               tcs::IsExistingDirectory(Text(u->root)))
+                ScanFolder(*u);
+            return 0;
         case WM_DPICHANGED:if(u){
             u->dpi=HIWORD(wp);
             const RECT* r=reinterpret_cast<const RECT*>(lp);
@@ -347,10 +366,11 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     wc.hIconSm=static_cast<HICON>(LoadImageW(self,MAKEINTRESOURCEW(101),
         IMAGE_ICON,16,16,LR_DEFAULTCOLOR));
     wc.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);
-    RegisterClassExW(&wc);
+    if(!RegisterClassExW(&wc) &&
+       GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
     RECT work{};SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
-    const int maxWidth=(std::max)(640,int(work.right-work.left)-25);
-    const int maxHeight=(std::max)(480,int(work.bottom-work.top)-25);
+    const int maxWidth=(std::max)(320,int(work.right-work.left)-25);
+    const int maxHeight=(std::max)(260,int(work.bottom-work.top)-25);
     const int width=(std::min)(960,maxWidth);
     const int height=(std::min)(600,maxHeight);
     const int left=work.left+(int(work.right-work.left)-width)/2;
@@ -373,6 +393,10 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     }
     ShowWindow(u.window,SW_SHOW);
     UpdateWindow(u.window);
+    // Display the native controls before starting a bounded disk/SMB scan.
+    // A slow enumeration must not produce an all-white modal frame.
+    if(!initialFolder.empty())
+        PostMessageW(u.window,WM_TCS_MANAGER_INITIAL_SCAN,0,0);
     if(owner)EnableWindow(owner,FALSE);
     MSG msg{};
     bool quitting=false;
