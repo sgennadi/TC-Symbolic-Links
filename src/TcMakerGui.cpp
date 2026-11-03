@@ -1,6 +1,10 @@
 // Native HiDPI Unicode link maker hosted inside the WDX DLL.
 // One window for file/directory symlinks, directory junctions and hardlinks.
 #include "LinkCore.h"
+#include "LinkBatchPlan.h"
+#include "LinkManagerCore.h"
+#include "LinkManagerGui.h"
+#include "BatchPreviewGui.h"
 #include "LinkFailureHelp.h"
 #include "ListParser.h"
 #include "TcMakerGui.h"
@@ -40,6 +44,11 @@ constexpr int ID_TARGET_GLYPH = 113;
 constexpr int ID_STATUS_GLYPH = 114;
 constexpr int ID_BROWSE = 115;
 constexpr int ID_UPDATE = 116;
+constexpr int ID_NAME_PATTERN = 117;
+constexpr int ID_BATCH_PREVIEW = 118;
+constexpr int ID_LINK_MANAGER = 119;
+constexpr int ID_UNDO_LAST = 120;
+constexpr int ID_COMPACT = 121;
 constexpr UINT_PTR ID_ANIMATION_TIMER = 7301;
 constexpr UINT WM_TCS_CREATE_NEXT = WM_APP + 41;
 constexpr UINT WM_TCS_TEST_TOOLTIPS = WM_APP + 80; // read-only CI diagnostic
@@ -114,6 +123,15 @@ struct Ui {
     HWND create = nullptr;
     HWND close = nullptr;
     HWND update = nullptr;
+    HWND patternLabel = nullptr;
+    HWND namePattern = nullptr;
+    HWND batchPreview = nullptr;
+    HWND linkManager = nullptr;
+    HWND undoLast = nullptr;
+    HWND compactToggle = nullptr;
+    bool compact = false;
+    std::vector<tcs::batch::Row> batchRows;
+    std::vector<tcs::manager::Identity> undoItems;
     HWND tooltip = nullptr; // one native tooltip window, many owned controls
     int tooltipCount = 0;
     std::vector<std::wstring> selected;
@@ -216,14 +234,16 @@ void RecreateFont(Ui& state) {
     if (!state.fontIcon) state.fontIcon = oldIcon;
     for (HWND item : {state.sources, state.sourcePath, state.destination, state.kind,
                       state.browse,
-                      state.relative, state.results, state.create, state.close, state.update}) {
+                      state.relative, state.results, state.create, state.close, state.update,
+                      state.namePattern, state.batchPreview, state.linkManager,
+                      state.undoLast, state.compactToggle}) {
         if (item && state.font) SendMessageW(item, WM_SETFONT,
                                              reinterpret_cast<WPARAM>(state.font), TRUE);
     }
     if (state.title && state.fontTitle) SendMessageW(state.title, WM_SETFONT,
                                                      reinterpret_cast<WPARAM>(state.fontTitle), TRUE);
     for (HWND item : {state.labelSources, state.labelDestination, state.labelKind,
-                      state.labelResults}) {
+                      state.labelResults, state.patternLabel}) {
         if (item && state.fontLabel) SendMessageW(item, WM_SETFONT,
                                                   reinterpret_cast<WPARAM>(state.fontLabel), TRUE);
     }
