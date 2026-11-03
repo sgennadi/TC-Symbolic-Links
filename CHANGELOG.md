@@ -1,3 +1,15 @@
+## 0.2.20 Link Manager (2026-11-03)
+
+- Smart Batch Preview for multi-item/custom-name batches, conflict and source-type preflight, existing file protection.
+- Custom names `{Name}`, `{Stem}`, `{Ext}`, `{Index}` with validation.
+- Link Finder and Health status, bounded read-only scanning without traversing symlink directories.
+- Link Actions: open target, copy target path, copy relative path.
+- Undo Last Batch only removes verified unchanged created link objects. Preserve original targets.
+- Repair Broken Links: local-only manual repair with identity check, rollback and backup path.
+- Compact/DPI-adaptive UI and new dialogs embedded inside one WDX.
+- Four additional WDX fields and plugin-owned custom columns preset.
+- Standard x86/x64 one ZIP. No SSH, no Samba configuration changes, no companion EXE/CMD.
+
 ## 0.2.19 Stable — clearer error guidance and safer native updater (2026-11-02)
 
 - Expand Windows, Windows SMB and Samba error explanations in English, Russian and Hebrew: possible causes, full source and link paths, type of operation and concrete checks.
