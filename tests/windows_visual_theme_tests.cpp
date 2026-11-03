@@ -1,6 +1,7 @@
 // Offline rendering validation of the Nipkg-Creator-inspired Win32 UI.
 // Works without an interactive Total Commander desktop.
 #include "TcVisualTheme.h"
+#include "TcUiGraphics.h"
 #include <windows.h>
 #include <gdiplus.h>
 #include <iostream>
@@ -100,6 +101,38 @@ int main() {
             const COLORREF failure = GetPixel(screen.dc, 425, 369);
             Check(GetRValue(failure) > GetGValue(failure),
                   "Failure status card did not show soft red");
+        }
+        {
+            Surface dialogs(690, 440);
+            const RECT header{15,15,675,88};
+            tcs::ui::Header(dialogs.dc,header,96,nullptr,
+                L"TC Symbolic Links",L"UPDATE MANAGER",L"v0.2.22");
+            const COLORREF left=GetPixel(dialogs.dc,36,52);
+            const COLORREF right=GetPixel(dialogs.dc,637,52);
+            Check(left!=CLR_INVALID && right!=CLR_INVALID &&
+                  GetBValue(right)>GetBValue(left)+35,
+                  "Updater gradient/rounded header lost its visual hierarchy");
+            const RECT blank{28,110,662,290};
+            tcs::ui::EmptyState(dialogs.dc,blank,96,
+                L"No links found",L"Try another folder or increase search depth.");
+            const COLORREF white=GetPixel(dialogs.dc,45,120);
+            Check(white==tcs::visual::White,
+                  "Link Manager illustrated empty state should have white surface");
+            HWND button=CreateWindowW(L"BUTTON",L"Update to v0.2.22",
+                BS_OWNERDRAW,0,0,220,44,HWND_MESSAGE,nullptr,
+                GetModuleHandleW(nullptr),nullptr);
+            Check(button!=nullptr,"Could not create native ownerdraw button");
+            DRAWITEMSTRUCT draw{};
+            draw.CtlType=ODT_BUTTON;
+            draw.CtlID=405;
+            draw.hwndItem=button;
+            draw.hDC=dialogs.dc;
+            draw.rcItem=RECT{26,320,280,366};
+            tcs::ui::PaintButton(draw,96,true,tcs::ui::Glyph::Download);
+            const COLORREF primary=GetPixel(dialogs.dc,250,343);
+            Check(GetBValue(primary)>GetRValue(primary)+70,
+                  "Primary update action should be clearly blue");
+            DestroyWindow(button);
         }
         {
             Surface dpi2(1280, 270);
