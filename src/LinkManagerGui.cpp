@@ -21,6 +21,28 @@ enum {ID_ROOT=301,ID_FIND=302,ID_DEPTH=303,ID_TABLE=304,
       ID_STATUS=305,ID_NEW_TARGET=306,ID_OPEN=307,ID_COPY=308,
       ID_COPY_REL=309,ID_REPAIR=310,ID_CLOSE=311,ID_REFRESH=312,
       ID_INFO=313,ID_EMPTY=314};
+constexpr wchar_t kDepthSettings[]=L"Software\\TCSymbolicLinks\\LinkManager";
+constexpr wchar_t kDepthValue[]=L"ScanDepth";
+unsigned DepthFromIndex(int index) noexcept {
+    return index==0?1u:index==2?6u:3u;
+}
+int LoadDepthIndex() noexcept {
+    DWORD value=3,bytes=sizeof(value);
+    if(RegGetValueW(HKEY_CURRENT_USER,kDepthSettings,kDepthValue,
+        RRF_RT_REG_DWORD,nullptr,&value,&bytes)!=ERROR_SUCCESS)
+        return 1;
+    return value==1?0:value==6?2:1;
+}
+void SaveDepthIndex(int index) noexcept {
+    HKEY key=nullptr;
+    if(RegCreateKeyExW(HKEY_CURRENT_USER,kDepthSettings,0,nullptr,
+        REG_OPTION_NON_VOLATILE,KEY_SET_VALUE,nullptr,&key,nullptr)!=ERROR_SUCCESS)
+        return;
+    const DWORD value=DepthFromIndex(index);
+    RegSetValueExW(key,kDepthValue,0,REG_DWORD,
+        reinterpret_cast<const BYTE*>(&value),sizeof(value));
+    RegCloseKey(key);
+}
 struct Ui {
     HWND window=nullptr,owner=nullptr,root=nullptr,depth=nullptr,table=nullptr;
     HWND status=nullptr,target=nullptr,info=nullptr;
@@ -125,7 +147,7 @@ void ScanFolder(Ui& u){
         return;
     }
     const int depthIndex=static_cast<int>(SendMessageW(u.depth,CB_GETCURSEL,0,0));
-    const unsigned depth=depthIndex==0?1u:depthIndex==1?3u:6u;
+    const unsigned depth=DepthFromIndex(depthIndex);
     SetStatus(u,u.L(L"Scanning (bounded, no directory link traversal)...",
         L"Поиск (с ограничением, без перехода по ссылкам на папки)...",
         L"סריקה מוגבלת, ללא מעבר בקישורים לתיקיות..."));
@@ -217,7 +239,12 @@ void Layout(Ui& u){
     const int depthWidth=Dp(u,92);
     const int searchY=Dp(u,u.compact?74:97);
     pos(u.root,m,searchY,w-2*m-right-depthWidth-2*g,line);
-    pos(u.depth,w-m-right-depthWidth-g,searchY,depthWidth,line);
+    // Win32 CBS_DROPDOWNLIST uses the control's FULL height for its popup.
+    // Previously this was only one row (29/33 DIP): the arrow appeared but
+    // all list choices were clipped. Reserve a list large enough for 3 rows.
+    // The collapsed ComboBox still displays one normal-height line.
+    pos(u.depth,w-m-right-depthWidth-g,searchY,depthWidth,
+        line+Dp(u,110));
     pos(u.find,w-m-right,searchY,right,line);
     const int tableY=searchY+line+g;
     const int tableBottom=h-m-button-Dp(u,u.compact?96:119);
@@ -302,10 +329,19 @@ void ApplyFont(Ui& u){
 }
 void Build(Ui& u){
     u.root=Ctrl(u.window,L"EDIT",L"",WS_BORDER|WS_TABSTOP|ES_AUTOHSCROLL,ID_ROOT);
-    u.depth=Ctrl(u.window,L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_TABSTOP,ID_DEPTH);
-    for(const wchar_t* item:{L"1 level",L"3 levels",L"6 levels"})
-        SendMessageW(u.depth,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(item));
-    SendMessageW(u.depth,CB_SETCURSEL,1,0);
+    u.depth=Ctrl(u.window,L"COMBOBOX",L"",
+        CBS_DROPDOWNLIST|WS_TABSTOP|WS_VSCROLL,ID_DEPTH);
+    if(u.depth){
+        for(const wchar_t* item:{
+            u.L(L"1 level",L"1 уровень",L"רמה 1"),
+            u.L(L"3 levels",L"3 уровня",L"3 רמות"),
+            u.L(L"6 levels",L"6 уровней",L"6 רמות")})
+            SendMessageW(u.depth,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(item));
+        // On modern Windows this ensures at least three options when opened.
+        // The full-height MoveWindow in Layout is also required.
+        SendMessageW(u.depth,CB_SETMINVISIBLE,3,0);
+        SendMessageW(u.depth,CB_SETCURSEL,LoadDepthIndex(),0);
+    }
     u.find=Ctrl(u.window,L"BUTTON",u.L(L"Find links",L"Найти ссылки",
         L"חפש קישורים"),WS_TABSTOP|BS_OWNERDRAW,ID_FIND);
     u.table=Ctrl(u.window,WC_LISTVIEWW,L"",WS_BORDER|WS_TABSTOP|
@@ -436,7 +472,20 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             reinterpret_cast<NMHDR*>(lp)->code==LVN_ITEMCHANGED)
             Details(*u);
             break;
-        case WM_COMMAND:if(u&&HIWORD(wp)==BN_CLICKED){
+        case WM_COMMAND:
+            if(u&&LOWORD(wp)==ID_DEPTH&&HIWORD(wp)==CBN_SELCHANGE){
+                const int index=static_cast<int>(
+                    SendMessageW(u->depth,CB_GETCURSEL,0,0));
+                SaveDepthIndex(index);
+                const auto count=std::to_wstring(DepthFromIndex(index));
+                SetStatus(*u,u->L(
+                    L"Search depth: ",L"Глубина поиска: ",L"עומק סריקה: ")+count+
+                    u->L(L" levels. Click Find links to scan.",
+                         L" уровня. Нажмите «Найти ссылки».",
+                         L" רמות. לחץ על 'חפש קישורים'."));
+                return 0;
+            }
+            if(u&&HIWORD(wp)==BN_CLICKED){
             switch(LOWORD(wp)){
                 case ID_FIND:ScanFolder(*u);return 0;
                 case ID_OPEN:case ID_COPY:case ID_COPY_REL:
