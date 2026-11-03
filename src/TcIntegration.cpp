@@ -569,7 +569,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     // one actual DLL; prompt for a safe rebind on architecture switches.
     if ((matchingLauncher &&
          GetPrivateProfileIntW(L"Setup", completedKey, 0, marker.c_str()) &&
-         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 217) ||
+         GetPrivateProfileIntW(L"Setup", versionKey, 0, marker.c_str()) >= 220) ||
         GetPrivateProfileIntW(L"Setup", declinedKey, 0, marker.c_str())) return;
     const HWND owner = FindWindowW(L"TTOTAL_CMD", nullptr);
     const LANGID lang = GetUserDefaultUILanguage();
@@ -597,7 +597,7 @@ void AutoConfigureOnFirstLoad(const char* suggestedIniPath) {
     const bool success = ConfigureForTotalCommander(ini, module, status);
     if (success) {
         WriteIni(marker, L"Setup", completedKey, L"1");
-        WriteIni(marker, L"Setup", versionKey, L"217");
+        WriteIni(marker, L"Setup", versionKey, L"220");
         WriteIni(marker, L"Setup", L"LastConfiguredArchitecture",
                  is64 ? L"64" : L"32");
     }

@@ -1956,9 +1956,9 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     const int centeredX = work.left + (work.right - work.left - winWidth) / 2;
     const int centeredY = work.top + (work.bottom - work.top - winHeight) / 2;
     HWND window = CreateWindowExW(0, kClassName,
-        state->he ? L"TC Symbolic Links — יצירת קישורים" :
-        (state->ru ? L"TC Symbolic Links — создание ссылок" :
-                     L"TC Symbolic Links — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        state->he ? L"TC Symbolic Links v0.2.20 — יצירת קישורים" :
+        (state->ru ? L"TC Symbolic Links v0.2.20 — создание ссылок" :
+                     L"TC Symbolic Links v0.2.20 — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, pluginModule, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.
