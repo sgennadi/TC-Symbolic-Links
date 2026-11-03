@@ -203,6 +203,7 @@ struct UpdateCheck {
     HWND available = nullptr;
     HWND help = nullptr;
     HWND trust = nullptr;
+    HFONT bodyFont=nullptr,valueFont=nullptr,labelFont=nullptr;
     std::wstring result;
     std::wstring url;
     std::wstring tag;
@@ -461,6 +462,32 @@ std::shared_ptr<UpdateCheck> CheckFor(HWND hwnd) {
         GetWindowLongPtrW(hwnd,GWLP_USERDATA));
     return value?*value:nullptr;
 }
+void ApplyUpdateFonts(HWND hwnd,UpdateCheck& check){
+    const UINT dpi=GetDpiForWindow(hwnd);
+    const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
+    HFONT normal=CreateFontW(-dp(13),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
+        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    HFONT strong=CreateFontW(-dp(19),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,
+        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    HFONT label=CreateFontW(-dp(11),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
+        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    auto set=[&](int id,HFONT font){
+        if(HWND control=GetDlgItem(hwnd,id))
+            if(font)SendMessageW(control,WM_SETFONT,reinterpret_cast<WPARAM>(font),TRUE);
+    };
+    for(int id:{ID_UPDATE_RESULT,ID_UPDATE_HELP,ID_UPDATE_INSTALL,
+                ID_UPDATE_OPEN,ID_UPDATE_CLOSE})set(id,normal);
+    for(int id:{ID_UPDATE_INSTALLED,ID_UPDATE_AVAILABLE})set(id,strong);
+    for(int id:{ID_UPDATE_INSTALLED_LABEL,ID_UPDATE_AVAILABLE_LABEL,
+                ID_UPDATE_TRUST})set(id,label);
+    if(check.bodyFont)DeleteObject(check.bodyFont);
+    if(check.valueFont)DeleteObject(check.valueFont);
+    if(check.labelFont)DeleteObject(check.labelFont);
+    check.bodyFont=normal;check.valueFont=strong;check.labelFont=label;
+}
 void UpdateStatus(HWND hwnd,const std::wstring& text) {
     if(HWND target=GetDlgItem(hwnd,ID_UPDATE_RESULT))
         SetWindowTextW(target,text.c_str());
@@ -469,16 +496,38 @@ LRESULT CALLBACK UpdateWndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lPara
     const auto check=CheckFor(hwnd);
     if(message==WM_TCS_UPDATE_DONE) {
         if(check) {
-            UpdateStatus(hwnd,check->result);
-            if(HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN))
-                ShowWindow(open,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
-            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)) {
-                ShowWindow(install,check->newer||check->canReinstall?SW_SHOW:SW_HIDE);
-                SetWindowTextW(install,check->canReinstall?L"Reinstall":
-                                                L"Download & Install");
-                EnableWindow(install,check->newer||check->canReinstall);
+            const auto lang=UpdateLanguage();
+            const bool actionable=check->newer||check->canReinstall;
+            if(HWND available=GetDlgItem(hwnd,ID_UPDATE_AVAILABLE)) {
+                const auto value=check->tag.empty()?
+                    tcs::ui::Translate(lang,L"Not available",L"Нет данных",
+                        L"לא זמין"):tcs::ui::Version(check->tag);
+                SetWindowTextW(available,value.c_str());
             }
-            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.21 - Update Manager");
+            if(check->newer)UpdateStatus(hwnd,tcs::ui::Translate(lang,
+                L"A new release is ready.",L"Доступна новая версия.",
+                L"קיימת גרסה חדשה."));
+            else if(check->canReinstall)UpdateStatus(hwnd,tcs::ui::Translate(lang,
+                L"You're up to date. Reinstallation is optional.",
+                L"Установлена актуальная версия. Повторная установка необязательна.",
+                L"הגרסה מעודכנת. התקנה מחדש אינה חובה."));
+            else UpdateStatus(hwnd,check->result);
+            if(HWND help=GetDlgItem(hwnd,ID_UPDATE_HELP)) {
+                const auto copy=tcs::ui::UpdateDescription(
+                    check->newer,check->canReinstall,lang);
+                SetWindowTextW(help,copy.c_str());
+            }
+            if(HWND open=GetDlgItem(hwnd,ID_UPDATE_OPEN))
+                ShowWindow(open,actionable?SW_SHOW:SW_HIDE);
+            if(HWND install=GetDlgItem(hwnd,ID_UPDATE_INSTALL)) {
+                ShowWindow(install,actionable?SW_SHOW:SW_HIDE);
+                const auto label=tcs::ui::UpdateButton(check->newer,
+                    check->canReinstall,check->tag,lang);
+                SetWindowTextW(install,label.c_str());
+                EnableWindow(install,actionable);
+            }
+            SetWindowTextW(hwnd,L"TC Symbolic Links v0.2.22 - Update Manager");
+            InvalidateRect(hwnd,nullptr,FALSE);
         }
         return 0;
     }
