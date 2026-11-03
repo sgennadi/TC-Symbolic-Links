@@ -691,141 +691,150 @@ void AddUpdateToolTip(HWND parent, HWND control,
     SendMessageW(tip,TTM_SETDELAYTIME,TTDT_AUTOPOP,18000);
 }
 bool NativeManualCheck(HWND owner) {
+    // Native Win32 + GDI+ dialog embedded in the installed WDX.
+    // The update remains an explicit, verified, deferred operation.
+    tcs::ui::GdiSession graphics;
     const HINSTANCE instance=GetModuleHandleW(nullptr);
-    // A standalone Update Manager is also hosted by rundll32.exe.
-    // Identify it to Windows separately from the generic host executable.
     wchar_t hostName[MAX_PATH]{};
-    if(GetModuleFileNameW(nullptr,hostName,MAX_PATH)) {
+    if(GetModuleFileNameW(nullptr,hostName,MAX_PATH)){
         const wchar_t* basename=wcsrchr(hostName,L'\\');
         if(basename && _wcsicmp(basename+1,L"rundll32.exe")==0)
             SetCurrentProcessExplicitAppUserModelID(L"TC.SymbolicLinks.LinkMaker");
     }
     const wchar_t* klass=L"TCSymbolicLinksNativeUpdateWindow";
-    WNDCLASSW cls{};cls.lpfnWndProc=UpdateWndProc;cls.hInstance=instance;
+    WNDCLASSW cls{};
+    cls.lpfnWndProc=UpdateWndProc;
+    cls.hInstance=instance;
     const HMODULE iconModule=OwnModule();
     cls.hIcon=iconModule?LoadIconW(iconModule,MAKEINTRESOURCEW(101)):nullptr;
     cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-    cls.hbrBackground=CreateSolidBrush(RGB(245,248,253));
+    cls.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);
     cls.lpszClassName=klass;
-    RegisterClassW(&cls);
-    const UINT dpi=owner&&IsWindow(owner)?GetDpiForWindow(owner):GetDpiForSystem();
-    const auto dp=[dpi](int value){return MulDiv(value,static_cast<int>(dpi),96);};
-    const int width=dp(610),height=dp(252);
+    if(!RegisterClassW(&cls)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return false;
+    const HWND anchorHwnd=owner&&IsWindow(owner)?owner:nullptr;
+    const UINT dpi=anchorHwnd?GetDpiForWindow(anchorHwnd):GetDpiForSystem();
+    const auto dp=[dpi](int n){return MulDiv(n,static_cast<int>(dpi),96);};
+    MONITORINFO monitor{sizeof(monitor)};
+    const HMONITOR current=MonitorFromWindow(
+        anchorHwnd?anchorHwnd:GetDesktopWindow(),MONITOR_DEFAULTTONEAREST);
+    if(!GetMonitorInfoW(current,&monitor))
+        SystemParametersInfoW(SPI_GETWORKAREA,0,&monitor.rcWork,0);
+    const int workW=monitor.rcWork.right-monitor.rcWork.left;
+    const int workH=monitor.rcWork.bottom-monitor.rcWork.top;
+    const auto logical=tcs::ui::UpdateWindowSize(
+        MulDiv(workW,96,dpi),MulDiv(workH,96,dpi));
+    const int width=(std::min)(dp(logical.width),workW);
+    const int height=(std::min)(dp(logical.height),workH);
     HWND window=CreateWindowExW(WS_EX_DLGMODALFRAME,klass,
-        L"TC Symbolic Links - Update Manager",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
-        CW_USEDEFAULT,CW_USEDEFAULT,width,height,owner,nullptr,instance,nullptr);
+        L"TC Symbolic Links v0.2.22 - Update Manager",
+        WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN,
+        CW_USEDEFAULT,CW_USEDEFAULT,width,height,anchorHwnd,nullptr,instance,nullptr);
     if(!window)return false;
     if(iconModule) {
         HICON big=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED));
-        HICON littleIcon=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+        HICON small=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
         if(big)SendMessageW(window,WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(big));
-        if(littleIcon)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(littleIcon));
+        if(small)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(small));
     }
-    RECT wr{},anchor{};
-    GetWindowRect(window,&wr);
-    if(!owner || !IsWindow(owner) || !GetWindowRect(owner,&anchor)) {
-        MONITORINFO mi{sizeof(mi)};
-        if(GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTOPRIMARY),&mi))
-            anchor=mi.rcWork;
-    }
-    MONITORINFO mi{sizeof(mi)};
-    if(GetMonitorInfoW(MonitorFromWindow(owner&&IsWindow(owner)?owner:window,
-        MONITOR_DEFAULTTONEAREST),&mi)) {
-        const int x=(std::max)(mi.rcWork.left,(std::min)(
-            anchor.left+(anchor.right-anchor.left-width)/2,mi.rcWork.right-width));
-        const int y=(std::max)(mi.rcWork.top,(std::min)(
-            anchor.top+(anchor.bottom-anchor.top-height)/2,mi.rcWork.bottom-height));
-        SetWindowPos(window,nullptr,x,y,0,0,
-            SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-    }
+    const COLORREF caption=RGB(11,46,90);
+    const COLORREF white=RGB(255,255,255);
+    DwmSetWindowAttribute(window,35,&caption,sizeof(caption));
+    DwmSetWindowAttribute(window,36,&white,sizeof(white));
+    RECT anchor{};
+    if(anchorHwnd)GetWindowRect(anchorHwnd,&anchor);
+    else anchor=monitor.rcWork;
+    const int x=(std::max)(monitor.rcWork.left,(std::min)(
+        anchor.left+(anchor.right-anchor.left-width)/2,
+        monitor.rcWork.right-width));
+    const int y=(std::max)(monitor.rcWork.top,(std::min)(
+        anchor.top+(anchor.bottom-anchor.top-height)/2,
+        monitor.rcWork.bottom-height));
+    SetWindowPos(window,nullptr,x,y,0,0,
+        SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
     auto check=std::make_shared<UpdateCheck>();
     check->window=window;
     SetWindowLongPtrW(window,GWLP_USERDATA,
         reinterpret_cast<LONG_PTR>(new std::shared_ptr<UpdateCheck>(check)));
-    // Embedded icon + branded header, no generic Windows icon or emoji fonts.
-    HWND head=CreateWindowW(L"STATIC",L"      TC Symbolic Links v0.2.21  |  Update Manager",
-        WS_CHILD|WS_VISIBLE|SS_CENTERIMAGE,0,0,width,dp(57),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_TITLE)),instance,nullptr);
-    if(iconModule) {
-        HWND brand=CreateWindowW(L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            dp(14),dp(13),dp(32),dp(32),window,
-            reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_BRAND)),instance,nullptr);
-        HICON large=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
-            IMAGE_ICON,dp(32),dp(32),LR_SHARED));
-        if(large)SendMessageW(brand,STM_SETICON,reinterpret_cast<WPARAM>(large),0);
-    }
-    const HFONT body=CreateFontW(-dp(16),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
-        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
-    if(body)SendMessageW(head,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
-    check->status=CreateWindowW(L"STATIC",L"Checking GitHub releases...",
-        WS_CHILD|WS_VISIBLE|SS_LEFT,dp(22),dp(73),dp(555),dp(52),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_RESULT)),instance,nullptr);
-    if(body)SendMessageW(check->status,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
-    INITCOMMONCONTROLSEX c{sizeof(c),ICC_PROGRESS_CLASS|ICC_WIN95_CLASSES};
-    InitCommonControlsEx(&c);
-    check->progress=CreateWindowW(PROGRESS_CLASSW,nullptr,WS_CHILD|PBS_SMOOTH,
-        dp(22),dp(126),dp(555),dp(12),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_PROGRESS)),instance,nullptr);
+    INITCOMMONCONTROLSEX commons{sizeof(commons),ICC_PROGRESS_CLASS|ICC_WIN95_CLASSES};
+    InitCommonControlsEx(&commons);
+    auto text=[&](int id,const std::wstring& content,DWORD style){
+        return CreateWindowW(L"STATIC",content.c_str(),
+            WS_CHILD|WS_VISIBLE|style,0,0,0,0,window,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),instance,nullptr);
+    };
+    const auto lang=UpdateLanguage();
+    text(ID_UPDATE_INSTALLED_LABEL,tcs::ui::Translate(lang,
+        L"INSTALLED",L"УСТАНОВЛЕНО",L"מותקן"),SS_LEFT);
+    text(ID_UPDATE_AVAILABLE_LABEL,tcs::ui::Translate(lang,
+        L"AVAILABLE",L"ДОСТУПНО",L"זמין"),SS_LEFT);
+#if TC_STABLE_RELEASE
+    const std::wstring installed=kUiVersion;
+#else
+    const std::wstring installed=std::wstring(kUiVersion)+L" preview";
+#endif
+    check->installed=text(ID_UPDATE_INSTALLED,installed,SS_ENDELLIPSIS);
+    check->available=text(ID_UPDATE_AVAILABLE,tcs::ui::Translate(lang,
+        L"Checking...",L"Проверка...",L"בודק..."),SS_ENDELLIPSIS);
+    check->status=text(ID_UPDATE_RESULT,tcs::ui::Translate(lang,
+        L"Checking official GitHub releases...",L"Проверка релизов GitHub...",
+        L"בודק גרסאות GitHub..."),SS_LEFT);
+    check->help=text(ID_UPDATE_HELP,tcs::ui::UpdateDescription(
+        false,false,lang),SS_LEFT);
+    check->trust=text(ID_UPDATE_TRUST,tcs::ui::Translate(lang,
+        L"Official GitHub release  |  SHA-256 before install  |  UAC may be required",
+        L"GitHub  |  SHA-256 перед установкой  |  Возможен запрос UAC",
+        L"גרסת GitHub רשמית  |  SHA-256 לפני התקנה  |  ייתכן אישור מנהל"),
+        SS_LEFT|SS_ENDELLIPSIS);
+    check->progress=CreateWindowW(PROGRESS_CLASSW,nullptr,
+        WS_CHILD|PBS_SMOOTH,0,0,0,0,window,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_PROGRESS)),
+        instance,nullptr);
     if(check->progress)SendMessageW(check->progress,PBM_SETRANGE,0,MAKELPARAM(0,100));
-    CreateWindowW(L"BUTTON",L"Download & Install",WS_CHILD|BS_OWNERDRAW,
-        dp(20),dp(155),dp(230),dp(40),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_INSTALL)),instance,nullptr);
-    CreateWindowW(L"BUTTON",L"Release page",WS_CHILD|BS_OWNERDRAW,
-        dp(263),dp(155),dp(151),dp(40),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_OPEN)),instance,nullptr);
-    CreateWindowW(L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-        dp(428),dp(155),dp(154),dp(40),window,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
-    if(body) {
-        for(int id : {ID_UPDATE_INSTALL,ID_UPDATE_OPEN,ID_UPDATE_CLOSE}) {
-            if(HWND button=GetDlgItem(window,id))
-                SendMessageW(button,WM_SETFONT,reinterpret_cast<WPARAM>(body),TRUE);
-        }
-    }
+    CreateWindowW(L"BUTTON",L"",WS_CHILD|BS_OWNERDRAW|WS_TABSTOP,
+        0,0,0,0,window,reinterpret_cast<HMENU>(
+        static_cast<INT_PTR>(ID_UPDATE_INSTALL)),instance,nullptr);
+    CreateWindowW(L"BUTTON",tcs::ui::Translate(lang,
+        L"Release notes",L"Изменения",L"פרטי גרסה").c_str(),
+        WS_CHILD|BS_OWNERDRAW|WS_TABSTOP,
+        0,0,0,0,window,reinterpret_cast<HMENU>(
+        static_cast<INT_PTR>(ID_UPDATE_OPEN)),instance,nullptr);
+    CreateWindowW(L"BUTTON",tcs::ui::Translate(lang,
+        L"Close",L"Закрыть",L"סגור").c_str(),
+        WS_CHILD|WS_VISIBLE|BS_OWNERDRAW|WS_TABSTOP,
+        0,0,0,0,window,reinterpret_cast<HMENU>(
+        static_cast<INT_PTR>(ID_UPDATE_CLOSE)),instance,nullptr);
+    ApplyUpdateFonts(window,*check);
+    UpdateLayout(window);
     AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_INSTALL),
-        L"Download the official GitHub ZIP, verify SHA-256 and file architecture.\n"
-        L"Install the selected version after closing Total Commander.\n"
-        L"Existing plugin DLLs are backed up; UAC may be requested.",
-        L"Скачать официальный ZIP, проверить SHA-256 и архитектуру DLL.\n"
-        L"Установить выбранную версию после закрытия Total Commander.\n"
-        L"Создаются резервные копии; возможен запрос UAC.",
-        L"הורדת ZIP רשמי ואימות SHA-256 וארכיטקטורת DLL.\n"
-        L"ההתקנה מתבצעת לאחר סגירת Total Commander.\n"
-        L"נוצרים גיבויים; ייתכן שתידרש הרשאת מנהל.");
+        L"Download official ZIP, verify SHA-256 and x86/x64 binaries. After TC closes, install the verified files. Does not change TC buttons.",
+        L"Скачать официальный ZIP и проверить SHA-256 и архитектуру. Установка после закрытия TC. Кнопки TC не изменяются.",
+        L"הורדה ואימות של ZIP רשמי; ההתקנה תושלם לאחר סגירת TC.");
     AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_OPEN),
-        L"Open the selected official GitHub Release page in your browser.",
-        L"Открыть страницу выбранного официального релиза на GitHub.",
-        L"פתיחת דף הגרסה הרשמית שנבחרה ב-GitHub.");
+        L"Read release notes and full details on GitHub.",
+        L"Прочитать описание и историю изменений релиза на GitHub.",
+        L"קריאת פרטי הגרסה והשינויים ב-GitHub.");
     AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_CLOSE),
-        L"Close Update Manager only. The main Link Maker stays open.",
-        L"Закрыть только окно обновлений. Основное окно создания ссылок останется.",
-        L"סגירת מנהל העדכונים בלבד, בלי לסגור את חלון יצירת הקישורים.");
-    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_RESULT),
-        L"Shows the installed/released version or download and installation status.",
-        L"Показывает найденную версию и ход проверки, загрузки и установки.",
-        L"מציג את הגרסה ואת מצב הבדיקה, ההורדה וההתקנה.");
-    AddUpdateToolTip(window,GetDlgItem(window,ID_UPDATE_PROGRESS),
-        L"Progress of the verified ZIP download; installation begins after Total Commander closes.",
-        L"Прогресс скачивания проверенного ZIP. Установка — после закрытия TC.",
-        L"התקדמות ההורדה; ההתקנה מתבצעת לאחר סגירת TC.");
+        L"Close only this window. The Link Maker remains open.",
+        L"Закрыть только это окно. Link Maker останется открытым.",
+        L"סגור חלון זה בלבד; החלון הראשי יישאר פתוח.");
     ShowWindow(window,SW_SHOW);
+    UpdateWindow(window);
     std::thread([check]{
         try{InspectReleases(*check);}
         catch(...){check->result=L"Update check failed.";}
         PostMessageW(check->window,WM_TCS_UPDATE_DONE,0,0);
     }).detach();
     MSG msg{};
-    while(IsWindow(window)) {
+    while(IsWindow(window)){
         const BOOL rc=GetMessageW(&msg,nullptr,0,0);
         if(rc<=0){if(rc==0)PostQuitMessage(static_cast<int>(msg.wParam));break;}
-        if(!IsDialogMessageW(window,&msg)) {
-            TranslateMessage(&msg);DispatchMessageW(&msg);
-        }
+        if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
     }
-    if(body)DeleteObject(body);
+    if(check->bodyFont)DeleteObject(check->bodyFont);
+    if(check->valueFont)DeleteObject(check->valueFont);
+    if(check->labelFont)DeleteObject(check->labelFont);
     return true;
 }
 void NativeAutomaticCheck() {
