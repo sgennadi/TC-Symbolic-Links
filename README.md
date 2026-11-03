@@ -1,6 +1,12 @@
-# TC Symbolic Links 0.2.21 Stable — Link Manager UI Fix
+# TC Symbolic Links 0.2.22 Stable — Native UI Polish
 
 **0.2.21 display hotfix:** Link Manager no longer opens as a blank window. Compact mode changes the actual layout height. Window captions and the native navy banner show the correct version. All v0.2.20 link-management operations remain in the same WDX; no changes to Samba or SSH are required.
+
+## Modern native interface (0.2.22)
+
+The new Update Manager shows **Installed**, **Available**, and a single clear action: **Update to vX** (or **Reinstall** for the same version). It explains that the official ZIP is verified using SHA-256 and installation completes after closing Total Commander. **Release notes** opens the official GitHub release page.
+
+The Link Manager now has a readable illustrated **No links found** state, a calmer navy title with a version chip, aligned vector-icon actions, and compact layouts that follow the Maker's Compact setting. Maker and Smart Batch Preview use the same native button/header style. There are no additional installation components, server probes, SSH or Samba changes.
 
 **Official all-in-one plugin ZIP for Total Commander 32-bit and 64-bit:**
 `TC-Symbolic-Links-win32-win64.zip`. Open the ZIP with **Enter** in Total

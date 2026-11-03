@@ -25,7 +25,7 @@ jobs:
             throw "CMake 4.2+ is required by the VS 2026 generator. Found: $versionText"
           }
           Write-Host $versionText
-          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.21-stable') { 'ON' } else { 'OFF' }
+          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.22-stable') { 'ON' } else { 'OFF' }
           cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }} "-DTC_STABLE_RELEASE=$stable"
           if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
           cmake --build build --config Release --parallel
@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.21-stable') { 'ON' } else { 'OFF' }
+          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.22-stable') { 'ON' } else { 'OFF' }
           cmake -S . -B build-win32 -G "Visual Studio 18 2026" -A Win32 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }} "-DTC_STABLE_RELEASE=$stable"
           if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 configure failed' }
           cmake --build build-win32 --config Release --parallel
@@ -290,9 +290,9 @@ jobs:
             release/TC-Symbolic-Links-Linux-WDX-x64.zip.sha256
 
   stable-release:
-    # Build a REAL stable binary: the WDX reports 0.2.21 and checks Stable
+    # Build a REAL stable binary: the WDX reports 0.2.22 and checks Stable
     # updates by default, not a Preview build relabeled as stable.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release/0.2.21-stable'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/0.2.22-stable'
     needs: [windows-vs2026, linux-wdx-unicode, linux-sanitizers]
     runs-on: ubuntu-24.04
     permissions:
@@ -308,14 +308,14 @@ jobs:
           path: release
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.2.21
-          name: TC Symbolic Links 0.2.21 Stable
+          tag_name: v0.2.22
+          name: TC Symbolic Links 0.2.22 Stable
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
           generate_release_notes: true
           body: |
-            Official stable release of TC Symbolic Links 0.2.21.
+            Official stable release of TC Symbolic Links 0.2.22.
             One native standard Total Commander ZIP for Windows x86 and x64.
             Open TC-Symbolic-Links-win32-win64.zip directly in Total
             Commander and accept its built-in plugin installer.

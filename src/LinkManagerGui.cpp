@@ -488,7 +488,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     const int left=work.left+(int(work.right-work.left)-width)/2;
     const int top=work.top+(int(work.bottom-work.top)-height)/2;
     u.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.21 - Link Manager",
+        L"TC Symbolic Links v0.2.22 - Link Manager",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         left,top,width,height,owner,nullptr,self,&u);
     if(!u.window)return;
@@ -496,9 +496,9 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     // caption explicitly AFTER CreateWindowExW: the screenshot and GUI CI
     // showed an apparently empty title even when native children existed.
     const wchar_t* caption=u.he?
-        L"TC Symbolic Links v0.2.21 - מנהל קישורים":
-        (u.ru?L"TC Symbolic Links v0.2.21 - Менеджер ссылок":
-              L"TC Symbolic Links v0.2.21 - Link Manager");
+        L"TC Symbolic Links v0.2.22 - מנהל קישורים":
+        (u.ru?L"TC Symbolic Links v0.2.22 - Менеджер ссылок":
+              L"TC Symbolic Links v0.2.22 - Link Manager");
     SetWindowTextW(u.window,caption);
     const COLORREF captionColor=RGB(11,46,90);
     const COLORREF captionText=RGB(255,255,255);

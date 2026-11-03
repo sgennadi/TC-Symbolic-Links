@@ -1,3 +1,13 @@
+## 0.2.22 UI polish (2026-11-03)
+
+- Update Manager redesigned: clear installed vs available version cards, **Update to vX** button, **Reinstall** for same version, Release notes, contextual verification/installation help, visible progress and retry action. Separate native status text correctly explains when Total Commander must close.
+- Unified rounded native GDI+ vector-icon buttons in Update Manager, Link Manager, Smart Batch Preview and Maker; no third-party UI, WebView, extra EXE or bundled font.
+- Link Manager: centered illustrated no-links message with actionable search guidance, better table contrast, equal-width action buttons, styled title and HiDPI layouts. Inherits Maker's Compact setting.
+- Smart Batch Preview: styled navy header, verification status, correctly created window child controls and consistent action buttons.
+- Calmer native Maker banner, one-line compact title, separate version chip and consistent Preview / Link Manager / Undo buttons.
+- Read-only GUI metrics/text tests and Windows visual/real native GUI regression coverage. No link-creation, permission, Samba or SSH backend changes.
+- One standard native x86/x64 WDX ZIP with the same 3 file names, one logical plugin registration, preserved TC user commands and toolbars.
+
 ## 0.2.21 GUI hotfix — November 3, 2026
 
 - Fix previously blank **Link Manager**: initialize the actual owner HWND before children are created.

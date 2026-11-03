@@ -895,7 +895,7 @@ void Layout(HWND hwnd, Ui& s) {
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
-    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.21",
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.22",
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
     const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
         L"selected  |  Existing files are never overwritten",
@@ -1254,8 +1254,8 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
-    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.21 - Create Links",
-        L"TC Symbolic Links v0.2.21 - создание ссылок", L"TC Symbolic Links v0.2.21 - יצירת קישורים"));
+    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.22 - Create Links",
+        L"TC Symbolic Links v0.2.22 - создание ссылок", L"TC Symbolic Links v0.2.22 - יצירת קישורים"));
     UpdateModeHelp(state);
 }
 
@@ -1391,7 +1391,7 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
-    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.21 - ") +
+    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.22 - ") +
         std::to_wstring(state.nextItem) + L" / " + std::to_wstring(total)).c_str());
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }
@@ -1982,9 +1982,9 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     const int centeredX = work.left + (work.right - work.left - winWidth) / 2;
     const int centeredY = work.top + (work.bottom - work.top - winHeight) / 2;
     HWND window = CreateWindowExW(0, kClassName,
-        state->he ? L"TC Symbolic Links v0.2.21 — יצירת קישורים" :
-        (state->ru ? L"TC Symbolic Links v0.2.21 — создание ссылок" :
-                     L"TC Symbolic Links v0.2.21 — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        state->he ? L"TC Symbolic Links v0.2.22 — יצירת קישורים" :
+        (state->ru ? L"TC Symbolic Links v0.2.22 — создание ссылок" :
+                     L"TC Symbolic Links v0.2.22 — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, pluginModule, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.

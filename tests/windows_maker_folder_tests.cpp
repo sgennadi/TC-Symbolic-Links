@@ -146,7 +146,7 @@ int wmain(int argc, wchar_t** argv) {
             wchar_t makerCaption[512]{};
             GetWindowTextW(window,makerCaption,512);
             makerVersionTitle=std::wstring_view(makerCaption).find(
-                L"v0.2.21")!=std::wstring_view::npos;
+                L"v0.2.22")!=std::wstring_view::npos;
             // Regress the user screenshot: rundll32 HINSTANCE is NOT the
             // SymlinkInspector module. Both taskbar/title icons must be
             // explicitly assigned from the WDX and not generic Windows.
@@ -343,7 +343,7 @@ int wmain(int argc, wchar_t** argv) {
         CloseHandle(process.hProcess);
         Check(window != nullptr, "Maker window not opened for %WL folder selection");
         Check(makerVersionTitle,
-              "Maker native title bar lost the v0.2.21 version");
+              "Maker native title bar lost the v0.2.22 version");
         Check(wdxTaskbarIcons, "WDX chain icon missing: rundll32 default taskbar or title-bar icon was used");
         Check(hoverHelpInstalled, "Missing Win32 hover help on relative target, link type and destination controls");
         Check(presetDirectoryMode, "Directory toolbar mode was not preselected");
