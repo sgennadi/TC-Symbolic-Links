@@ -28,6 +28,62 @@ int main() {
         const HWND empty=GetDlgItem(wnd,314);
         const HWND find=GetDlgItem(wnd,302);
         const HWND open=GetDlgItem(wnd,307);
+        const HWND depth=GetDlgItem(wnd,303);
+        bool depthChoicesVisible=false,depthCanChange=false,depthStored=false;
+        int dropdownHeight=0,itemHeight=0,depthOptions=0;
+        if(depth){
+            depthOptions=static_cast<int>(SendMessageW(depth,CB_GETCOUNT,0,0));
+            // The regression was a one-row COMBOBOX: it showed "3 levels"
+            // but its drop list had no usable vertical space.
+            SendMessageW(depth,CB_SHOWDROPDOWN,TRUE,0);
+            COMBOBOXINFO info{sizeof(info)};
+            RECT listRect{};
+            const bool popup=SendMessageW(depth,CB_GETDROPPEDSTATE,0,0)!=0;
+            const bool hasList=GetComboBoxInfo(depth,&info)!=FALSE &&
+                info.hwndList && GetWindowRect(info.hwndList,&listRect);
+            dropdownHeight=hasList?listRect.bottom-listRect.top:0;
+            itemHeight=static_cast<int>(SendMessageW(depth,CB_GETITEMHEIGHT,0,0));
+            depthChoicesVisible=depthOptions==3 && popup && hasList &&
+                itemHeight>0 && dropdownHeight>=itemHeight*3;
+            SendMessageW(depth,CB_SHOWDROPDOWN,FALSE,0);
+            constexpr wchar_t registryKey[]=L"Software\\TCSymbolicLinks\\LinkManager";
+            DWORD previous=3,previousBytes=sizeof(previous);
+            const bool existed=RegGetValueW(HKEY_CURRENT_USER,registryKey,
+                L"ScanDepth",RRF_RT_REG_DWORD,nullptr,&previous,
+                &previousBytes)==ERROR_SUCCESS;
+            // Simulate selecting the last then first entry via the native
+            // WM_COMMAND notification that real mouse/keyboard input sends.
+            const bool last=SendMessageW(depth,CB_SETCURSEL,2,0)==2;
+            SendMessageW(wnd,WM_COMMAND,MAKEWPARAM(303,CBN_SELCHANGE),
+                reinterpret_cast<LPARAM>(depth));
+            DWORD saved=0,savedSize=sizeof(saved);
+            const bool storesSix=RegGetValueW(HKEY_CURRENT_USER,registryKey,
+                L"ScanDepth",RRF_RT_REG_DWORD,nullptr,&saved,
+                &savedSize)==ERROR_SUCCESS&&saved==6;
+            const bool first=SendMessageW(depth,CB_SETCURSEL,0,0)==0;
+            SendMessageW(wnd,WM_COMMAND,MAKEWPARAM(303,CBN_SELCHANGE),
+                reinterpret_cast<LPARAM>(depth));
+            savedSize=sizeof(saved);
+            depthStored=storesSix&&RegGetValueW(HKEY_CURRENT_USER,
+                registryKey,L"ScanDepth",RRF_RT_REG_DWORD,nullptr,&saved,
+                &savedSize)==ERROR_SUCCESS&&saved==1;
+            wchar_t statusText[256]{};
+            if(status)GetWindowTextW(status,statusText,256);
+            depthCanChange=last&&first&&
+                std::wcsstr(statusText,L"1")!=nullptr;
+            // Regression tests must not modify an operator's saved choices.
+            if(existed){
+                HKEY key=nullptr;
+                if(RegOpenKeyExW(HKEY_CURRENT_USER,registryKey,0,
+                    KEY_SET_VALUE,&key)==ERROR_SUCCESS){
+                    RegSetValueExW(key,L"ScanDepth",0,REG_DWORD,
+                        reinterpret_cast<const BYTE*>(&previous),sizeof(previous));
+                    RegCloseKey(key);
+                }
+            }else{
+                RegDeleteKeyValueW(HKEY_CURRENT_USER,registryKey,L"ScanDepth");
+            }
+        }
         const bool buttonsStyled=find&&open &&
             (GetWindowLongPtrW(find,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW &&
             (GetWindowLongPtrW(open,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW;
@@ -53,9 +109,16 @@ int main() {
                  <<" title_version="<<titleValid
                  <<" ownerdraw_buttons="<<buttonsStyled
                  <<" empty_state="<<emptyVisible
+                 <<" depth_options="<<depthOptions
+                 <<" dropdown_height="<<dropdownHeight
+                 <<" item_height="<<itemHeight
+                 <<" popup_visible="<<depthChoicesVisible
+                 <<" depth_changed="<<depthCanChange
+                 <<" depth_saved="<<depthStored
                  <<" status_text_length="<<textLength<<"\\n";
         ok=root&&table&&status&&close && rootVisible&&tableVisible &&
-           emptyVisible&&buttonsStyled &&
+           emptyVisible&&buttonsStyled&&depthChoicesVisible&&
+           depthCanChange&&depthStored &&
            area.right-area.left>200 && area.bottom-area.top>90 &&
            titleValid && textLength>0;
         PostMessageW(wnd,WM_CLOSE,0,0);
