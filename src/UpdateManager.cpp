@@ -733,10 +733,10 @@ bool NativeManualCheck(HWND owner) {
     if(iconModule) {
         HICON big=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED));
-        HICON small=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
+        HICON smallIcon=static_cast<HICON>(LoadImageW(iconModule,MAKEINTRESOURCEW(101),
             IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
         if(big)SendMessageW(window,WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(big));
-        if(small)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(small));
+        if(smallIcon)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(smallIcon));
     }
     const COLORREF caption=RGB(11,46,90);
     const COLORREF white=RGB(255,255,255);
