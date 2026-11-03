@@ -176,3 +176,74 @@ UndoSummary Undo(const std::vector<Identity>& batch){
     }
     return report;
 }
+RepairResult RepairBroken(const std::wstring& path,const std::wstring& newTarget){
+    RepairResult result;
+    const auto oldPath=FullPath(path),target=FullPath(newTarget);
+    if(oldPath.empty()||target.empty()||_wcsicmp(oldPath.c_str(),target.c_str())==0){
+        result.code=ERROR_INVALID_NAME;
+        result.explanation=L"Invalid repair path.";
+        return result;
+    }
+    if(IsRemoteSmbPath(oldPath)){
+        result.code=ERROR_NOT_SUPPORTED;
+        result.explanation=L"Repair on SMB is inspection-only; no server changes.";
+        return result;
+    }
+    const Entry existing=InspectOne(oldPath);
+    if((existing.kind!=ReparseKind::SymbolicFile &&
+        existing.kind!=ReparseKind::SymbolicDirectory)||
+       existing.health!=Health::Broken){
+        result.code=ERROR_NOT_SUPPORTED;
+        result.explanation=L"Only confirmed broken local symlinks can be repaired.";
+        return result;
+    }
+    Identity original;
+    if(!Capture(oldPath,original)){
+        result.code=ERROR_ACCESS_DENIED;
+        result.explanation=L"Cannot verify identity of original link.";
+        return result;
+    }
+    const bool directory=existing.kind==ReparseKind::SymbolicDirectory;
+    const DWORD attrs=GetFileAttributesW(Api(target).c_str());
+    if(attrs==INVALID_FILE_ATTRIBUTES || bool(attrs&FILE_ATTRIBUTE_DIRECTORY)!=directory){
+        result.code=ERROR_DIRECTORY;
+        result.explanation=L"New target must exist and match the original link type.";
+        return result;
+    }
+    const std::wstring backup=oldPath+L".tcs-repair-"+std::to_wstring(GetCurrentProcessId())+
+        L"-"+std::to_wstring(GetTickCount64());
+    if(ExistsNoFollow(backup)){
+        result.code=ERROR_ALREADY_EXISTS;
+        result.explanation=L"Repair backup name is already in use.";
+        return result;
+    }
+    if(!MoveFileExW(Api(oldPath).c_str(),Api(backup).c_str(),MOVEFILE_WRITE_THROUGH)){
+        result.code=GetLastError();
+        result.explanation=L"Cannot move old broken link to temporary backup.";
+        return result;
+    }
+    const auto kind=directory?LinkKind::DirectorySymbolic:LinkKind::FileSymbolic;
+    const DWORD created=CreateLink(target,oldPath,kind,false);
+    if(created!=ERROR_SUCCESS){
+        result.code=created;
+        if(!ExistsNoFollow(oldPath) && MoveFileExW(Api(backup).c_str(),
+            Api(oldPath).c_str(),MOVEFILE_WRITE_THROUGH))
+            result.explanation=L"Repair failed: original broken link restored.";
+        else {
+            result.retainedBackup=backup;
+            result.explanation=L"Repair failed; original retained in backup path.";
+        }
+        return result;
+    }
+    // The target may remain intact if later cleanup fails. Never recurse.
+    Identity oldBackup;
+    if(!Capture(backup,oldBackup)||!SameIdentity(oldBackup,original)||
+       !DeleteOnlyLink(oldBackup)){
+        result.retainedBackup=backup;
+        result.explanation=L"New link created; old link kept at backup path.";
+        return result;
+    }
+    result.explanation=L"Repaired symlink verified; original target was not modified.";
+    return result;
+}
+} // namespace tcs::manager
