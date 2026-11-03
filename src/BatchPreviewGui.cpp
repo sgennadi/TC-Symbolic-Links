@@ -65,7 +65,7 @@ void PaintPreview(Screen& s) {
         s.L(L"SMART BATCH PREVIEW  /  Check before creating",
             L"ПРЕДПРОСМОТР  /  Проверка перед созданием",
             L"תצוגה מקדימה  /  בדיקה לפני יצירה"),
-        L"v0.2.23");
+        L"v0.2.24");
     const int y=h-m-Dp(s,40)-Dp(s,45);
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -250,7 +250,7 @@ bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
     const int x=work.left+(int(work.right-work.left)-w)/2;
     const int y=work.top+(int(work.bottom-work.top)-h)/2;
     s.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.23 - Smart Batch Preview",
+        L"TC Symbolic Links v0.2.24 - Smart Batch Preview",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         x,y,w,h,owner,nullptr,module,&s);
     if(!s.window)return false;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(TCSymbolicLinks VERSION 0.2.23 LANGUAGES CXX)
+project(TCSymbolicLinks VERSION 0.2.24 LANGUAGES CXX)
 # CI preview releases use the matching GitHub workflow run number.
 set(TC_PREVIEW_ITERATION 0 CACHE STRING "Preview build serial; 0 for local builds")
 option(TC_STABLE_RELEASE "Compile the official stable release version" OFF)

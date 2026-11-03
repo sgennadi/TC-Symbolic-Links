@@ -1,6 +1,10 @@
-# TC Symbolic Links 0.2.23 Stable — Window Geometry Fix
+# TC Symbolic Links 0.2.24 Stable — Link Finder Depth Fix
 
 **0.2.21 display hotfix:** Link Manager no longer opens as a blank window. Compact mode changes the actual layout height. Window captions and the native navy banner show the correct version. All v0.2.20 link-management operations remain in the same WDX; no changes to Samba or SSH are required.
+
+## Link Finder scan depth (0.2.24)
+
+The Link Manager dropdown offers **1 level**, **3 levels** and **6 levels**. Earlier builds gave its list only one line of height, so there were no visible choices. The popup is now full-height and accessible by mouse or keyboard. Select a depth and click **Find links** to rescan. The last depth is stored in the current Windows user's HKCU settings and restored next time. Search remains bounded and never follows directory symbolic links. No SSH, server-side Samba changes or additional installer.
 
 ## Larger Maker window and restored placement (0.2.23)
 

@@ -1,3 +1,12 @@
+## 0.2.24 Link Finder scan-depth dropdown fix (2026-11-03)
+
+- Correct native Win32 ComboBox popup geometry: previously it was given only one row of height, so '3 levels' looked selectable but opened no visible choices.
+- The depth picker now offers three visible and selectable values: 1, 3 and 6 levels (English, Russian and Hebrew).
+- The selected scan depth controls the next Find links operation and is saved per Windows user in HKCU\\Software\\TCSymbolicLinks\\LinkManager (ScanDepth), default 3.
+- Give translated labels enough width at standard DPI and large text scaling; keep ComboBox popup height sufficient after WM_SIZE / WM_DPICHANGED.
+- Add real Windows GUI regression for popup visibility, changing selection, and persisted depth; restore the test user's prior preference.
+- Scanning remains read-only and bounded; no SSH, Samba changes, or new helper executable. One standard ZIP with x86/x64 native WDX.
+
 ## 0.2.23 Maker window geometry and readability (2026-11-03)
 
 - Enlarge the default Link Maker window from 960x640 to 1150x720 logical pixels when the desktop permits.
