@@ -207,34 +207,86 @@ void Act(Ui& u,int id){
 void Layout(Ui& u){
     RECT rc{};GetClientRect(u.window,&rc);
     const int w=rc.right-rc.left,h=rc.bottom-rc.top;
-    const int m=Dp(u,12),g=Dp(u,8),line=Dp(u,30),button=Dp(u,34);
+    const int m=Dp(u,u.compact?10:14),g=Dp(u,8);
+    const int line=Dp(u,u.compact?29:33),button=Dp(u,38);
     auto pos=[](HWND child,int x,int y,int width,int height){
         if(child)MoveWindow(child,x,y,(std::max)(1,width),
                             (std::max)(1,height),TRUE);
     };
-    const int right=Dp(u,110);
-    const int depthWidth=Dp(u,78);
-    pos(u.root,m,m,w-2*m-right-depthWidth-2*g,line);
-    pos(u.depth,w-m-right-depthWidth-g,m,depthWidth,line);
-    pos(u.find,w-m-right,m,right,line);
-    const int tableY=m+line+g;
-    const int bottom=h-m-button-Dp(u,116);
-    pos(u.table,m,tableY,w-2*m,(std::max)(Dp(u,100),bottom-tableY));
-    int colWidths[5]={(std::max)(Dp(u,190),w*32/100),
-        Dp(u,130),Dp(u,98),(std::max)(Dp(u,170),w*27/100),Dp(u,65)};
+    const int right=Dp(u,124);
+    const int depthWidth=Dp(u,92);
+    const int searchY=Dp(u,u.compact?74:97);
+    pos(u.root,m,searchY,w-2*m-right-depthWidth-2*g,line);
+    pos(u.depth,w-m-right-depthWidth-g,searchY,depthWidth,line);
+    pos(u.find,w-m-right,searchY,right,line);
+    const int tableY=searchY+line+g;
+    const int tableBottom=h-m-button-Dp(u,u.compact?96:119);
+    const int tableHeight=(std::max)(Dp(u,92),tableBottom-tableY);
+    pos(u.table,m,tableY,w-2*m,tableHeight);
+    const int contentsTop=tableY+Dp(u,27);
+    pos(u.empty,m+Dp(u,5),contentsTop,w-2*m-Dp(u,10),
+        (std::max)(Dp(u,45),tableHeight-Dp(u,34)));
+    int colWidths[5]={(std::max)(Dp(u,175),w*33/100),
+        Dp(u,139),Dp(u,106),(std::max)(Dp(u,165),w*26/100),Dp(u,73)};
     for(int i=0;i<5;++i)ListView_SetColumnWidth(u.table,i,colWidths[i]);
-    pos(u.info,m,bottom+Dp(u,4),w-2*m,Dp(u,29));
-    pos(u.target,m,bottom+Dp(u,38),w-2*m,Dp(u,30));
-    pos(u.status,m,bottom+Dp(u,71),w-2*m,Dp(u,25));
+    pos(u.info,m+Dp(u,11),tableBottom+Dp(u,5),
+        w-2*m-Dp(u,22),Dp(u,28));
+    pos(u.target,m+Dp(u,11),tableBottom+Dp(u,38),
+        w-2*m-Dp(u,22),Dp(u,30));
+    pos(u.status,m+Dp(u,12),tableBottom+Dp(u,74),
+        w-2*m-Dp(u,24),Dp(u,23));
     const int by=h-m-button;
-    const int widths[5]={Dp(u,115),Dp(u,122),Dp(u,127),Dp(u,100),Dp(u,88)};
+    const int space=w-2*m-4*g;
+    const int step=(std::max)(Dp(u,60),space/5);
     HWND controls[5]={u.open,u.copy,u.copyRelative,u.repair,u.close};
-    int x=m;
     for(int i=0;i<5;++i){
-        const int available=(std::max)(Dp(u,70),(w-2*m-4*g)/5);
-        pos(controls[i],x,by,(std::min)(widths[i],available),button);
-        x+=available+g;
+        const int x=m+i*(step+g);
+        pos(controls[i],x,by,
+            i==4?(std::max)(Dp(u,50),w-m-x):step,button);
     }
+    InvalidateRect(u.window,nullptr,FALSE);
+}
+void PaintManager(Ui& u) {
+    PAINTSTRUCT ps{};
+    HDC screen=BeginPaint(u.window,&ps);
+    if(!screen)return;
+    RECT rc{};GetClientRect(u.window,&rc);
+    const int w=rc.right,h=rc.bottom;
+    HDC memory=CreateCompatibleDC(screen);
+    HBITMAP bitmap=memory?CreateCompatibleBitmap(screen,w,h):nullptr;
+    HGDIOBJ previous=memory&&bitmap?SelectObject(memory,bitmap):nullptr;
+    HDC dc=memory&&bitmap?memory:screen;
+    HBRUSH background=CreateSolidBrush(tcs::visual::Canvas);
+    FillRect(dc,&rc,background);DeleteObject(background);
+    const int m=Dp(u,u.compact?10:14);
+    const RECT banner{m,Dp(u,10),w-m,
+                      Dp(u,u.compact?64:84)};
+    const HICON icon=reinterpret_cast<HICON>(
+        SendMessageW(u.window,WM_GETICON,ICON_SMALL,0));
+    tcs::ui::Header(dc,banner,u.dpi,icon,
+        L"TC Symbolic Links",
+        u.L(L"LINK MANAGER  /  Find, inspect and repair",
+            L"МЕНЕДЖЕР ССЫЛОК  /  Поиск и проверка",
+            L"מנהל קישורים  /  חיפוש ובדיקה"),
+        L"v0.2.22");
+    RECT pos{};GetWindowRect(u.info,&pos);
+    MapWindowPoints(nullptr,u.window,reinterpret_cast<POINT*>(&pos),2);
+    const float top=static_cast<float>(pos.top-Dp(u,5));
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    const int tableBottom=h-m-Dp(u,38)-Dp(u,u.compact?96:119);
+    const float cardHeight=(std::max)(static_cast<float>(Dp(u,98)),
+        static_cast<float>(h-m-Dp(u,46))-top);
+    tcs::visual::Card(g,Gdiplus::RectF(
+        static_cast<float>(m)+.5f,top,
+        static_cast<float>(w-2*m)-1.f,cardHeight),
+        static_cast<float>(Dp(u,11)),
+        tcs::visual::White,tcs::visual::Stroke);
+    if(dc==memory)BitBlt(screen,0,0,w,h,dc,0,0,SRCCOPY);
+    if(previous)SelectObject(memory,previous);
+    if(bitmap)DeleteObject(bitmap);
+    if(memory)DeleteDC(memory);
+    EndPaint(u.window,&ps);
 }
 void ApplyFont(Ui& u){
     HFONT next=CreateFontW(-MulDiv(9,static_cast<int>(u.dpi),72),0,0,0,FW_NORMAL,
