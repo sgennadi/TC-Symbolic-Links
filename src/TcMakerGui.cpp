@@ -311,14 +311,18 @@ std::wstring InvalidDestinationReason(const Ui& state, const std::wstring& dest)
             L"Назначение не является обычной папкой. Выберите каталог на диске или SMB, а не виртуальную панель.",
             L"היעד אינו תיקיית מערכת קבצים. בחר תיקיית דיסק או SMB קיימת.");
     }
-    for (const auto& selected : state.selected) {
+    for (std::size_t i = 0; i < state.selected.size(); ++i) {
+        const auto& selected = state.selected[i];
         const auto source = tcs::FullPath(selected);
-        const auto name = tcs::BaseName(selected);
+        const auto name = tcs::batch::MakeName(tcs::BaseName(selected),
+            GetText(state.namePattern), i);
         if (source.empty() || name.empty() || name == L"." || name == L"..") continue;
         const auto parent = tcs::FullPath(tcs::ParentPath(source));
         const auto output = tcs::FullPath(tcs::Join(dest, name));
         // Never manufacture a link on top of its original file or directory.
-        if (SameDirectory(parent, dest) ||
+        // A custom name in the same parent is allowed; self-links are not.
+        if ((SameDirectory(parent, dest) &&
+             tcs::batch::Fold(name)==tcs::batch::Fold(tcs::BaseName(selected))) ||
             (!output.empty() && _wcsicmp(output.c_str(), source.c_str()) == 0)) {
             return state.Choose(
                 L"Source and destination are the same folder. Choose another target panel.",
@@ -357,40 +361,62 @@ void RefreshCreateSafety(Ui& s) {
     }
 }
 
-void UpdatePlannedOutput(Ui& s) {
-    // Right file panel previews destinations until a batch starts. Do not
-    // replace actual success/error output when paths change after creation.
-    if (!s.results || s.creating || s.hasRun) return;
-    const std::wstring dir = tcs::FullPath(GetText(s.destination));
-    if (s.unsafeDestination) {
-        SetWindowTextW(s.results, (std::wstring(L"  !  ") + s.unsafeReason).c_str());
-        SetRichTextColor(s.results, kDanger, true);
+// Read-only batch plan: use exactly the same mapping for preview and F5.
+std::vector<tcs::batch::Row> BuildBatchPlan(Ui& s,std::size_t limit){
+    std::vector<tcs::batch::Source> inputs;
+    const std::size_t count=(std::min)(s.selected.size(),limit);
+    inputs.reserve(count);
+    for(std::size_t i=0;i<count;++i){
+        const auto path=tcs::FullPath(s.selected[i]);
+        const DWORD attr=path.empty()?INVALID_FILE_ATTRIBUTES:
+            GetFileAttributesW(path.c_str());
+        inputs.push_back({path,attr!=INVALID_FILE_ATTRIBUTES,
+                          attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_DIRECTORY)!=0});
+    }
+    const int index=s.kind?int(SendMessageW(s.kind,CB_GETCURSEL,0,0)):0;
+    return tcs::batch::Plan(inputs,tcs::FullPath(GetText(s.destination)),
+        GetText(s.namePattern),index,[](const std::wstring& link){
+            const DWORD attr=GetFileAttributesW(link.c_str());
+            if(attr!=INVALID_FILE_ATTRIBUTES)return true;
+            // A denied target must be treated as occupied, never overwritten.
+            return GetLastError()==ERROR_ACCESS_DENIED;
+        });
+}
+void UpdatePlannedOutput(Ui& s){
+    if(!s.results||s.creating||s.hasRun)return;
+    if(s.unsafeDestination){
+        SetWindowTextW(s.results,(std::wstring(L" ! ")+s.unsafeReason).c_str());
+        SetRichTextColor(s.results,kDanger,true);
         return;
     }
+    const auto rows=BuildBatchPlan(s,80);
     std::wstring lines;
-    const auto count = (std::min)(s.selected.size(), std::size_t{80});
-    for (std::size_t i = 0; i < count; ++i) {
-        const auto name = tcs::BaseName(s.selected[i]);
-        if (!name.empty()) lines += L"  " + name + L"  ->  " + tcs::Join(dir, name) + L"\r\n";
+    for(const auto& row:rows){
+        lines+=L"  ["+std::wstring(tcs::batch::StatusName(row.status))+
+            L"] "+row.name+L" -> "+row.destination+L"\r\n";
     }
-    if (count < s.selected.size()) lines += s.Choose(
-        L"...more selected items", L"...остальные выделенные элементы", L"...פריטים נוספים");
-    SetWindowTextW(s.results, lines.c_str());
-    SetRichTextColor(s.results, kInk, true);
+    if(rows.size()<s.selected.size())lines+=s.Choose(
+        L"...more selected items",L"...остальные выделенные элементы",
+        L"...פריטים נוספים");
+    SetWindowTextW(s.results,lines.c_str());
+    SetRichTextColor(s.results,kInk,true);
 }
-
-void UpdatePreview(Ui& s) {
-    if (!s.preview || !s.destination || s.selected.empty()) return;
+void UpdatePreview(Ui& s){
+    if(!s.preview||!s.destination||s.selected.empty())return;
     RefreshCreateSafety(s);
-    const auto name = tcs::BaseName(s.selected.front());
-    const auto destination = tcs::FullPath(GetText(s.destination));
-    std::wstring value = s.unsafeDestination ? (std::wstring(L"!  ") + s.unsafeReason) :
-        std::wstring(s.Choose(L"New link: ", L"Новая ссылка: ", L"קישור חדש: "));
-    if (!s.unsafeDestination) value += name.empty() || destination.empty() ? s.Choose(L"(choose source and destination)",
-            L"(укажите источник и назначение)", L"(בחר מקור ויעד)") :
-        tcs::Join(destination, name);
-    if (s.selected.size() > 1) value += L"  (+" + std::to_wstring(s.selected.size()-1) + L")";
-    SetWindowTextW(s.preview, value.c_str());
+    const auto name=tcs::batch::MakeName(tcs::BaseName(s.selected.front()),
+        GetText(s.namePattern),0);
+    const auto destination=tcs::FullPath(GetText(s.destination));
+    std::wstring value=s.unsafeDestination?
+        (std::wstring(L"!  ")+s.unsafeReason):
+        std::wstring(s.Choose(L"New link: ",L"Новая ссылка: ",L"קישור חדש: "));
+    if(!s.unsafeDestination)
+        value+=name.empty()||destination.empty()?s.Choose(
+            L"(choose source and destination)",L"(укажите источник и назначение)",
+            L"(בחר מקור ויעד)"):tcs::Join(destination,name);
+    if(s.selected.size()>1)value+=L"  (+"+
+        std::to_wstring(s.selected.size()-1)+L")";
+    SetWindowTextW(s.preview,value.c_str());
     UpdatePlannedOutput(s);
 }
 
