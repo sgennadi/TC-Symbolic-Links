@@ -79,7 +79,16 @@ int main(int argc, char** argv) {
         Require(std::string(name) == "Link type", "WDX type field name");
         Require(getField(1, name, units, sizeof(name)) == ft_string, "WDX target field declaration");
         Require(getField(3, name, units, sizeof(name)) == ft_numeric_32, "WDX nlink field declaration");
-        Require(getField(4, name, units, sizeof(name)) == 0, "WDX out-of-range field declaration");
+        Require(getField(4, name, units, sizeof(name)) == ft_string,
+                "Relative target WDX field declaration");
+        Require(getField(5, name, units, sizeof(name)) == ft_string,
+                "Link health WDX field declaration");
+        Require(getField(6, name, units, sizeof(name)) == ft_string,
+                "Resolved target WDX field declaration");
+        Require(getField(7, name, units, sizeof(name)) == ft_string,
+                "Reparse object WDX field declaration");
+        Require(getField(8, name, units, sizeof(name)) == 0,
+                "WDX out-of-range field declaration");
 
         TempDir temp;
         const std::u16string base = ToWide(temp.path.string());
@@ -118,6 +127,18 @@ int main(int argc, char** argv) {
                 "Relative Hebrew + niqqud + emoji target must be unchanged");
         Require(WideValue(getValue, relativeLink, 2) == u"Yes",
                 "Relative Hebrew target must resolve via its parent directory");
+        Require(WideValue(getValue, relativeLink, 4) == u"Yes",
+                "Relative symlink flag missing");
+        Require(WideValue(getValue, fileLink, 4) == u"No",
+                "Absolute symlink incorrectly marked relative");
+        Require(WideValue(getValue, fileLink, 5) == u"Valid",
+                "Healthy symlink status unavailable");
+        Require(WideValue(getValue, brokenLink, 5) == u"Missing or inaccessible",
+                "Broken symlink health misreported as valid");
+        Require(WideValue(getValue, relativeLink, 6) == file,
+                "Relative target did not normalize to absolute UTF-16 path");
+        Require(WideValue(getValue, relativeLink, 7) == u"Yes",
+                "POSIX symlink reparse-object indicator missing");
         Require(WideValue(getValue, hardlink, 0) == u"Hardlinked file", "Hardlink type");
         int count = 0;
         Require(getValue(hardlink.data(), 3, 0, &count, sizeof(count), 0) == ft_numeric_32 && count >= 2,
