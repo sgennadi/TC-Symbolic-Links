@@ -1,4 +1,6 @@
 #include "BatchPreviewGui.h"
+#include "TcUiGraphics.h"
+#include <dwmapi.h>
 #include <commctrl.h>
 #include <algorithm>
 #include <string>
@@ -25,16 +27,58 @@ int Dp(const Screen& s,int value) {
 void Layout(Screen& s) {
     RECT client{};GetClientRect(s.window,&client);
     const int w=client.right-client.left,h=client.bottom-client.top;
-    const int m=Dp(s,14),g=Dp(s,10),button=Dp(s,38);
-    MoveWindow(s.list,m,m,(std::max)(1,w-2*m),
-        (std::max)(40,h-m*3-button-Dp(s,38)),TRUE);
+    const int m=Dp(s,15),g=Dp(s,11),button=Dp(s,40);
+    const int tableTop=Dp(s,94);
+    const int buttonsY=h-m-button;
+    const int statusY=buttonsY-Dp(s,44);
+    const int tableHeight=(std::max)(Dp(s,65),statusY-tableTop-Dp(s,12));
+    MoveWindow(s.list,m,tableTop,(std::max)(1,w-2*m),tableHeight,TRUE);
     if(s.list){
-        int widths[]={w*31/100,w*34/100,Dp(s,135),Dp(s,120)};
+        int widths[]={w*32/100,w*35/100,Dp(s,120),Dp(s,120)};
         for(int i=0;i<4;++i)ListView_SetColumnWidth(s.list,i,widths[i]);
     }
-    MoveWindow(s.status,m,h-m*2-button-Dp(s,30),w-2*m,Dp(s,28),TRUE);
-    MoveWindow(s.close,w-m-Dp(s,110),h-m-button,Dp(s,110),button,TRUE);
-    MoveWindow(s.proceed,w-m-Dp(s,246),h-m-button,Dp(s,126),button,TRUE);
+    MoveWindow(s.status,m+Dp(s,14),statusY+Dp(s,7),
+        w-2*m-Dp(s,28),Dp(s,28),TRUE);
+    MoveWindow(s.close,w-m-Dp(s,134),buttonsY,Dp(s,134),button,TRUE);
+    MoveWindow(s.proceed,w-m-Dp(s,280),buttonsY,Dp(s,134),button,TRUE);
+    InvalidateRect(s.window,nullptr,FALSE);
+}
+void PaintPreview(Screen& s) {
+    PAINTSTRUCT ps{};
+    HDC screen=BeginPaint(s.window,&ps);
+    if(!screen)return;
+    RECT rect{};GetClientRect(s.window,&rect);
+    const int w=rect.right,h=rect.bottom;
+    HDC mem=CreateCompatibleDC(screen);
+    HBITMAP map=mem?CreateCompatibleBitmap(screen,w,h):nullptr;
+    HGDIOBJ prior=mem&&map?SelectObject(mem,map):nullptr;
+    HDC dc=mem&&map?mem:screen;
+    HBRUSH bg=CreateSolidBrush(tcs::visual::Canvas);
+    FillRect(dc,&rect,bg);
+    DeleteObject(bg);
+    const int m=Dp(s,15);
+    const HICON icon=reinterpret_cast<HICON>(
+        SendMessageW(s.window,WM_GETICON,ICON_SMALL,0));
+    const RECT banner{m,Dp(s,12),w-m,Dp(s,81)};
+    tcs::ui::Header(dc,banner,s.dpi,icon,
+        L"TC Symbolic Links",
+        s.L(L"SMART BATCH PREVIEW  /  Check before creating",
+            L"ПРЕДПРОСМОТР  /  Проверка перед созданием",
+            L"תצוגה מקדימה  /  בדיקה לפני יצירה"),
+        L"v0.2.22");
+    const int y=h-m-Dp(s,40)-Dp(s,45);
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    tcs::visual::Card(g,Gdiplus::RectF(
+        static_cast<float>(m)+.5f,static_cast<float>(y)+.5f,
+        static_cast<float>(w-2*m)-1.f,static_cast<float>(Dp(s,37))-1.f),
+        static_cast<float>(Dp(s,10)),
+        tcs::visual::White,tcs::visual::Stroke);
+    if(dc==mem)BitBlt(screen,0,0,w,h,dc,0,0,SRCCOPY);
+    if(prior)SelectObject(mem,prior);
+    if(map)DeleteObject(map);
+    if(mem)DeleteDC(mem);
+    EndPaint(s.window,&ps);
 }
 void ApplyFont(Screen& s) {
     HFONT next=CreateFontW(-MulDiv(9,int(s.dpi),72),0,0,0,
@@ -87,14 +131,42 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         return DefWindowProcW(hwnd,msg,wp,lp);
     }
     switch(msg){
+        case WM_PAINT:
+            if(state){PaintPreview(*state);return 0;}
+            break;
+        case WM_ERASEBKGND:return TRUE;
+        case WM_DRAWITEM:
+            if(state&&lp){
+                const auto& item=*reinterpret_cast<const DRAWITEMSTRUCT*>(lp);
+                if(item.CtlID==ID_GO||item.CtlID==ID_CLOSE){
+                    tcs::ui::PaintButton(item,state->dpi,
+                        item.CtlID==ID_GO,
+                        item.CtlID==ID_GO?tcs::ui::Glyph::Check:
+                        tcs::ui::Glyph::Close);
+                    return TRUE;
+                }
+            }
+            break;
+        case WM_CTLCOLORSTATIC:
+            if(state){
+                static HBRUSH white=CreateSolidBrush(tcs::visual::White);
+                SetTextColor(reinterpret_cast<HDC>(wp),tcs::visual::Muted);
+                SetBkMode(reinterpret_cast<HDC>(wp),TRANSPARENT);
+                return reinterpret_cast<LRESULT>(white);
+            }
+            break;
         case WM_CREATE:if(state){
+            state->window=hwnd;
             state->dpi=GetDpiForWindow(hwnd);
             state->list=CreateWindowExW(WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",
                 WS_CHILD|WS_VISIBLE|LVS_REPORT|LVS_SHOWSELALWAYS|WS_TABSTOP,
                 0,0,0,0,hwnd,reinterpret_cast<HMENU>(ID_TABLE),
                 GetModuleHandleW(nullptr),nullptr);
             ListView_SetExtendedListViewStyle(state->list,
-                LVS_EX_DOUBLEBUFFER|LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
+                LVS_EX_DOUBLEBUFFER|LVS_EX_FULLROWSELECT);
+            ListView_SetBkColor(state->list,tcs::visual::White);
+            ListView_SetTextBkColor(state->list,tcs::visual::White);
+            ListView_SetTextColor(state->list,tcs::visual::Ink);
             const wchar_t* en[]={L"Source",L"New link",L"Type",L"Status"};
             const wchar_t* ru[]={L"Источник",L"Новая ссылка",L"Тип",L"Статус"};
             const wchar_t* he[]={L"מקור",L"קישור חדש",L"סוג",L"מצב"};
@@ -111,15 +183,16 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
                 reinterpret_cast<HMENU>(ID_STATUS),nullptr,nullptr);
             state->proceed=CreateWindowW(L"BUTTON",state->L(
                 L"Create all",L"Создать все",L"צור הכל"),
-                WS_CHILD|WS_VISIBLE|WS_TABSTOP,0,0,0,0,hwnd,
+                WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,0,0,hwnd,
                 reinterpret_cast<HMENU>(ID_GO),nullptr,nullptr);
             state->close=CreateWindowW(L"BUTTON",state->L(
                 L"Close",L"Закрыть",L"סגור"),
-                WS_CHILD|WS_VISIBLE|WS_TABSTOP,0,0,0,0,hwnd,
+                WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,0,0,hwnd,
                 reinterpret_cast<HMENU>(ID_CLOSE),nullptr,nullptr);
             ApplyFont(*state);
             Populate(*state);
             Layout(*state);
+            if(!state->creation)ShowWindow(state->proceed,SW_HIDE);
         }return 0;
         case WM_SIZE:if(state&&state->list)Layout(*state);return 0;
         case WM_GETMINMAXINFO:if(state){
@@ -152,6 +225,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 }
 } // namespace
 bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
+    tcs::ui::GdiSession graphics;
     Screen s;
     s.rows=&rows;s.creation=forCreation;
     const auto lang=GetUserDefaultUILanguage();
@@ -176,10 +250,13 @@ bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
     const int x=work.left+(int(work.right-work.left)-w)/2;
     const int y=work.top+(int(work.bottom-work.top)-h)/2;
     s.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.21 - Smart Batch Preview",
+        L"TC Symbolic Links v0.2.22 - Smart Batch Preview",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         x,y,w,h,owner,nullptr,module,&s);
     if(!s.window)return false;
+    const COLORREF navy=RGB(11,46,90),white=RGB(255,255,255);
+    DwmSetWindowAttribute(s.window,35,&navy,sizeof(navy));
+    DwmSetWindowAttribute(s.window,36,&white,sizeof(white));
     ShowWindow(s.window,SW_SHOW);
     UpdateWindow(s.window);
     if(owner)EnableWindow(owner,FALSE);
