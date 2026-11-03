@@ -11,6 +11,7 @@
 #include "TcMakerGui.h"
 #include "UpdateManager.h"
 #include "TcVisualTheme.h"
+#include "TcUiGraphics.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <commctrl.h>
@@ -924,13 +925,13 @@ void CreateControls(HWND hwnd, Ui& s) {
     s.namePattern=AddControl(hwnd,L"EDIT",savedPattern.c_str(),
         WS_TABSTOP|WS_BORDER|ES_AUTOHSCROLL,ID_NAME_PATTERN);
     s.batchPreview=AddControl(hwnd,L"BUTTON",s.Choose(
-        L"Preview",L"Просмотр",L"תצוגה"),WS_TABSTOP|BS_PUSHBUTTON,ID_BATCH_PREVIEW);
+        L"Preview",L"Просмотр",L"תצוגה"),WS_TABSTOP|BS_OWNERDRAW,ID_BATCH_PREVIEW);
     s.linkManager=AddControl(hwnd,L"BUTTON",s.Choose(
         L"Link Manager",L"Менеджер ссылок",L"מנהל קישורים"),
-        WS_TABSTOP|BS_PUSHBUTTON,ID_LINK_MANAGER);
+        WS_TABSTOP|BS_OWNERDRAW,ID_LINK_MANAGER);
     s.undoLast=AddControl(hwnd,L"BUTTON",s.Choose(
         L"Undo Last",L"Отменить",L"בטל אחרון"),
-        WS_TABSTOP|BS_PUSHBUTTON,ID_UNDO_LAST);
+        WS_TABSTOP|BS_OWNERDRAW,ID_UNDO_LAST);
     EnableWindow(s.undoLast,FALSE);
     s.compactToggle=AddControl(hwnd,L"BUTTON",s.Choose(
         L"Compact",L"Компактно",L"קומפקטי"),
@@ -1589,8 +1590,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 const HICON logo = reinterpret_cast<HICON>(
                     GetClassLongPtrW(hwnd, GCLP_HICON));
                 tcs::visual::Banner(dc, banner, state->dpi, logo,
-                    L"TC Symbolic Links v0.2.21", subtitle,
-                    state->he,layout.compact);
+                    L"TC Symbolic Links", subtitle,
+                    state->he,layout.compact,L"v0.2.22");
                 const std::wstring status = L"●  " + GetText(state->status);
                 RECT actionRect{};
                 int actionLeft = -1;
@@ -1676,6 +1677,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if (item->CtlID == ID_CREATE || item->CtlID == ID_CLOSE ||
                     item->CtlID == ID_BROWSE || item->CtlID == ID_UPDATE) {
                     PaintAction(*state, *item);
+                    return TRUE;
+                }
+                if(item->CtlID==ID_BATCH_PREVIEW ||
+                   item->CtlID==ID_LINK_MANAGER ||
+                   item->CtlID==ID_UNDO_LAST){
+                    const auto icon=item->CtlID==ID_BATCH_PREVIEW?
+                        tcs::ui::Glyph::Search:
+                        item->CtlID==ID_LINK_MANAGER?
+                        tcs::ui::Glyph::Link:tcs::ui::Glyph::Refresh;
+                    tcs::ui::PaintButton(*item,state->dpi,false,icon);
                     return TRUE;
                 }
                 if (item->CtlID == ID_SOURCE_GLYPH ||
