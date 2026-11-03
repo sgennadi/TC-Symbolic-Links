@@ -1,3 +1,12 @@
+## 0.2.21 GUI hotfix — November 3, 2026
+
+- Fix previously blank **Link Manager**: initialize the actual owner HWND before children are created.
+- Make **Compact UI** visibly smaller: compact header and denser controls reclaim roughly 89 logical pixels; retain HiDPI responsiveness.
+- Show **v0.2.21** in the Maker, Link Manager and Smart Batch Preview native window titles and the navy rendered banner.
+- Run dedicated GUI regression checks for Link Manager children and the compact-versus-standard geometry.
+- Keep the same **one Windows plugin ZIP** (x86 WDX, x64 WDX, pluginst.inf), single logical WDX registration and previous user toolbar/settings.
+- Do not add SSH, Samba server changes or a second installer.
+
 ## 0.2.20 Link Manager (2026-11-03)
 
 - Smart Batch Preview for multi-item/custom-name batches, conflict and source-type preflight, existing file protection.
