@@ -32,6 +32,9 @@ if(BUILD_TESTING)
   add_executable(tc_custom_view_tests tests/tc_custom_view_tests.cpp)
   target_include_directories(tc_custom_view_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME tc_custom_view_indices COMMAND tc_custom_view_tests)
+  add_executable(link_batch_plan_tests tests/link_batch_plan_tests.cpp)
+  target_include_directories(link_batch_plan_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME tc_link_batch_plan COMMAND link_batch_plan_tests)
   add_executable(smb_path_tests tests/smb_path_tests.cpp)
   target_include_directories(smb_path_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME smb_unc_share_boundaries COMMAND smb_path_tests)
@@ -101,7 +104,7 @@ if(WIN32)
     set(TC_WDX_SUFFIX ".wdx")
   endif()
 
-  add_library(tc_link_core STATIC src/LinkCore.cpp)
+  add_library(tc_link_core STATIC src/LinkCore.cpp src/LinkManagerCore.cpp)
   target_include_directories(tc_link_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(tc_link_core PUBLIC kernel32 tc_reparse mpr)
 
@@ -113,6 +116,7 @@ if(WIN32)
   target_include_directories(tc_integration PRIVATE ${tc_updater_zlib_SOURCE_DIR} ${tc_updater_zlib_BINARY_DIR})
   target_link_libraries(tc_integration PUBLIC user32 advapi32 winhttp bcrypt shell32 ole32 comctl32 zlibstatic)
   add_library(SymlinkInspector SHARED src/SymlinkInspector.cpp src/TcMakerGui.cpp
+    src/LinkManagerGui.cpp src/BatchPreviewGui.cpp
     src/TcLauncher.cpp src/LinkMaker.rc)
   # The updater is raw data embedded in this same WDX, not a companion EXE.
   set_property(SOURCE src/LinkMaker.rc APPEND PROPERTY OBJECT_DEPENDS
@@ -127,6 +131,14 @@ if(WIN32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX "${TC_WDX_SUFFIX}")
 
   if(BUILD_TESTING)
+    add_executable(windows_link_manager_tests tests/windows_link_manager_tests.cpp)
+    target_include_directories(windows_link_manager_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(windows_link_manager_tests PRIVATE tc_link_core)
+    add_test(NAME tc_link_manager_health_undo_repair COMMAND windows_link_manager_tests)
+    if(MSVC)
+      target_compile_options(windows_link_manager_tests PRIVATE /W4 /utf-8)
+    endif()
+
     # Offscreen GDI+ theme acceptance does not depend on a visible desktop.
     add_executable(windows_visual_theme_tests tests/windows_visual_theme_tests.cpp)
     target_include_directories(windows_visual_theme_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
