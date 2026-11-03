@@ -36,6 +36,18 @@ void Layout(Screen& s) {
     MoveWindow(s.close,w-m-Dp(s,110),h-m-button,Dp(s,110),button,TRUE);
     MoveWindow(s.proceed,w-m-Dp(s,246),h-m-button,Dp(s,126),button,TRUE);
 }
+void ApplyFont(Screen& s) {
+    HFONT next=CreateFontW(-MulDiv(9,int(s.dpi),72),0,0,0,
+        FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+    if(!next)return;
+    for(HWND control:{s.list,s.status,s.proceed,s.close})
+        if(control)SendMessageW(control,WM_SETFONT,
+            reinterpret_cast<WPARAM>(next),TRUE);
+    if(s.font)DeleteObject(s.font);
+    s.font=next;
+}
 void Populate(Screen& s){
     ListView_DeleteAllItems(s.list);
     for(std::size_t i=0;i<s.rows->size();++i){
@@ -75,10 +87,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     }
     switch(msg){
         case WM_CREATE:if(state){
-            state->font=CreateFontW(-MulDiv(9,int(state->dpi),72),0,0,0,
-                FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,
-                OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
-                CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
+            state->dpi=GetDpiForWindow(hwnd);
             state->list=CreateWindowExW(WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",
                 WS_CHILD|WS_VISIBLE|LVS_REPORT|LVS_SHOWSELALWAYS|WS_TABSTOP,
                 0,0,0,0,hwnd,reinterpret_cast<HMENU>(ID_TABLE),
@@ -107,9 +116,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
                 L"Close",L"Закрыть",L"סגור"),
                 WS_CHILD|WS_VISIBLE|WS_TABSTOP,0,0,0,0,hwnd,
                 reinterpret_cast<HMENU>(ID_CLOSE),nullptr,nullptr);
-            for(HWND control:{state->list,state->status,state->proceed,state->close})
-                if(control && state->font)SendMessageW(control,WM_SETFONT,
-                    reinterpret_cast<WPARAM>(state->font),TRUE);
+            ApplyFont(*state);
             Populate(*state);
             Layout(*state);
         }return 0;
@@ -125,6 +132,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             const auto* r=reinterpret_cast<const RECT*>(lp);
             SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,
                 r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);
+            ApplyFont(*state);
             Layout(*state);
         }return 0;
         case WM_COMMAND:if(state&&HIWORD(wp)==BN_CLICKED){
