@@ -166,6 +166,40 @@ struct Ui {
     }
 };
 
+// Persist only user-controlled Maker preferences. Never touch TC or Samba.
+constexpr wchar_t kMakerSettings[]=L"Software\\TCSymbolicLinks\\Maker";
+std::wstring LoadNamePattern() {
+    wchar_t pattern[256]{};
+    DWORD bytes=sizeof(pattern);
+    const auto code=RegGetValueW(HKEY_CURRENT_USER,kMakerSettings,
+        L"NamePattern",RRF_RT_REG_SZ,nullptr,pattern,&bytes);
+    if(code!=ERROR_SUCCESS||bytes<sizeof(wchar_t)||
+       bytes>sizeof(pattern))return L"{Name}";
+    pattern[255]=L'\0';
+    return pattern;
+}
+bool LoadCompactMode() {
+    DWORD mode=0,bytes=sizeof(mode);
+    return RegGetValueW(HKEY_CURRENT_USER,kMakerSettings,
+        L"CompactUI",RRF_RT_REG_DWORD,nullptr,&mode,&bytes)==ERROR_SUCCESS &&
+        mode==1;
+}
+void SaveMakerPreferences(const Ui& state) {
+    if(!state.namePattern || !state.compactToggle)return;
+    HKEY key=nullptr;
+    if(RegCreateKeyExW(HKEY_CURRENT_USER,kMakerSettings,0,nullptr,
+         REG_OPTION_NON_VOLATILE,KEY_SET_VALUE,nullptr,&key,nullptr)!=ERROR_SUCCESS)
+        return;
+    const std::wstring pattern=GetText(state.namePattern);
+    if(pattern.size()<=240)
+        RegSetValueExW(key,L"NamePattern",0,REG_SZ,
+            reinterpret_cast<const BYTE*>(pattern.c_str()),
+            static_cast<DWORD>((pattern.size()+1)*sizeof(wchar_t)));
+    const DWORD mode=state.compact?1u:0u;
+    RegSetValueExW(key,L"CompactUI",0,REG_DWORD,
+        reinterpret_cast<const BYTE*>(&mode),sizeof(mode));
+    RegCloseKey(key);
+}
 int Dp(const Ui& state, int n) { return MulDiv(n, static_cast<int>(state.dpi), 96); }
 
 std::wstring GetText(HWND control) {
@@ -868,7 +902,8 @@ void CreateControls(HWND hwnd, Ui& s) {
 
     s.patternLabel=AddControl(hwnd,L"STATIC",s.Choose(
         L"Name:",L"Имя:",L"שם:"),SS_ENDELLIPSIS|alignCaption,0,captionEx);
-    s.namePattern=AddControl(hwnd,L"EDIT",L"{Name}",
+    const std::wstring savedPattern=LoadNamePattern();
+    s.namePattern=AddControl(hwnd,L"EDIT",savedPattern.c_str(),
         WS_TABSTOP|WS_BORDER|ES_AUTOHSCROLL,ID_NAME_PATTERN);
     s.batchPreview=AddControl(hwnd,L"BUTTON",s.Choose(
         L"Preview",L"Просмотр",L"תצוגה"),WS_TABSTOP|BS_PUSHBUTTON,ID_BATCH_PREVIEW);
@@ -882,6 +917,8 @@ void CreateControls(HWND hwnd, Ui& s) {
     s.compactToggle=AddControl(hwnd,L"BUTTON",s.Choose(
         L"Compact",L"Компактно",L"קומפקטי"),
         WS_TABSTOP|BS_AUTOCHECKBOX,ID_COMPACT);
+    SendMessageW(s.compactToggle,BM_SETCHECK,
+                 s.compact?BST_CHECKED:BST_UNCHECKED,0);
 
     const std::wstring sourceCaption = std::wstring(s.Choose(
         L"Source panel", L"Исходная панель", L"חלונית מקור")) + L"  [" +
@@ -1456,6 +1493,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_CREATE:
             if (state) {
                 state->dpi = GetDpiForWindow(hwnd);
+                state->compact = LoadCompactMode();
                 state->backgroundBrush = CreateSolidBrush(kCanvas);
                 state->cardBrush = CreateSolidBrush(kSurface);
                 state->fieldBrush = CreateSolidBrush(tcs::visual::Field);
@@ -1682,6 +1720,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if(!state->creating)UpdatePreview(*state);
                 return 0;
             }
+            if(state && LOWORD(wParam)==ID_NAME_PATTERN && HIWORD(wParam)==EN_KILLFOCUS){
+                SaveMakerPreferences(*state);
+                return 0;
+            }
             if(state && LOWORD(wParam)==ID_BATCH_PREVIEW &&
                HIWORD(wParam)==BN_CLICKED){
                 if(!state->creating){
@@ -1725,6 +1767,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 state->compact=SendMessageW(state->compactToggle,
                     BM_GETCHECK,0,0)==BST_CHECKED;
                 Layout(hwnd,*state);
+                SaveMakerPreferences(*state);
                 return 0;
             }
             if (state && LOWORD(wParam) == ID_UPDATE && HIWORD(wParam) == BN_CLICKED) {
@@ -1750,9 +1793,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         case WM_CLOSE:
             if (state && state->creating) { FinishCreate(hwnd, *state, true); return 0; }
+            if(state)SaveMakerPreferences(*state);
             DestroyWindow(hwnd);
             return 0;
         case WM_NCDESTROY:
+            if(state)SaveMakerPreferences(*state);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             delete state;
             return 0;
