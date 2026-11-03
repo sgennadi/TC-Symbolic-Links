@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 // Pure DPI-independent geometry for Normal, Adaptive and explicit Compact.
 // On small desktops the automatic Adaptive mode must NEVER make the
 // "Compact" checkbox a no-op.
