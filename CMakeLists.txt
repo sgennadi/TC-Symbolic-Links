@@ -32,6 +32,9 @@ if(BUILD_TESTING)
   add_executable(tc_custom_view_tests tests/tc_custom_view_tests.cpp)
   target_include_directories(tc_custom_view_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME tc_custom_view_indices COMMAND tc_custom_view_tests)
+  add_executable(maker_density_tests tests/maker_density_tests.cpp)
+  target_include_directories(maker_density_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME tc_maker_explicit_compact_dpi COMMAND maker_density_tests)
   add_executable(link_batch_plan_tests tests/link_batch_plan_tests.cpp)
   target_include_directories(link_batch_plan_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME tc_link_batch_plan COMMAND link_batch_plan_tests)
@@ -131,6 +134,22 @@ if(WIN32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX "${TC_WDX_SUFFIX}")
 
   if(BUILD_TESTING)
+    # GUI lifecycle regression: WM_CREATE must assign the parent HWND
+    # before Link Manager creates any visible child controls.
+    add_executable(windows_link_manager_gui_tests
+      tests/windows_link_manager_gui_tests.cpp src/LinkManagerGui.cpp)
+    target_include_directories(windows_link_manager_gui_tests PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_definitions(windows_link_manager_gui_tests PRIVATE
+      UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
+    target_link_libraries(windows_link_manager_gui_tests PRIVATE
+      tc_link_core user32 gdi32 comctl32 shell32)
+    add_test(NAME tc_link_manager_native_children
+      COMMAND windows_link_manager_gui_tests)
+    set_tests_properties(tc_link_manager_native_children PROPERTIES TIMEOUT 25)
+    if(MSVC)
+      target_compile_options(windows_link_manager_gui_tests PRIVATE /W4 /utf-8)
+    endif()
     add_executable(windows_link_manager_tests tests/windows_link_manager_tests.cpp)
     target_include_directories(windows_link_manager_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(windows_link_manager_tests PRIVATE tc_link_core)
