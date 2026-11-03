@@ -361,6 +361,47 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         return DefWindowProcW(hwnd,msg,wp,lp);
     }
     switch(msg){
+        case WM_PAINT:
+            if(u){PaintManager(*u);return 0;}
+            break;
+        case WM_ERASEBKGND:return TRUE;
+        case WM_DRAWITEM:
+            if(u&&lp){
+                const auto& item=*reinterpret_cast<const DRAWITEMSTRUCT*>(lp);
+                if(item.CtlID==ID_EMPTY){
+                    const auto lang=u->he?tcs::ui::Lang::Hebrew:
+                        u->ru?tcs::ui::Lang::Russian:tcs::ui::Lang::English;
+                    tcs::ui::EmptyState(item.hDC,item.rcItem,u->dpi,
+                        tcs::ui::EmptyLinksTitle(lang,u->searched),
+                        tcs::ui::EmptyLinksHelp(lang,u->searched));
+                    return TRUE;
+                }
+                const bool primary=item.CtlID==ID_FIND||item.CtlID==ID_OPEN;
+                const bool danger=item.CtlID==ID_REPAIR;
+                const auto glyph=item.CtlID==ID_FIND?tcs::ui::Glyph::Search:
+                    item.CtlID==ID_OPEN?tcs::ui::Glyph::Open:
+                    item.CtlID==ID_COPY||item.CtlID==ID_COPY_REL?
+                        tcs::ui::Glyph::Copy:
+                    item.CtlID==ID_REPAIR?tcs::ui::Glyph::Repair:
+                    tcs::ui::Glyph::Close;
+                if(item.CtlID==ID_FIND||item.CtlID==ID_OPEN||
+                   item.CtlID==ID_COPY||item.CtlID==ID_COPY_REL||
+                   item.CtlID==ID_REPAIR||item.CtlID==ID_CLOSE){
+                    tcs::ui::PaintButton(item,u->dpi,primary,glyph,danger);
+                    return TRUE;
+                }
+            }
+            break;
+        case WM_CTLCOLORSTATIC:if(u){
+            HDC dc=reinterpret_cast<HDC>(wp);
+            const int id=GetDlgCtrlID(reinterpret_cast<HWND>(lp));
+            static HBRUSH white=CreateSolidBrush(tcs::visual::White);
+            static HBRUSH canvas=CreateSolidBrush(tcs::visual::Canvas);
+            SetBkMode(dc,TRANSPARENT);
+            SetTextColor(dc,id==ID_STATUS?tcs::visual::Muted:
+                tcs::visual::Ink);
+            return reinterpret_cast<LRESULT>(id==ID_STATUS?canvas:white);
+        }break;
         case WM_CREATE:if(u){
             // CreateWindowExW dispatches WM_CREATE BEFORE returning. At this
             // moment ShowLinkManager has NOT assigned u.window yet. All child
