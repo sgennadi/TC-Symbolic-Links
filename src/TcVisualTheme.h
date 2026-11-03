@@ -180,7 +180,7 @@ inline void Text(Gdiplus::Graphics& g, const std::wstring& text,
 }
 inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
                    const std::wstring& title, const std::wstring& subtitle,
-                   bool rtl) {
+                   bool rtl, bool compact = false) {
     const float x = static_cast<float>(area.left);
     const float y = static_cast<float>(area.top);
     const float w = static_cast<float>(area.right - area.left);
@@ -218,9 +218,10 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
     g.FillPath(&greenGlow, &greenWave);
     g.Restore(previous);
 
-    const float badge = static_cast<float>(Px(58, dpi));
-    const float badgeX = rtl ? x + w - static_cast<float>(Px(76, dpi)) :
-                             x + static_cast<float>(Px(19, dpi));
+    const float badge = static_cast<float>(Px(compact ? 34 : 58, dpi));
+    const float badgeX = rtl ?
+        x + w - static_cast<float>(Px(compact ? 45 : 76, dpi)) :
+        x + static_cast<float>(Px(compact ? 11 : 19, dpi));
     const float badgeY = y + (h - badge) / 2.f;
     Gdiplus::SolidBrush badgeFill(Gdiplus::Color(49, 255, 255, 255));
     Gdiplus::Pen badgeOutline(Gdiplus::Color(128, 255, 255, 255), 1.1f);
@@ -235,17 +236,28 @@ inline void Banner(HDC dc, RECT area, UINT dpi, HICON icon,
         }
     }
     const float textX = rtl ? x + static_cast<float>(Px(24, dpi)) :
-                              x + static_cast<float>(Px(95, dpi));
-    const float textRightPad = rtl ? static_cast<float>(Px(100, dpi)) :
-                                    static_cast<float>(Px(16, dpi));
+                              x + static_cast<float>(Px(compact ? 56 : 95, dpi));
+    const float textRightPad = rtl ?
+        static_cast<float>(Px(compact ? 57 : 100, dpi)) :
+        static_cast<float>(Px(16, dpi));
     const float textW = (std::max)(1.f, w - (textX - x) - textRightPad);
-    Text(g, title, Gdiplus::RectF(textX, y + static_cast<float>(Px(10, dpi)),
-         textW, static_cast<float>(Px(38, dpi))),
-         static_cast<float>(Px(22, dpi)), true, Tone(White), rtl);
-    Text(g, subtitle, Gdiplus::RectF(textX, y + static_cast<float>(Px(49, dpi)),
-         textW, static_cast<float>(Px(28, dpi))),
-         static_cast<float>(Px(11, dpi)), false,
-         Gdiplus::Color(235, 225, 240, 255), rtl);
+    if(compact) {
+        // One-line header is intentionally much smaller. Unlike the
+        // automatic narrow-window layout, explicit Compact hides the
+        // secondary subtitle and gives usable height back to the list.
+        Text(g, title, Gdiplus::RectF(textX,
+             y + static_cast<float>(Px(2, dpi)), textW,
+             h - static_cast<float>(Px(4, dpi))),
+             static_cast<float>(Px(17, dpi)), true, Tone(White), rtl);
+    } else {
+        Text(g, title, Gdiplus::RectF(textX, y + static_cast<float>(Px(10, dpi)),
+             textW, static_cast<float>(Px(38, dpi))),
+             static_cast<float>(Px(22, dpi)), true, Tone(White), rtl);
+        Text(g, subtitle, Gdiplus::RectF(textX, y + static_cast<float>(Px(49, dpi)),
+             textW, static_cast<float>(Px(28, dpi))),
+             static_cast<float>(Px(11, dpi)), false,
+             Gdiplus::Color(235, 225, 240, 255), rtl);
+    }
 }
 inline void FormPanels(HDC dc, const RECT& client, UINT dpi,
                        int margin, int gap, int cardTop, int cardBottom,
