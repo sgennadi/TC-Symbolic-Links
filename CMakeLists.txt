@@ -143,7 +143,7 @@ if(WIN32)
     target_compile_definitions(windows_link_manager_gui_tests PRIVATE
       UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
     target_link_libraries(windows_link_manager_gui_tests PRIVATE
-      tc_link_core user32 gdi32 comctl32 shell32)
+      tc_link_core user32 gdi32 comctl32 shell32 dwmapi)
     add_test(NAME tc_link_manager_native_children
       COMMAND windows_link_manager_gui_tests)
     set_tests_properties(tc_link_manager_native_children PROPERTIES TIMEOUT 25)

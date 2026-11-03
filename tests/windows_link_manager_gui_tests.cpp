@@ -32,6 +32,7 @@ int main() {
         const bool rootVisible=root&&IsWindowVisible(root);
         const bool tableVisible=table&&IsWindowVisible(table);
         const bool titleValid=std::wcsstr(title,L"v0.2.20")!=nullptr;
+        std::wcerr<<L"GUI_TITLE_TEXT='"<<title<<L"'\n";
         const int textLength=status?GetWindowTextLengthW(status):-1;
         std::cerr<<"GUI_DIAGNOSTIC window="<<(wnd?1:0)
                  <<" root="<<(root?1:0)

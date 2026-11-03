@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <shellapi.h>
+#include <dwmapi.h>
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -380,6 +381,22 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         left,top,width,height,owner,nullptr,self,&u);
     if(!u.window)return;
+    // The Win32 class may have been re-used by the host process. Set the
+    // caption explicitly AFTER CreateWindowExW: the screenshot and GUI CI
+    // showed an apparently empty title even when native children existed.
+    const wchar_t* caption=u.he?
+        L"TC Symbolic Links v0.2.20 - מנהל קישורים":
+        (u.ru?L"TC Symbolic Links v0.2.20 - Менеджер ссылок":
+              L"TC Symbolic Links v0.2.20 - Link Manager");
+    SetWindowTextW(u.window,caption);
+    const COLORREF captionColor=RGB(11,46,90);
+    const COLORREF captionText=RGB(255,255,255);
+    DwmSetWindowAttribute(u.window,35,&captionColor,sizeof(captionColor));
+    DwmSetWindowAttribute(u.window,36,&captionText,sizeof(captionText));
+    if(wc.hIcon)SendMessageW(u.window,WM_SETICON,ICON_BIG,
+                            reinterpret_cast<LPARAM>(wc.hIcon));
+    if(wc.hIconSm)SendMessageW(u.window,WM_SETICON,ICON_SMALL,
+                              reinterpret_cast<LPARAM>(wc.hIconSm));
     u.dpi=GetDpiForWindow(u.window);
     Layout(u);
     SetWindowTextW(u.root,initialFolder.c_str());
