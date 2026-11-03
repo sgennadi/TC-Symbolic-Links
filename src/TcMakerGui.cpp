@@ -1672,6 +1672,55 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (state) ContinueCreate(hwnd, *state);
             return 0;
         case WM_COMMAND:
+            if(state && LOWORD(wParam)==ID_NAME_PATTERN && HIWORD(wParam)==EN_CHANGE){
+                if(!state->creating)UpdatePreview(*state);
+                return 0;
+            }
+            if(state && LOWORD(wParam)==ID_BATCH_PREVIEW &&
+               HIWORD(wParam)==BN_CLICKED){
+                if(!state->creating){
+                    const auto plan=BuildBatchPlan(*state,state->selected.size());
+                    tcs::batch::ConfirmPreview(hwnd,plan,false);
+                }
+                return 0;
+            }
+            if(state && LOWORD(wParam)==ID_LINK_MANAGER &&
+               HIWORD(wParam)==BN_CLICKED){
+                if(!state->creating){
+                    tcs::manager::ShowLinkManager(hwnd,GetText(state->destination),
+                                                  state->selected);
+                    UpdatePreview(*state);
+                }
+                return 0;
+            }
+            if(state && LOWORD(wParam)==ID_UNDO_LAST && HIWORD(wParam)==BN_CLICKED){
+                if(!state->creating&&!state->undoItems.empty()){
+                    if(MessageBoxW(hwnd,state->Choose(
+                        L"Undo links from the last batch only if they are unchanged?\nOriginal files and folders will not be removed.",
+                        L"Удалить ссылки последней операции, только если они не изменились?\nИсходные файлы и папки не будут затронуты.",
+                        L"לבטל רק קישורים שלא השתנו מהפעולה האחרונה?\nקבצי המקור לא יימחקו."),
+                        L"TC Symbolic Links - Undo Last Batch",
+                        MB_YESNO|MB_ICONQUESTION)==IDYES){
+                        const auto summary=tcs::manager::Undo(state->undoItems);
+                        state->undoItems.clear();
+                        EnableWindow(state->undoLast,FALSE);
+                        AppendLine(state->results,std::wstring(L"UNDO: ")+
+                            std::to_wstring(summary.deleted)+
+                            L" removed, "+std::to_wstring(summary.skipped)+
+                            L" skipped (modified/locked).");
+                        if(summary.firstError!=ERROR_SUCCESS)
+                            AppendLine(state->results,L"UNDO Win32: "+
+                                std::to_wstring(summary.firstError));
+                    }
+                }
+                return 0;
+            }
+            if(state && LOWORD(wParam)==ID_COMPACT && HIWORD(wParam)==BN_CLICKED){
+                state->compact=SendMessageW(state->compactToggle,
+                    BM_GETCHECK,0,0)==BST_CHECKED;
+                Layout(hwnd,*state);
+                return 0;
+            }
             if (state && LOWORD(wParam) == ID_UPDATE && HIWORD(wParam) == BN_CLICKED) {
                 if (!state->creating)
                     tcs::update::StartUpdateManager(nullptr, false, hwnd);
