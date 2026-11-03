@@ -894,7 +894,7 @@ void Layout(HWND hwnd, Ui& s) {
 void CreateControls(HWND hwnd, Ui& s) {
     const DWORD captionEx = s.he ? WS_EX_RTLREADING : 0;
     const DWORD alignCaption = s.he ? SS_RIGHT : SS_LEFT;
-    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.20",
+    s.title = AddControl(hwnd, L"STATIC", L"TC Symbolic Links v0.2.21",
         SS_ENDELLIPSIS | alignCaption, 0, captionEx);
     const std::wstring subtitle = std::to_wstring(s.selected.size()) + L" " + s.Choose(
         L"selected  |  Existing files are never overwritten",
@@ -1253,8 +1253,8 @@ void FinishCreate(HWND hwnd, Ui& state, bool cancelled) {
          state.Choose(L"Links created successfully.", L"Ссылки успешно созданы.", L"קישורים נוצרו בהצלחה.")));
     RefreshCreateSafety(state);
     SetWindowTextW(state.close, state.Choose(L"Esc  Close", L"Esc  Закрыть", L"Esc  סגור"));
-    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.20 - Create Links",
-        L"TC Symbolic Links v0.2.20 - создание ссылок", L"TC Symbolic Links v0.2.20 - יצירת קישורים"));
+    SetWindowTextW(hwnd, state.Choose(L"TC Symbolic Links v0.2.21 - Create Links",
+        L"TC Symbolic Links v0.2.21 - создание ссылок", L"TC Symbolic Links v0.2.21 - יצירת קישורים"));
     UpdateModeHelp(state);
 }
 
@@ -1390,7 +1390,7 @@ void ContinueCreate(HWND hwnd, Ui& state) {
         }
     }
     if (state.nextItem == total) { FinishCreate(hwnd, state, false); return; }
-    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.20 - ") +
+    SetWindowTextW(hwnd, (std::wstring(L"TC Symbolic Links v0.2.21 - ") +
         std::to_wstring(state.nextItem) + L" / " + std::to_wstring(total)).c_str());
     if (!PostMessageW(hwnd, WM_TCS_CREATE_NEXT, 0, 0)) FinishCreate(hwnd, state, true);
 }
@@ -1589,7 +1589,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 const HICON logo = reinterpret_cast<HICON>(
                     GetClassLongPtrW(hwnd, GCLP_HICON));
                 tcs::visual::Banner(dc, banner, state->dpi, logo,
-                    L"TC Symbolic Links v0.2.20", subtitle,
+                    L"TC Symbolic Links v0.2.21", subtitle,
                     state->he,layout.compact);
                 const std::wstring status = L"●  " + GetText(state->status);
                 RECT actionRect{};
@@ -1971,9 +1971,9 @@ int tcs::RunMakerFromArguments(HINSTANCE instance, std::wstring_view arguments, 
     const int centeredX = work.left + (work.right - work.left - winWidth) / 2;
     const int centeredY = work.top + (work.bottom - work.top - winHeight) / 2;
     HWND window = CreateWindowExW(0, kClassName,
-        state->he ? L"TC Symbolic Links v0.2.20 — יצירת קישורים" :
-        (state->ru ? L"TC Symbolic Links v0.2.20 — создание ссылок" :
-                     L"TC Symbolic Links v0.2.20 — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        state->he ? L"TC Symbolic Links v0.2.21 — יצירת קישורים" :
+        (state->ru ? L"TC Symbolic Links v0.2.21 — создание ссылок" :
+                     L"TC Symbolic Links v0.2.21 — Create Links"), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         centeredX, centeredY, winWidth, winHeight, nullptr, nullptr, pluginModule, state);
     if (!window) {
         // WM_NCDESTROY may already have freed state during failed creation.

@@ -176,7 +176,7 @@ bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
     const int x=work.left+(int(work.right-work.left)-w)/2;
     const int y=work.top+(int(work.bottom-work.top)-h)/2;
     s.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.20 - Smart Batch Preview",
+        L"TC Symbolic Links v0.2.21 - Smart Batch Preview",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         x,y,w,h,owner,nullptr,module,&s);
     if(!s.window)return false;
