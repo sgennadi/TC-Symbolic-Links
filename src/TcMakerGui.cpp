@@ -166,6 +166,7 @@ struct Ui {
     }
 };
 
+std::wstring GetText(HWND control);
 // Persist only user-controlled Maker preferences. Never touch TC or Samba.
 constexpr wchar_t kMakerSettings[]=L"Software\\TCSymbolicLinks\\Maker";
 std::wstring LoadNamePattern() {
@@ -1788,7 +1789,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             } else if (LOWORD(wParam) == ID_CLOSE &&
                        (HIWORD(wParam) == BN_CLICKED || lParam == 0)) {
                 if (state && state->creating) FinishCreate(hwnd, *state, true);
-                else DestroyWindow(hwnd);
+                else { if(state)SaveMakerPreferences(*state); DestroyWindow(hwnd); }
             }
             return 0;
         case WM_CLOSE:
@@ -1797,7 +1798,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             DestroyWindow(hwnd);
             return 0;
         case WM_NCDESTROY:
-            if(state)SaveMakerPreferences(*state);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             delete state;
             return 0;
