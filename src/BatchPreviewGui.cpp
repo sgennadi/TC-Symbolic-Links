@@ -148,6 +148,7 @@ bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
     const auto lang=GetUserDefaultUILanguage();
     s.ru=PRIMARYLANGID(lang)==LANG_RUSSIAN;
     s.he=PRIMARYLANGID(lang)==LANG_HEBREW;
+    s.dpi=owner?GetDpiForWindow(owner):GetDpiForSystem();
     HMODULE module=nullptr;
     if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -165,7 +166,7 @@ bool ConfirmPreview(HWND owner,const std::vector<Row>& rows,bool forCreation){
     const int h=(std::min)(560,int(work.bottom-work.top)-24);
     const int x=work.left+(int(work.right-work.left)-w)/2;
     const int y=work.top+(int(work.bottom-work.top)-h)/2;
-    s.window=CreateWindowExW(WS_EX_APPWINDOW,kClass,
+    s.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
         L"TC Symbolic Links v0.2.20 - Smart Batch Preview",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         x,y,w,h,owner,nullptr,module,&s);
