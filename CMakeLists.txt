@@ -136,7 +136,7 @@ if(WIN32)
     target_sources(SymlinkInspector PRIVATE src/SymlinkInspector.x86.def)
   endif()
   target_include_directories(SymlinkInspector PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 gdiplus dwmapi comctl32 shell32 ole32 uuid advapi32)
+  target_link_libraries(SymlinkInspector PRIVATE tc_link_core tc_list tc_integration user32 gdi32 gdiplus dwmapi comctl32 comdlg32 shell32 ole32 uuid advapi32)
   set_target_properties(SymlinkInspector PROPERTIES PREFIX "" SUFFIX "${TC_WDX_SUFFIX}")
 
   if(BUILD_TESTING)
@@ -149,7 +149,7 @@ if(WIN32)
     target_compile_definitions(windows_link_manager_gui_tests PRIVATE
       UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
     target_link_libraries(windows_link_manager_gui_tests PRIVATE
-      tc_link_core user32 gdi32 gdiplus comctl32 shell32 dwmapi advapi32)
+      tc_link_core user32 gdi32 gdiplus comctl32 comdlg32 shell32 dwmapi advapi32)
     add_test(NAME tc_link_manager_native_children
       COMMAND windows_link_manager_gui_tests)
     set_tests_properties(tc_link_manager_native_children PROPERTIES TIMEOUT 25)
