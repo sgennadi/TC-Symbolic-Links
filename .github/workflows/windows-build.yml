@@ -236,6 +236,47 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
         run: ctest --test-dir build-asan --output-on-failure
 
+  chain-audit-preview:
+    # Publish an installable TEST release only after every platform passes.
+    # The 0.2.24 stable ZIP and all user TC customizations remain untouched.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/0.2.25-chain-audit'
+    needs: [windows-vs2026, linux-wdx-unicode, linux-sanitizers]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: TC-Symbolic-Links-win32-win64-VS2026
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: TC-Symbolic-Links-Linux-WDX-x64
+          path: release
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v0.2.25-preview.${{ github.run_number }}
+          name: TC Symbolic Links 0.2.25 Preview ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          body: |
+            Test build from the stable 0.2.24 baseline. New native
+            Link Chain Inspector, CSV Audit export and Link Manager placement
+            memory. Does not overwrite any existing CSV during audit export.
+            Open TC-Symbolic-Links-win32-win64.zip in Total Commander and
+            confirm the built-in WDX installer. Back up TC settings first.
+            ZIP contains exactly one x86 WDX, one x64 WDX, pluginst.inf.
+            VS2026 x64/x86, loopback SMB, native GUI, Linux WDX and
+            sanitizers must pass before publication.
+            This remains Preview until tested on the user's Windows and SMB.
+          files: |
+            release/TC-Symbolic-Links-win32-win64.zip
+            release/TC-Symbolic-Links-win32-win64.zip.sha256
+            release/TC-Symbolic-Links-Linux-WDX-x64.zip
+            release/TC-Symbolic-Links-Linux-WDX-x64.zip.sha256
+
   prerelease:
     # Every SUCCESSFUL push on the preview development branch gets a real
     # numbered GitHub Release, not a short-lived Actions artifact.

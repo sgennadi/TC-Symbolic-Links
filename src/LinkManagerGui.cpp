@@ -2,14 +2,21 @@
 #include "LinkManagerGui.h"
 #include "LinkManagerCore.h"
 #include "LinkCore.h"
+#include "LinkAuditCsv.h"
 #include "TcUiGraphics.h"
 #include "TcUiPolish.h"
+#include "TcMakerWindowState.h"
 #include <windows.h>
 #include <commctrl.h>
+#include <commdlg.h>
 #include <shellapi.h>
 #include <dwmapi.h>
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <limits>
 #include <cstring>
+#include <cwchar>
 #include <string>
 #include <vector>
 
@@ -20,7 +27,7 @@ constexpr UINT WM_TCS_MANAGER_INITIAL_SCAN=WM_APP+0x560;
 enum {ID_ROOT=301,ID_FIND=302,ID_DEPTH=303,ID_TABLE=304,
       ID_STATUS=305,ID_NEW_TARGET=306,ID_OPEN=307,ID_COPY=308,
       ID_COPY_REL=309,ID_REPAIR=310,ID_CLOSE=311,ID_REFRESH=312,
-      ID_INFO=313,ID_EMPTY=314};
+      ID_INFO=313,ID_EMPTY=314,ID_CHAIN=315,ID_AUDIT=316};
 constexpr wchar_t kDepthSettings[]=L"Software\\TCSymbolicLinks\\LinkManager";
 constexpr wchar_t kDepthValue[]=L"ScanDepth";
 unsigned DepthFromIndex(int index) noexcept {
@@ -48,6 +55,7 @@ struct Ui {
     HWND status=nullptr,target=nullptr,info=nullptr;
     HWND find=nullptr,refresh=nullptr,open=nullptr,copy=nullptr;
     HWND copyRelative=nullptr,repair=nullptr,close=nullptr,empty=nullptr;
+    HWND chain=nullptr,audit=nullptr;
     HFONT font=nullptr;
     UINT dpi=96;
     bool running=true,ru=false,he=false,searched=false,compact=false;
@@ -83,7 +91,7 @@ int Selected(const Ui& u){
 void Details(Ui& u){
     const int index=Selected(u);
     const bool chosen=index>=0&&static_cast<std::size_t>(index)<u.items.size();
-    for(HWND button:{u.open,u.copy,u.copyRelative,u.repair})
+    for(HWND button:{u.open,u.copy,u.copyRelative,u.repair,u.chain})
         if(button)EnableWindow(button,chosen);
     if(!chosen){
         if(u.info)SetWindowTextW(u.info,u.L(
@@ -98,6 +106,10 @@ void Details(Ui& u){
         StatusLabel(e.health)+L"  |  "+e.path+L"  ->  "+
         (e.target.empty()?L"(no target)":e.target);
     if(u.info)SetWindowTextW(u.info,value.c_str());
+    if(u.chain)EnableWindow(u.chain,
+        e.kind==ReparseKind::SymbolicFile ||
+        e.kind==ReparseKind::SymbolicDirectory ||
+        e.kind==ReparseKind::Junction);
     if(u.repair)EnableWindow(u.repair,
         e.health==Health::Broken && !IsRemoteSmbPath(e.path) &&
         (e.kind==ReparseKind::SymbolicFile ||
@@ -105,6 +117,7 @@ void Details(Ui& u){
 }
 void Populate(Ui& u,const Scan& scan){
     u.items=scan.items;
+    if(u.audit)EnableWindow(u.audit,!u.items.empty());
     ListView_DeleteAllItems(u.table);
     for(std::size_t i=0;i<u.items.size();++i){
         const Entry& e=u.items[i];
@@ -176,10 +189,113 @@ bool Clipboard(HWND owner,const std::wstring& value){
     CloseClipboard();
     return true;
 }
+
+void InspectSelectedChain(Ui& u, const Entry& entry) {
+    const auto result = InspectChain(entry.path, 12);
+    std::wstring message = u.L(L"Starting link:",L"Начальная ссылка:",L"קישור התחלתי:");
+    message += L"\r\n" + entry.path;
+    for (std::size_t i = 0; i < result.hops.size(); ++i) {
+        const auto& hop = result.hops[i];
+        message += L"\r\n\r\n" + std::to_wstring(i + 1) +
+                   L". " + hop.path + L"\r\n    -> " + hop.resolvedTarget;
+        if (message.size() > 14000) {
+            message.resize(14000);
+            message += L"\r\n...";
+            break;
+        }
+    }
+    message += L"\r\n\r\n";
+    message += u.L(L"Result: ",L"Результат: ",L"תוצאה: ");
+    message += chain::StatusName(result.status);
+    if (!result.terminalPath.empty())
+        message += L"\r\n" + result.terminalPath;
+    if (result.error != ERROR_SUCCESS)
+        message += L"\r\nWin32: " + std::to_wstring(result.error) +
+            L" - " + WindowsErrorMessage(static_cast<DWORD>(result.error));
+    // Nothing is modified. Ctrl+C on a native MessageBox copies its details.
+    MessageBoxW(u.window,message.c_str(),
+        u.L(L"Link Chain Inspector",L"Цепочка ссылок",L"בדיקת שרשרת קישורים"),
+        MB_OK | (result.status == chain::Status::Resolved ?
+            MB_ICONINFORMATION : MB_ICONWARNING));
+}
+void ExportAudit(Ui& u) {
+    if (u.items.empty()) {
+        SetStatus(u,u.L(L"Find links before exporting.",L"Сначала найдите ссылки.",
+                         L"יש לחפש קישורים לפני הייצוא."));
+        return;
+    }
+    // Native Save As dialog, never silently overwrite a pre-existing file
+    // (including symlinks/reparse points), even after an unexpected race.
+    std::array<wchar_t, 32768> filename{};
+    wcscpy_s(filename.data(), filename.size(), L"TC-Symbolic-Links-Audit.csv");
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize=sizeof(dialog);
+    dialog.hwndOwner=u.window;
+    dialog.lpstrFile=filename.data();
+    dialog.nMaxFile=static_cast<DWORD>(filename.size());
+    dialog.lpstrFilter=L"CSV files (*.csv)\0*.csv\0All files (*.*)\0*.*\0";
+    dialog.nFilterIndex=1;
+    dialog.lpstrDefExt=L"csv";
+    dialog.Flags=OFN_EXPLORER|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR|
+                 OFN_HIDEREADONLY;
+    if (!GetSaveFileNameW(&dialog)) return;
+    std::vector<audit::Record> records;
+    records.reserve(u.items.size());
+    for (const auto& item : u.items) {
+        records.push_back({item.path,KindLabel(item),StatusLabel(item.health),
+            item.target,ResolvedTarget(item),item.relative,
+            item.hardlinks,item.error});
+    }
+    const std::wstring csv=audit::Build(records);
+    if (csv.size() > 8 * 1024 * 1024) {
+        SetStatus(u,L"Audit report too large (8 MiB UTF-16 limit).");
+        return;
+    }
+    const int inputSize=static_cast<int>(csv.size());
+    const int length=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,
+        csv.data(),inputSize,nullptr,0,nullptr,nullptr);
+    if (length <= 0) {
+        SetStatus(u,L"Cannot convert audit report to UTF-8.");
+        return;
+    }
+    std::string output("\xEF\xBB\xBF",3);
+    output.resize(static_cast<std::size_t>(length)+3);
+    if (!WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,
+        csv.data(),inputSize,output.data()+3,length,nullptr,nullptr)) {
+        SetStatus(u,L"Cannot encode audit report.");
+        return;
+    }
+    HANDLE file=CreateFileW(filename.data(),GENERIC_WRITE,0,nullptr,
+                            CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
+    if (file==INVALID_HANDLE_VALUE) {
+        const DWORD error=GetLastError();
+        MessageBoxW(u.window,(WindowsErrorMessage(error)+
+            L" ("+std::to_wstring(error)+
+            L")\r\nChoose a new CSV filename. Existing files are never overwritten.").c_str(),
+            L"TC Symbolic Links - Audit",MB_OK|MB_ICONWARNING);
+        return;
+    }
+    DWORD written=0;
+    const BOOL ok=WriteFile(file,output.data(),static_cast<DWORD>(output.size()),
+                            &written,nullptr);
+    const DWORD error=ok?ERROR_SUCCESS:GetLastError();
+    CloseHandle(file);
+    if (!ok || written!=output.size()) {
+        // This file was created exclusively by us (CREATE_NEW).
+        DeleteFileW(filename.data());
+        SetStatus(u,L"Cannot write audit report (Win32 "+
+            std::to_wstring(ok?ERROR_WRITE_FAULT:error)+L").");
+        return;
+    }
+    SetStatus(u,std::wstring(u.L(L"Audit CSV exported: ",L"CSV-отчёт сохранён: ",
+                     L"דוח CSV נשמר: "))+filename.data());
+}
+
 void Act(Ui& u,int id){
     const int index=Selected(u);
     if(index<0||static_cast<std::size_t>(index)>=u.items.size())return;
     const Entry e=u.items[static_cast<std::size_t>(index)];
+    if(id==ID_CHAIN){InspectSelectedChain(u,e);return;}
     if(id==ID_REFRESH){
         Entry next=InspectOne(e.path);
         u.items[static_cast<std::size_t>(index)]=next;
@@ -247,7 +363,7 @@ void Layout(Ui& u){
         line+Dp(u,110));
     pos(u.find,w-m-right,searchY,right,line);
     const int tableY=searchY+line+g;
-    const int tableBottom=h-m-button-Dp(u,u.compact?96:119);
+    const int tableBottom=h-m-button-Dp(u,u.compact?138:161);
     const int tableHeight=(std::max)(Dp(u,92),tableBottom-tableY);
     pos(u.table,m,tableY,w-2*m,tableHeight);
     const int contentsTop=tableY+Dp(u,27);
@@ -263,6 +379,10 @@ void Layout(Ui& u){
     pos(u.status,m+Dp(u,12),tableBottom+Dp(u,74),
         w-2*m-Dp(u,24),Dp(u,23));
     const int by=h-m-button;
+    const int extraY=by-Dp(u,47);
+    const int half=(w-2*m-g)/2;
+    pos(u.chain,m,extraY,half,Dp(u,36));
+    pos(u.audit,m+half+g,extraY,w-2*m-half-g,Dp(u,36));
     const int space=w-2*m-4*g;
     const int step=(std::max)(Dp(u,60),space/5);
     HWND controls[5]={u.open,u.copy,u.copyRelative,u.repair,u.close};
@@ -295,7 +415,7 @@ void PaintManager(Ui& u) {
         u.L(L"LINK MANAGER  /  Find, inspect and repair",
             L"МЕНЕДЖЕР ССЫЛОК  /  Поиск и проверка",
             L"מנהל קישורים  /  חיפוש ובדיקה"),
-        L"v0.2.24");
+        L"v0.2.25");
     RECT pos{};GetWindowRect(u.info,&pos);
     MapWindowPoints(nullptr,u.window,reinterpret_cast<POINT*>(&pos),2);
     const float top=static_cast<float>(pos.top-Dp(u,5));
@@ -321,7 +441,7 @@ void ApplyFont(Ui& u){
         CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
     if(!next)return;
     for(HWND control:{u.root,u.depth,u.find,u.table,u.info,u.target,u.status,
-        u.open,u.copy,u.copyRelative,u.repair,u.close})
+        u.open,u.copy,u.copyRelative,u.repair,u.close,u.chain,u.audit})
         if(control)SendMessageW(control,WM_SETFONT,
             reinterpret_cast<WPARAM>(next),TRUE);
     if(u.font)DeleteObject(u.font);
@@ -379,6 +499,11 @@ void Build(Ui& u){
         L"תקן"),WS_TABSTOP|BS_OWNERDRAW,ID_REPAIR);
     u.close=Ctrl(u.window,L"BUTTON",u.L(L"Close",L"Закрыть",
         L"סגור"),WS_TABSTOP|BS_OWNERDRAW,ID_CLOSE);
+    u.chain=Ctrl(u.window,L"BUTTON",u.L(L"Inspect Chain",L"Проверить цепочку",
+        L"בדיקת שרשרת"),WS_TABSTOP|BS_OWNERDRAW,ID_CHAIN);
+    u.audit=Ctrl(u.window,L"BUTTON",u.L(L"Export CSV Audit",L"Экспорт CSV-отчёта",
+        L"ייצוא דוח CSV"),WS_TABSTOP|BS_OWNERDRAW,ID_AUDIT);
+    EnableWindow(u.audit,FALSE);
     ApplyFont(u);
     SetStatus(u,u.L(
         L"Choose a folder and Find links. Existing folders are scanned automatically.",
@@ -419,10 +544,13 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
                     item.CtlID==ID_COPY||item.CtlID==ID_COPY_REL?
                         tcs::ui::Glyph::Copy:
                     item.CtlID==ID_REPAIR?tcs::ui::Glyph::Repair:
+                    item.CtlID==ID_CHAIN?tcs::ui::Glyph::Link:
+                    item.CtlID==ID_AUDIT?tcs::ui::Glyph::Download:
                     tcs::ui::Glyph::Close;
                 if(item.CtlID==ID_FIND||item.CtlID==ID_OPEN||
                    item.CtlID==ID_COPY||item.CtlID==ID_COPY_REL||
-                   item.CtlID==ID_REPAIR||item.CtlID==ID_CLOSE){
+                   item.CtlID==ID_REPAIR||item.CtlID==ID_CLOSE||
+                   item.CtlID==ID_CHAIN||item.CtlID==ID_AUDIT){
                     tcs::ui::PaintButton(item,u->dpi,primary,glyph,danger);
                     return TRUE;
                 }
@@ -488,12 +616,18 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             if(u&&HIWORD(wp)==BN_CLICKED){
             switch(LOWORD(wp)){
                 case ID_FIND:ScanFolder(*u);return 0;
+                case ID_AUDIT:ExportAudit(*u);return 0;
                 case ID_OPEN:case ID_COPY:case ID_COPY_REL:
-                case ID_REPAIR:case ID_REFRESH:Act(*u,LOWORD(wp));return 0;
-                case ID_CLOSE:DestroyWindow(hwnd);return 0;
+                case ID_REPAIR:case ID_REFRESH:case ID_CHAIN:
+                    Act(*u,LOWORD(wp));return 0;
+                case ID_CLOSE:
+                    tcs::maker::window::SaveWindow(hwnd,u->dpi,kDepthSettings);
+                    DestroyWindow(hwnd);return 0;
             }
         }break;
-        case WM_CLOSE:DestroyWindow(hwnd);return 0;
+        case WM_CLOSE:
+            if(u)tcs::maker::window::SaveWindow(hwnd,u->dpi,kDepthSettings);
+            DestroyWindow(hwnd);return 0;
         case WM_DESTROY:if(u)u->running=false;return 0;
     }
     return DefWindowProcW(hwnd,msg,wp,lp);
@@ -537,7 +671,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     const int left=work.left+(int(work.right-work.left)-width)/2;
     const int top=work.top+(int(work.bottom-work.top)-height)/2;
     u.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.24 - Link Manager",
+        L"TC Symbolic Links v0.2.25 - Link Manager",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         left,top,width,height,owner,nullptr,self,&u);
     if(!u.window)return;
@@ -545,9 +679,9 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     // caption explicitly AFTER CreateWindowExW: the screenshot and GUI CI
     // showed an apparently empty title even when native children existed.
     const wchar_t* caption=u.he?
-        L"TC Symbolic Links v0.2.24 - מנהל קישורים":
-        (u.ru?L"TC Symbolic Links v0.2.24 - Менеджер ссылок":
-              L"TC Symbolic Links v0.2.24 - Link Manager");
+        L"TC Symbolic Links v0.2.25 - מנהל קישורים":
+        (u.ru?L"TC Symbolic Links v0.2.25 - Менеджер ссылок":
+              L"TC Symbolic Links v0.2.25 - Link Manager");
     SetWindowTextW(u.window,caption);
     const COLORREF captionColor=RGB(11,46,90);
     const COLORREF captionText=RGB(255,255,255);
@@ -558,6 +692,10 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     if(wc.hIconSm)SendMessageW(u.window,WM_SETICON,ICON_SMALL,
                               reinterpret_cast<LPARAM>(wc.hIconSm));
     u.dpi=GetDpiForWindow(u.window);
+    tcs::maker::window::SavedPlacement oldPlacement{};
+    bool reopenMaximized=false;
+    if(tcs::maker::window::Load(oldPlacement,kDepthSettings))
+        tcs::maker::window::Restore(u.window,oldPlacement,&reopenMaximized);
     Layout(u);
     SetWindowTextW(u.root,initialFolder.c_str());
     for(const auto& path:selected){
@@ -568,7 +706,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
         const Scan seed{u.items,0,false,ERROR_SUCCESS};
         Populate(u,seed);
     }
-    ShowWindow(u.window,SW_SHOW);
+    ShowWindow(u.window,reopenMaximized?SW_SHOWMAXIMIZED:SW_SHOW);
     UpdateWindow(u.window);
     // Display the native controls before starting a bounded disk/SMB scan.
     // A slow enumeration must not produce an all-white modal frame.

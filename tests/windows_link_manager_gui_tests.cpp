@@ -29,6 +29,18 @@ int main() {
         const HWND find=GetDlgItem(wnd,302);
         const HWND open=GetDlgItem(wnd,307);
         const HWND depth=GetDlgItem(wnd,303);
+        const HWND chain=GetDlgItem(wnd,315);
+        const HWND audit=GetDlgItem(wnd,316);
+        RECT chainRect{},auditRect{},closeRect{};
+        if(chain)GetWindowRect(chain,&chainRect);
+        if(audit)GetWindowRect(audit,&auditRect);
+        if(close)GetWindowRect(close,&closeRect);
+        const bool advancedButtons=chain&&audit&&IsWindowVisible(chain)&&
+            IsWindowVisible(audit)&&!IsWindowEnabled(chain)&&
+            !IsWindowEnabled(audit)&&chainRect.right<=auditRect.left&&
+            chainRect.bottom<=closeRect.top&&
+            (GetWindowLongPtrW(chain,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW&&
+            (GetWindowLongPtrW(audit,GWL_STYLE)&BS_TYPEMASK)==BS_OWNERDRAW;
         bool depthChoicesVisible=false,depthCanChange=false,depthStored=false;
         int dropdownHeight=0,itemHeight=0,depthOptions=0;
         if(depth){
@@ -94,7 +106,7 @@ int main() {
         if(table)GetWindowRect(table,&area);
         const bool rootVisible=root&&IsWindowVisible(root);
         const bool tableVisible=table&&IsWindowVisible(table);
-        const bool titleValid=std::wcsstr(title,L"v0.2.24")!=nullptr;
+        const bool titleValid=std::wcsstr(title,L"v0.2.25")!=nullptr;
         std::wcerr<<L"GUI_TITLE_TEXT='"<<title<<L"'\n";
         const int textLength=status?GetWindowTextLengthW(status):-1;
         std::cerr<<"GUI_DIAGNOSTIC window="<<(wnd?1:0)
@@ -109,6 +121,7 @@ int main() {
                  <<" title_version="<<titleValid
                  <<" ownerdraw_buttons="<<buttonsStyled
                  <<" empty_state="<<emptyVisible
+                 <<" chain_audit_controls="<<advancedButtons
                  <<" depth_options="<<depthOptions
                  <<" dropdown_height="<<dropdownHeight
                  <<" item_height="<<itemHeight
@@ -117,7 +130,7 @@ int main() {
                  <<" depth_saved="<<depthStored
                  <<" status_text_length="<<textLength<<"\\n";
         ok=root&&table&&status&&close && rootVisible&&tableVisible &&
-           emptyVisible&&buttonsStyled&&depthChoicesVisible&&
+           emptyVisible&&buttonsStyled&&advancedButtons&&depthChoicesVisible&&
            depthCanChange&&depthStored &&
            area.right-area.left>200 && area.bottom-area.top>90 &&
            titleValid && textLength>0;

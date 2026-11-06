@@ -1,3 +1,12 @@
+## 0.2.25 Preview — Link Chain Inspector, CSV Audit, Link Manager placement (2026-11-06)
+
+- Add **Inspect Chain** to the native Link Manager (no additional process). Read-only, capped at 12 hops per request (16 absolute maximum), detects loops, broken links, access denied, non-reparse final targets, and unsupported tags; handles NTFS junction NT path prefixes and relative paths.
+- Add **Export CSV Audit**, driven by the currently displayed bounded scan. Native Save As, UTF-8 BOM for Hebrew/Russian/Excel, RFC-compatible quoting, formula-injection escaping, and atomic **CREATE_NEW** to refuse overwriting any existing CSV or symbolic link. No automatic telemetry or network upload.
+- Remember Link Manager size, position, maximized state and restore safely within available screens on DPI/monitor changes, without modifying Total Commander's configuration.
+- Add owner-drawn vector-icon buttons to the Link Manager with a separate actions row that fits compact DPI layouts; disable actions until applicable.
+- Extend portable unit tests for cycles, hop limit, Unicode, Windows errors and CSV escaping; extend real Windows NTFS chain and GUI tests, running under VS2026 x64/x86 and Linux/sanitizers.
+- Keep one logical WDX installation with `SymlinkInspector.wdx`, `SymlinkInspector.wdx64` and `pluginst.inf` in the single Windows ZIP; no EXE, SSH or Samba changes. Preview requires acceptance on real Windows/SMB deployments before Stable.
+
 ## 0.2.24 Link Finder scan-depth dropdown fix (2026-11-03)
 
 - Correct native Win32 ComboBox popup geometry: previously it was given only one row of height, so '3 levels' looked selectable but opened no visible choices.
