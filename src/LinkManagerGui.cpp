@@ -283,11 +283,12 @@ void ExportAudit(Ui& u) {
     if (!ok || written!=output.size()) {
         // This file was created exclusively by us (CREATE_NEW).
         DeleteFileW(filename.data());
-        SetStatus(u,L"Cannot write audit report (Win32 "+std::to_wstring(error)+L").");
+        SetStatus(u,L"Cannot write audit report (Win32 "+
+            std::to_wstring(ok?ERROR_WRITE_FAULT:error)+L").");
         return;
     }
-    SetStatus(u,u.L(L"Audit CSV exported: ",L"CSV-отчёт сохранён: ",
-                     L"דוח CSV נשמר: ")+filename.data());
+    SetStatus(u,std::wstring(u.L(L"Audit CSV exported: ",L"CSV-отчёт сохранён: ",
+                     L"דוח CSV נשמר: "))+filename.data());
 }
 
 void Act(Ui& u,int id){
