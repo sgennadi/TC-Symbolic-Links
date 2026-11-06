@@ -71,6 +71,16 @@ int main(){
                   "symlink type not reported");
             Check(inspected.health==tcs::manager::Health::Valid,
                   "working symlink must have Valid health");
+            const auto secondHop=temp.root/L"second-hop.txt";
+            Check(tcs::CreateLink(alias.wstring(),secondHop.wstring(),
+                tcs::LinkKind::FileSymbolic,false)==ERROR_SUCCESS,
+                "cannot create two-hop test link");
+            const auto chain=tcs::manager::InspectChain(secondHop.wstring());
+            Check(chain.status==tcs::chain::Status::Resolved &&
+                chain.hops.size()==2 && chain.terminalPath==source.wstring(),
+                "native two-hop symlink chain resolution failed");
+            Check(DeleteFileW(secondHop.c_str())!=FALSE,
+                "cannot clean up second-hop symlink");
             Check(tcs::manager::Undo({symlinkId}).deleted==1,
                   "link undo must remove only the link name");
             Check(fs::exists(source)&&!fs::exists(alias),
@@ -84,6 +94,9 @@ int main(){
                   "broken symlink lost reparse kind");
             Check(inspected.health==tcs::manager::Health::Broken,
                   "broken link must not be called valid");
+            const auto brokenChain=tcs::manager::InspectChain(alias.wstring());
+            Check(brokenChain.status==tcs::chain::Status::Broken,
+                "native broken-chain path must report missing target");
             const auto replacement=temp.root/L"replacement.txt";
             Write(replacement);
             const auto repaired=tcs::manager::RepairBroken(alias.wstring(),
