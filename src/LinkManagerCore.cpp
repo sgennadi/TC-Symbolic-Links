@@ -263,4 +263,50 @@ RepairResult RepairBroken(const std::wstring& path,const std::wstring& newTarget
     result.explanation=L"Repaired symlink verified; original target was not modified.";
     return result;
 }
+
+chain::Result InspectChain(const std::wstring& path, unsigned maxHops) {
+    // Do not probe remote server capabilities or change SMB policy: read-only.
+    // InspectLink opens the REPARSE_POINT itself, not its final target.
+    auto observe = [](const std::wstring& item) -> chain::Observation {
+        chain::Observation node;
+        const auto details = InspectLink(item);
+        node.error = details.error;
+        node.target = details.target;
+        node.relative = details.relative;
+        switch (details.kind) {
+            case ReparseKind::SymbolicFile:
+                node.kind = chain::Kind::FileSymlink;
+                break;
+            case ReparseKind::SymbolicDirectory:
+                node.kind = chain::Kind::DirectorySymlink;
+                break;
+            case ReparseKind::Junction:
+                node.kind = chain::Kind::Junction;
+                break;
+            case ReparseKind::Other:
+                node.kind = chain::Kind::Unsupported;
+                break;
+            default:
+                node.kind = chain::Kind::Regular;
+                break;
+        }
+        return node;
+    };
+    auto resolve = [](const std::wstring& linkPath, const chain::Observation& node) {
+        std::wstring target = node.target;
+        // Junctions usually contain native NT paths such as \\??\\C:\\Folder.
+        // Convert the print/substitute forms before normal Win32 normalization.
+        if (target.starts_with(L"\\??\\UNC\\"))
+            target = L"\\\\" + target.substr(8);
+        else if (target.starts_with(L"\\\\?\\UNC\\"))
+            target = L"\\\\" + target.substr(8);
+        else if (target.starts_with(L"\\??\\"))
+            target.erase(0, 4);
+        else if (target.starts_with(L"\\\\?\\"))
+            target.erase(0, 4);
+        return FullPath(node.relative ? Join(ParentPath(linkPath), target) : target);
+    };
+    return chain::Walk(FullPath(path), observe, resolve, maxHops);
+}
+
 } // namespace tcs::manager
