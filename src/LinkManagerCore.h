@@ -1,5 +1,6 @@
 #pragma once
 #include "LinkCore.h"
+#include "LinkChainWalk.h"
 #include <windows.h>
 #include <cstddef>
 #include <string>
@@ -38,6 +39,8 @@ struct RepairResult {
     std::wstring explanation, retainedBackup;
 };
 Entry InspectOne(const std::wstring& path);
+// Read-only symbolic-link chain inspection (bounded to 16 hops maximum).
+chain::Result InspectChain(const std::wstring& path, unsigned maxHops=12);
 Scan FindLinks(const std::wstring& root, unsigned maxDepth=6,
                std::size_t maxVisited=5000, std::size_t maxLinks=2000);
 bool Capture(const std::wstring& path, Identity& out);
