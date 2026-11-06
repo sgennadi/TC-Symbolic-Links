@@ -1,4 +1,24 @@
-# TC Symbolic Links 0.2.24 Stable — Link Finder Depth Fix
+# TC Symbolic Links 0.2.25 Preview — Chain Inspector & Audit CSV
+
+**Based on the stable 0.2.24.** The native Link Manager now offers **Inspect Chain**
+and **Export CSV Audit**. Inspect Chain follows up to 12 symbolic-link / junction
+hops without changing the filesystem, detects loops, missing targets, permission
+errors and unsupported reparse types, and explains the result. The selected
+entry must be a symlink or junction; hardlinks are still shown in Link Health.
+
+**Export CSV Audit** exports exactly the currently listed Link Manager results:
+path, type, health, target, resolved target, relative flag, hardlink count and
+Win32 error. Uses native Save As; UTF-8 BOM for Windows/Excel, CSV quoting and
+formula-injection protection. **No files are overwritten** — choose a new
+filename if the selected CSV already exists. The data is not uploaded or
+sent to any server. Scanning and inspection are read-only.
+
+The Link Manager also remembers its window size and position per user; its
+search depth is still selectable (1/3/6) and saved separately. The existing
+single ZIP contains one WDX architecture pair and pluginst.inf. No separate
+EXE, SSH access, or Samba changes. See CHANGELOG.md for tests and limitations.
+
+## Previous stable baseline: 0.2.24 — Link Finder Depth Fix
 
 **0.2.21 display hotfix:** Link Manager no longer opens as a blank window. Compact mode changes the actual layout height. Window captions and the native navy banner show the correct version. All v0.2.20 link-management operations remain in the same WDX; no changes to Samba or SSH are required.
 
