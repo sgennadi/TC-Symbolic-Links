@@ -5,6 +5,7 @@
 #include "LinkAuditCsv.h"
 #include "TcUiGraphics.h"
 #include "TcUiPolish.h"
+#include "TcMakerWindowState.h"
 #include <windows.h>
 #include <commctrl.h>
 #include <commdlg.h>
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <limits>
 #include <cstring>
+#include <cwchar>
 #include <string>
 #include <vector>
 
@@ -617,10 +619,14 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
                 case ID_OPEN:case ID_COPY:case ID_COPY_REL:
                 case ID_REPAIR:case ID_REFRESH:case ID_CHAIN:
                     Act(*u,LOWORD(wp));return 0;
-                case ID_CLOSE:DestroyWindow(hwnd);return 0;
+                case ID_CLOSE:
+                    tcs::maker::window::SaveWindow(hwnd,u->dpi,kDepthSettings);
+                    DestroyWindow(hwnd);return 0;
             }
         }break;
-        case WM_CLOSE:DestroyWindow(hwnd);return 0;
+        case WM_CLOSE:
+            if(u)tcs::maker::window::SaveWindow(hwnd,u->dpi,kDepthSettings);
+            DestroyWindow(hwnd);return 0;
         case WM_DESTROY:if(u)u->running=false;return 0;
     }
     return DefWindowProcW(hwnd,msg,wp,lp);
@@ -685,6 +691,10 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     if(wc.hIconSm)SendMessageW(u.window,WM_SETICON,ICON_SMALL,
                               reinterpret_cast<LPARAM>(wc.hIconSm));
     u.dpi=GetDpiForWindow(u.window);
+    tcs::maker::window::SavedPlacement oldPlacement{};
+    bool reopenMaximized=false;
+    if(tcs::maker::window::Load(oldPlacement,kDepthSettings))
+        tcs::maker::window::Restore(u.window,oldPlacement,&reopenMaximized);
     Layout(u);
     SetWindowTextW(u.root,initialFolder.c_str());
     for(const auto& path:selected){
@@ -695,7 +705,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
         const Scan seed{u.items,0,false,ERROR_SUCCESS};
         Populate(u,seed);
     }
-    ShowWindow(u.window,SW_SHOW);
+    ShowWindow(u.window,reopenMaximized?SW_SHOWMAXIMIZED:SW_SHOW);
     UpdateWindow(u.window);
     // Display the native controls before starting a bounded disk/SMB scan.
     // A slow enumeration must not produce an all-white modal frame.
