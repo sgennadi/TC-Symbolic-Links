@@ -415,7 +415,7 @@ void PaintManager(Ui& u) {
         u.L(L"LINK MANAGER  /  Find, inspect and repair",
             L"МЕНЕДЖЕР ССЫЛОК  /  Поиск и проверка",
             L"מנהל קישורים  /  חיפוש ובדיקה"),
-        L"v0.2.24");
+        L"v0.2.25");
     RECT pos{};GetWindowRect(u.info,&pos);
     MapWindowPoints(nullptr,u.window,reinterpret_cast<POINT*>(&pos),2);
     const float top=static_cast<float>(pos.top-Dp(u,5));
@@ -671,7 +671,7 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     const int left=work.left+(int(work.right-work.left)-width)/2;
     const int top=work.top+(int(work.bottom-work.top)-height)/2;
     u.window=CreateWindowExW(WS_EX_DLGMODALFRAME,kClass,
-        L"TC Symbolic Links v0.2.24 - Link Manager",
+        L"TC Symbolic Links v0.2.25 - Link Manager",
         WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
         left,top,width,height,owner,nullptr,self,&u);
     if(!u.window)return;
@@ -679,9 +679,9 @@ void ShowLinkManager(HWND owner,const std::wstring& initialFolder,
     // caption explicitly AFTER CreateWindowExW: the screenshot and GUI CI
     // showed an apparently empty title even when native children existed.
     const wchar_t* caption=u.he?
-        L"TC Symbolic Links v0.2.24 - מנהל קישורים":
-        (u.ru?L"TC Symbolic Links v0.2.24 - Менеджер ссылок":
-              L"TC Symbolic Links v0.2.24 - Link Manager");
+        L"TC Symbolic Links v0.2.25 - מנהל קישורים":
+        (u.ru?L"TC Symbolic Links v0.2.25 - Менеджер ссылок":
+              L"TC Symbolic Links v0.2.25 - Link Manager");
     SetWindowTextW(u.window,caption);
     const COLORREF captionColor=RGB(11,46,90);
     const COLORREF captionText=RGB(255,255,255);
