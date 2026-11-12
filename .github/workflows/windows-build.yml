@@ -25,7 +25,7 @@ jobs:
             throw "CMake 4.2+ is required by the VS 2026 generator. Found: $versionText"
           }
           Write-Host $versionText
-          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.24-stable') { 'ON' } else { 'OFF' }
+          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.25-stable') { 'ON' } else { 'OFF' }
           cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }} "-DTC_STABLE_RELEASE=$stable"
           if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
           cmake --build build --config Release --parallel
@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.24-stable') { 'ON' } else { 'OFF' }
+          $stable = if ($env:GITHUB_REF -eq 'refs/heads/release/0.2.25-stable') { 'ON' } else { 'OFF' }
           cmake -S . -B build-win32 -G "Visual Studio 18 2026" -A Win32 -T v145 -DTC_PREVIEW_ITERATION=${{ github.run_number }} "-DTC_STABLE_RELEASE=$stable"
           if ($LASTEXITCODE -ne 0) { throw 'VS2026 Win32 configure failed' }
           cmake --build build-win32 --config Release --parallel
@@ -331,9 +331,9 @@ jobs:
             release/TC-Symbolic-Links-Linux-WDX-x64.zip.sha256
 
   stable-release:
-    # Build a REAL stable binary: the WDX reports 0.2.24 and checks Stable
-    # updates by default, not a Preview build relabeled as stable.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release/0.2.24-stable'
+    # Publish a genuine 0.2.25 stable build, not a renamed preview.
+    # Both Windows architectures are compiled with TC_STABLE_RELEASE=ON.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/0.2.25-stable'
     needs: [windows-vs2026, linux-wdx-unicode, linux-sanitizers]
     runs-on: ubuntu-24.04
     permissions:
@@ -349,53 +349,38 @@ jobs:
           path: release
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.2.24
-          name: TC Symbolic Links 0.2.24 Stable
+          tag_name: v0.2.25
+          name: TC Symbolic Links 0.2.25 Stable
           target_commitish: ${{ github.sha }}
           prerelease: false
           make_latest: true
           generate_release_notes: true
           body: |
-            Official stable release of TC Symbolic Links 0.2.24.
-            One native standard Total Commander ZIP for Windows x86 and x64.
-            Open TC-Symbolic-Links-win32-win64.zip directly in Total
-            Commander and accept its built-in plugin installer.
-            Contains exactly SymlinkInspector.wdx, SymlinkInspector.wdx64,
-            and pluginst.inf. No separate installer EXE, CMD or PS1.
-            
-            Single universal Create Links button; opt-in safe upgrade of
-            the existing button adds the %Z archive-aware TC macro,
-            preserving unrelated buttons and custom commands.
-            Directory targets inside WIM/WCX archives are detected and
-            refused for native Windows filesystem symlinks, rather than
-            creating a dangerous link next to the original source.
-            Existing filesystem links are never overwritten.
-            
-            The WinHTTP Update Manager now offers Download & Install with
-            a native progress bar, verified ZIP, unique backups and rollback.
-            ZIP, CRC, SHA-256 and x86/x64 PE checks run before replacement.
-            A trusted WDX installer waits for all Total Commander and maker
-            windows to close; UAC is requested for protected plugin folders.
-            No helper EXE, CMD or PowerShell script is used for update checks
-            or installation. The only legacy PowerShell use is an optional
-            duplicate-WDX-registration repair.
-            For repeatability, Download & Reinstall also works on the current
-            official release when no newer version is available.
-            The Update Manager is a single centered, WDX-branded window with
-            DPI-scaled vector icons on the action buttons.
-            Window title bars, the Maker banner and the taskbar display the
-            embedded WDX icon, not rundll32.exe generic Windows artwork.
-            Native hover tooltips explain Relative target, link types,
-            destination folder, link preview and update actions in English,
-            Russian and Hebrew, with same-volume and WIM/WCX safety details.
-            Version 0.2.16 must first be upgraded using this standard ZIP,
-            because that version had no native Install action.
-            
-            Windows Visual Studio 2026 x86/x64, WDX, Hebrew paths, isolated
-            SMB, user toolbar preservation, Linux WDX and sanitizer tests
-            must all pass before this Release is published.
-            Manual acceptance is still recommended for personalized
-            Total Commander profiles and third-party SMB shares.
+            TC Symbolic Links 0.2.25 Stable — official Windows x86/x64 WDX.
+            Stable channel, compiled separately from Preview.282.
+
+            What's new:
+            1. Inspect Chain: read-only chain inspection with bounded hops,
+               detection of broken targets, loops and access errors.
+            2. Export CSV Audit: the current Link Manager results with safe
+               CSV escaping and UTF-8 BOM; existing files are not overwritten.
+            3. Link Manager remembers its window size and position.
+            4. Preserves the 1 / 3 / 6 levels Link Finder selector and the
+               prior WDX columns, link actions and button customizations.
+
+            Install by opening TC-Symbolic-Links-win32-win64.zip inside
+            Total Commander and accepting its native plugin installer.
+            The single Windows ZIP contains exactly THREE root files:
+              SymlinkInspector.wdx (32-bit)
+              SymlinkInspector.wdx64 (64-bit)
+              pluginst.inf (ONE WDX registration)
+            No CMD, EXE, PS1, SSH access or Samba changes.
+
+            Release is gated on VS2026 Windows x86 and x64 tests, isolated
+            SMB smoke, ZIP/PE/registration verification, Linux Unicode and
+            sanitizer tests. Real interactive Total Commander GUI behavior,
+            custom TC profiles and external SMB servers still warrant
+            workstation acceptance.
           files: |
             release/TC-Symbolic-Links-win32-win64.zip
             release/TC-Symbolic-Links-win32-win64.zip.sha256
