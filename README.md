@@ -1,6 +1,6 @@
-# TC Symbolic Links 0.2.25 Preview — Chain Inspector & Audit CSV
+# TC Symbolic Links 0.2.25 Stable — Chain Inspector & Audit CSV
 
-**Based on the stable 0.2.24.** The native Link Manager now offers **Inspect Chain**
+**Stable version based on 0.2.24, with the features validated in 0.2.25 Preview.282.** The native Link Manager now offers **Inspect Chain**
 and **Export CSV Audit**. Inspect Chain follows up to 12 symbolic-link / junction
 hops without changing the filesystem, detects loops, missing targets, permission
 errors and unsupported reparse types, and explains the result. The selected
@@ -13,9 +13,8 @@ formula-injection protection. **No files are overwritten** — choose a new
 filename if the selected CSV already exists. The data is not uploaded or
 sent to any server. Scanning and inspection are read-only.
 
-The Link Manager also remembers its window size and position per user; its
-search depth is still selectable (1/3/6) and saved separately. The existing
-single ZIP contains one WDX architecture pair and pluginst.inf. No separate
+The native release reports **0.2.25 Stable** in its update channel and presents stable updates by default. The Link Manager also remembers its window size and position per user; its
+search depth is still selectable (1/3/6) and saved separately. The standard Windows ZIP contains exactly three files: `SymlinkInspector.wdx`, `SymlinkInspector.wdx64`, and `pluginst.inf`. No separate
 EXE, SSH access, or Samba changes. See CHANGELOG.md for tests and limitations.
 
 ## Previous stable baseline: 0.2.24 — Link Finder Depth Fix
